@@ -1,24 +1,24 @@
+import glob
 import time
 import pymysql
 import numpy
 import sys
 import os
 import math
-import dogger.metadata
+import loggingmetadata
 
 #FILE_PATH = "../../data/files/"
 #FILE_PATH = "C:/Z/THISBUSINESS/Energilab/PROJECTS/logging/data/files/"
-
-config = dogger.metadata.Configure()
+from logging.metadata import Config
+config = Config()
 FILE_PATH = config.getDataFilePath()
-
 
 while True:
 
     time.sleep(0.5)
 
-    for channel_index in {21,23,20,24,22}:
-
+    for channel_index in {500}:
+        
         files = []
         
         with os.scandir(FILE_PATH) as it:
@@ -27,14 +27,8 @@ while True:
                     files.append(entry.name)
 
         insert_failure = False
-        
-        #pattern = FILE_PATH + repr(channel_index) + "_*"
-        #files = glob.glob(pattern)
-        print('channel_index', channel_index, 'len(files)', len(files))
 
-        #print("channel_index ", channel_index)
-        #print("print(files) ", files)
-        #print("print(len(files)) ", len(files))
+        print('channel_index', channel_index, 'len(files)', len(files))
 
         if len(files) > 0 :
 
@@ -68,7 +62,6 @@ while True:
                             #print(acquired_value)
                         except (OSError, ValueError) as e:
                             print(e)
-                        
                         acquired_base64 = b''
 
                         with conn.cursor() as cursor :

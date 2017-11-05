@@ -1,3 +1,4 @@
+import glob
 import time
 import pymysql
 import numpy
@@ -12,13 +13,12 @@ import dogger.metadata
 config = dogger.metadata.Configure()
 FILE_PATH = config.getDataFilePath()
 
-
 while True:
 
     time.sleep(0.5)
 
-    for channel_index in {21,23,20,24,22}:
-
+    for channel_index in range(97, 113):
+        
         files = []
         
         with os.scandir(FILE_PATH) as it:
@@ -27,14 +27,8 @@ while True:
                     files.append(entry.name)
 
         insert_failure = False
-        
-        #pattern = FILE_PATH + repr(channel_index) + "_*"
-        #files = glob.glob(pattern)
-        print('channel_index', channel_index, 'len(files)', len(files))
 
-        #print("channel_index ", channel_index)
-        #print("print(files) ", files)
-        #print("print(len(files)) ", len(files))
+        print('channel_index', channel_index, 'len(files)', len(files))
 
         if len(files) > 0 :
 
@@ -68,7 +62,6 @@ while True:
                             #print(acquired_value)
                         except (OSError, ValueError) as e:
                             print(e)
-                        
                         acquired_base64 = b''
 
                         with conn.cursor() as cursor :
