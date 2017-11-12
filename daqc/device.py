@@ -13,9 +13,9 @@ class Device:
         yDownsamp = yReshape.mean(axis=1)
         return yDownsamp
 
-    def __init__(self, sampleRate = 1, samplesPerChan = 1, subSamplesPerChan = 1, minValue = 0, maxValue = 10, IPNumber = "", moduleSlotNumber = 1, moduleChanRange = [0], uniqueChanIndexRange = [0]):
+    def __init__(self, sample_rate = 1, samplesPerChan = 1, subSamplesPerChan = 1, minValue = 0, maxValue = 10, IPNumber = "", moduleSlotNumber = 1, moduleChanRange = [0], uniqueChanIndexRange = [0]):
 
-        self.sampleRate = sampleRate
+        self.sample_rate = sample_rate
         self.samplesPerChan = samplesPerChan
         self.subSamplesPerChan = subSamplesPerChan
         self.minValue = minValue
@@ -68,13 +68,13 @@ class Nidaq(Device):
     moduleChanNamesBufferSize = uInt32(2000)
 
 
-    def __init__(self, sampleRate = 1, samplesPerChan = 1, subSamplesPerChan = 1, minValue = 0, maxValue = 10, IPNumber = "", moduleSlotNumber = 1, moduleChanRange = [0], uniqueChanIndexRange = [0]):
+    def __init__(self, sample_rate = 1, samplesPerChan = 1, subSamplesPerChan = 1, minValue = 0, maxValue = 10, IPNumber = "", moduleSlotNumber = 1, moduleChanRange = [0], uniqueChanIndexRange = [0]):
 
-        Device.__init__(self, sampleRate, samplesPerChan, subSamplesPerChan, minValue, maxValue, IPNumber, moduleSlotNumber, moduleChanRange, uniqueChanIndexRange)
+        Device.__init__(self, sample_rate, samplesPerChan, subSamplesPerChan, minValue, maxValue, IPNumber, moduleSlotNumber, moduleChanRange, uniqueChanIndexRange)
 
         self.nidaq = ctypes.windll.nicaiu
 
-        self.sampleRateC = Nidaq.float64(self.sampleRate)
+        self.sample_rateC = Nidaq.float64(self.sample_rate)
         self.samplesPerChanC = Nidaq.uInt64(self.samplesPerChan)
         self.minValueC = Nidaq.float64(self.minValue)
         self.maxValueC = Nidaq.float64(self.maxValue)
@@ -155,7 +155,7 @@ class NidaqVoltageIn(Nidaq):
         moduleChanNamesSelected = ctypes.create_string_buffer(str.encode((",".join((self.moduleChanNamesArray[self.moduleChanRange]).tolist()))))
         print(repr(moduleChanNamesSelected.value))
         self.CHK( self.nidaq.DAQmxCreateAIVoltageChan(self.taskHandleC, moduleChanNamesSelected, "", Nidaq.DAQmx_Val_RSE, self.minValueC, self.maxValueC, NidaqVoltageIn.DAQmx_Val_Volts, None) )
-        self.CHK( self.nidaq.DAQmxCfgSampClkTiming(self.taskHandleC, self.clockSourceC, self.sampleRateC, Nidaq.DAQmx_Val_Rising, Nidaq.DAQmx_Val_ContSamps, self.samplesPerChanC) )
+        self.CHK( self.nidaq.DAQmxCfgSampClkTiming(self.taskHandleC, self.clockSourceC, self.sample_rateC, Nidaq.DAQmx_Val_Rising, Nidaq.DAQmx_Val_ContSamps, self.samplesPerChanC) )
 
     def InitAcquire(self):
         self.SetupDevice()
@@ -184,7 +184,7 @@ class NidaqVoltageIn(Nidaq):
                 print(e)
 
             acqFinishTime = numpy.float64(time.time())
-            prevAcqFinishTime = acqFinishTime - numpy.float64(self.samplesPerChan) / numpy.float64(self.sampleRate)
+            prevAcqFinishTime = acqFinishTime - numpy.float64(self.samplesPerChan) / numpy.float64(self.sample_rate)
             prevAcqFinishSecs = numpy.int64(prevAcqFinishTime)
             prevAcqFinishMicrosecs = numpy.int64(prevAcqFinishTime * 1e6)
             acqFinishMicrosecs = numpy.int64(acqFinishTime * 1e6)
