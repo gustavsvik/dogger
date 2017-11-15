@@ -5,14 +5,14 @@ import scipy.interpolate
 import glob
 import os
 import math
-import loggingmetadata
+from dogger.metadata import Configure
 
 nidaq = ctypes.windll.nicaiu # load the DLL
 
 #FILE_PATH = "../../data/files/"
 #FILE_PATH = "C:/Z/THISBUSINESS/Energilab/PROJECTS/logging/data/files/"
-from logging.metadata import Config
-config = Config()
+
+config = Configure()
 FILE_PATH = config.getDataFilePath()
 
 

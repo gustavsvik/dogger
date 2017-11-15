@@ -1,12 +1,12 @@
 import pymysql
 import numpy
 import time
-import loggingmetadata
+import dogger.metadata
 
 #FILE_PATH = "../../data/files/"
 #FILE_PATH = "C:/Z/THISBUSINESS/Energilab/PROJECTS/logging/data/files/"
-from logging.metadata import Config
-config = Config()
+
+config = dogger.metadata.Configure()
 FILE_PATH = config.getDataFilePath()
 
 

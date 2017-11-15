@@ -2,14 +2,14 @@ import ctypes
 import numpy
 import time
 import scipy.interpolate
-from dogger.metadata import Config
+from dogger.metadata import Configure
 
 nidaq = ctypes.windll.nicaiu # load the DLL
 
 #FILE_PATH = "../../data/files/"
 #FILE_PATH = "C:/Z/THISBUSINESS/Energilab/PROJECTS/logging/data/files/"
 
-config = Config()
+config = Configure()
 FILE_PATH = config.getDataFilePath()
 
 
