@@ -30,13 +30,14 @@ while True:
             acquired_times_string = ""
 
             sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE FROM T_ACQUIRED_DATA AD WHERE AD.CHANNEL_INDEX=" + repr(channel_index) + " AND AD.STATUS=-1"
-            print("sql_get_values",sql_get_values)
             with conn.cursor() as cursor :
                 try:
                     cursor.execute(sql_get_values)
                 except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
                     print(e)
                 results = cursor.fetchall()
+                print("Results:", len(results))
+
                 for row in results:
                     acquired_time = row[0]
                     acquired_value = row[1]
@@ -44,10 +45,11 @@ while True:
                     acquired_times_string += repr(acquired_time) + ","
                     filename = repr(channel_index) + "_" + repr(acquired_time)
                     numpy.save(FILE_PATH+filename, float(acquired_value))
+                    print("To file", FILE_PATH+filename, float(acquired_value))
+
                     
             if len(results)>0:
                 sql = "UPDATE T_ACQUIRED_DATA SET STATUS=0 WHERE STATUS=-1 AND CHANNEL_INDEX=" + repr(channel_index) + " AND ACQUIRED_TIME IN (" + acquired_times_string[0:len(acquired_times_string)-1] + ")"
-                print("print(sql) ", sql)
                 with conn.cursor() as cursor :
                     try:
                         cursor.execute(sql)

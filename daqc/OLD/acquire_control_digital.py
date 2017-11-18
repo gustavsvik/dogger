@@ -2,7 +2,7 @@ import ctypes
 import numpy
 import time
 import scipy.interpolate
-import glob
+import sys
 import os
 import math
 from dogger.metadata import Configure
@@ -190,9 +190,13 @@ def LoopAcquire():
 
         for channel_index in {39}:
             
-            pattern = FILE_PATH + repr(channel_index) + "_*"
-            files = sorted(glob.glob(pattern));
-        
+            files = []
+            
+            with os.scandir(FILE_PATH) as it:
+                for entry in it:
+                    if entry.name.startswith(repr(channel_index) + '_') and entry.is_file():
+                        files.append(entry.name)
+            print("len(files)", len(files))
             if len(files) > 0 :
                         
                 for current_file in files:
@@ -205,7 +209,7 @@ def LoopAcquire():
 
                         acquired_value = -9999.0
                         try:
-                            acquired_values = numpy.load(current_file)
+                            acquired_values = numpy.load(FILE_PATH + current_file)
                             print("acquired_values",acquired_values)
                             acquired_value = acquired_values
                         except OSError as e:
@@ -216,7 +220,7 @@ def LoopAcquire():
                             if acquired_value<0.1: SwitchOff()
 
                         try:
-                            os.remove(current_file)
+                            os.remove(FILE_PATH + current_file)
                         except (PermissionError, FileNotFoundError) as e:
                             print(e)
 
