@@ -131,8 +131,9 @@ while True:
         end = 0
         if data_string is not None:
             end = len(data_string)
-        
+
         while channel_start < end:
+
             channel_end = data_string.find(";", channel_start, end)
             channel_string = data_string[channel_start:channel_end]
             channel = int(channel_string)
@@ -142,6 +143,7 @@ while True:
             points_end = data_string.find(";", points_start, end_position)
 
             timestamp_start = points_start
+            requested_timestamps = []
 
             sql_timestamps = " ("
             
@@ -149,6 +151,8 @@ while True:
                 timestamp_end = data_string.find(",", timestamp_start, points_end)
                 timestamp_string = data_string[timestamp_start:timestamp_end]
                 timestamp = int(timestamp_string)
+                requested_timestamps.append(timestamp)
+
                 timestamp_start = timestamp_end+1
                 #print(channel, timestamp)
                 sql_timestamps += timestamp_string
@@ -171,9 +175,15 @@ while True:
                     acquired_subsamples = row[2]
                     acquired_base64 = row[3]
                     print('Channel: ', channel, ', Value: ', acquired_value, ', Timestamp: ', acquired_time, ', Sub-samples: ', acquired_subsamples, ', base64: ', acquired_base64)
+                    if acquired_time in requested_timestamps:
+                        requested_timestamps.remove(acquired_time)
                     return_string += str(acquired_time) + "," + str(acquired_value) + "," + str(acquired_subsamples) + "," + str(acquired_base64) + ","
             return_string += ";"
-            
+
+            if len(requested_timestamps) > 0:
+                if min(requested_timestamps) < int(time.time()) - 3600:
+                    r_clear = clear_data_requests(str(channel) + ';;')
+
             channel_start = timestamp_end + 2
 
     except (pymysql.err.OperationalError, pymysql.err.Error) as e:
@@ -187,7 +197,7 @@ while True:
         except pymysql.err.Error as e:
             print(e)
 
-        print("return_string",return_string)
+        print("return_string", return_string)
         
         r_post = set_requested(return_string)
 
