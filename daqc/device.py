@@ -102,7 +102,7 @@ class Nidaq(Device):
         if err < 0:
             buf_size = 1000
             buf = ctypes.create_string_buffer(b"\000" * buf_size)
-            nidaq.DAQmxGetErrorString(err, ctypes.byref(buf), buf_size)
+            self.nidaq.DAQmxGetErrorString(err, ctypes.byref(buf), buf_size)
             print('nidaq call failed with error %d: %s'%(err, repr(buf.value)))
 
 

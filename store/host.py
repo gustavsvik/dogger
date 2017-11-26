@@ -5,7 +5,7 @@ import pymysql
 import numpy
 import os
 import math
-import dogger.metadata
+import metadata
 
 
 class Host:
@@ -67,7 +67,7 @@ class DataFile(Sql):
 
         Sql.__init__(self, channels = None, scale_functions = None)
 
-        config = dogger.metadata.Configure()
+        config = metadata.Configure()
         self.dataFilepath = config.getDataFilePath()
 
 
@@ -170,6 +170,38 @@ class DataFile(Sql):
         return insert_result
 
 
+    def run(self):
+
+        while True:
+
+            time.sleep(0.5)
+
+            for channel_index in self.channels:
+
+                insert_failure = False
+
+                files = self.get_filenames(channel = channel_index)        
+                print('channel_index', channel_index, 'len(files)', len(files))
+
+                if len(files) > 2 :
+                        
+                    self.connect_db()
+                        
+                    for current_file in files:
+                            
+                        if len(files) > 2:
+                                
+                            self.retrieve_file_data(current_file)
+
+                            store_result = self.store_file_data()
+                            if store_result <= -1: insert_failure = True
+
+                        if not insert_failure:
+                            self.commit_transaction()
+
+                    self.close_db_connection()
+
+
 
 class Numpy(DataFile):
 
@@ -178,8 +210,9 @@ class Numpy(DataFile):
 
         DataFile.__init__(self, channels = None, scale_functions = None)
 
+        self.channels = channels
+
 
     def load_file(self, current_file = None):
 
         return numpy.load(self.dataFilepath + current_file)
-
