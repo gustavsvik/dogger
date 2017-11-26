@@ -3037,11 +3037,10 @@ CREATE TABLE IF NOT EXISTS `t_acquired_data` (
   `UNIQUE_INDEX` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `CHANNEL_INDEX` smallint(5) unsigned NOT NULL,
   `ACQUIRED_TIME` int(11) unsigned NOT NULL,
-  `ACQUIRED_VALUE` double DEFAULT NULL,
   `STATUS` tinyint(4) DEFAULT NULL,
-  `SUBSAMPLES_EXIST` tinyint(4) unsigned DEFAULT NULL,
+  `ACQUIRED_VALUE` double DEFAULT NULL,
   `ACQUIRED_MICROSECS` mediumint(8) unsigned DEFAULT NULL COMMENT 'Vad skulle den nu vara bra till? Att klistra ihop subsampelsektioner?',
-  `ACQUIRED_SUBSAMPLES` mediumtext COMMENT 'Flyttas till T_SUBSAMPLE_DATA?',
+  `ACQUIRED_SUBSAMPLES` mediumtext CHARACTER SET ascii COLLATE ascii_bin,
   `ACQUIRED_BASE64` mediumblob COMMENT 'Flyttas till T_SUBSAMPLE_DATA?',
   PRIMARY KEY (`UNIQUE_INDEX`),
   KEY `ACQUIRED_TIME_CHANNEL_INDEX_IDX` (`ACQUIRED_TIME`,`CHANNEL_INDEX`),
@@ -3053,16 +3052,26 @@ CREATE TABLE IF NOT EXISTS `t_acquired_data` (
 
 -- Dumping structure for table test.t_channels
 CREATE TABLE IF NOT EXISTS `t_channels` (
-  `UNIQUE_INDEX` smallint(5) unsigned DEFAULT NULL,
-  `CHASSIS_INDEX` tinyint(3) unsigned DEFAULT NULL,
-  `CHASSIS_ID` varchar(50) DEFAULT NULL,
-  `CHASSIS_IP` varchar(50) DEFAULT NULL,
-  `CHASSIS_MAC` varchar(50) DEFAULT NULL,
-  `SLOT_INDEX` tinyint(3) unsigned DEFAULT NULL,
-  `SLOT_ID` varchar(50) DEFAULT NULL,
+  `UNIQUE_INDEX` smallint(5) unsigned NOT NULL,
   `MODULE_INDEX` tinyint(3) unsigned DEFAULT NULL,
-  `MODULE_ID` varchar(50) DEFAULT NULL
+  `CHANNEL_FUNCTION` varchar(200) DEFAULT NULL,
+  `CHANNEL_LOOKUP` varchar(200) DEFAULT NULL,
+  `CHANNEL_DESCRIPTION` varchar(200) DEFAULT NULL,
+  PRIMARY KEY (`UNIQUE_INDEX`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- Data exporting was unselected.
+
+
+-- Dumping structure for table test.t_devices
+CREATE TABLE IF NOT EXISTS `t_devices` (
+  `UNIQUE_INDEX` smallint(5) unsigned NOT NULL,
+  `DEVICE_TEXT_ID` varchar(50) DEFAULT NULL,
+  `DEVICE_HARDWARE_ID` varchar(50) DEFAULT NULL,
+  `DEVICE_IP_ADDRESS` varchar(50) DEFAULT NULL,
+  `DEVICE_DESCRIPTION` varchar(200) DEFAULT NULL,
+  PRIMARY KEY (`UNIQUE_INDEX`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
 
 -- Data exporting was unselected.
 
@@ -3070,23 +3079,33 @@ CREATE TABLE IF NOT EXISTS `t_channels` (
 -- Dumping structure for table test.t_downsample_data
 CREATE TABLE IF NOT EXISTS `t_downsample_data` (
   `CHANNEL_INDEX` smallint(5) unsigned DEFAULT NULL,
-  `BIN_START_TIME` int(11) unsigned DEFAULT NULL,
-  `BIN_SIZE` mediumint(8) unsigned DEFAULT NULL,
+  `DOWNSAMPLE_BIN_START_TIME` int(11) unsigned DEFAULT NULL,
+  `DOWNSAMPLE_BIN_SIZE` mediumint(8) unsigned DEFAULT NULL,
   `DOWNSAMPLE_VALUE` double DEFAULT NULL,
   `DOWNSAMPLE_TEXT` mediumtext,
   `DOWNSAMPLE_BINARY` mediumblob,
-  UNIQUE KEY `T_DOWNSAMPLED_DATA_IDX` (`CHANNEL_INDEX`,`BIN_START_TIME`,`BIN_SIZE`)
+  UNIQUE KEY `T_DOWNSAMPLED_DATA_IDX` (`CHANNEL_INDEX`,`DOWNSAMPLE_BIN_START_TIME`,`DOWNSAMPLE_BIN_SIZE`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 -- Data exporting was unselected.
 
 
--- Dumping structure for table test.t_subsample_data
-CREATE TABLE IF NOT EXISTS `t_subsample_data` (
-  `ACQUIRED_DATA_UNIQUE_INDEX` int(11) unsigned NOT NULL,
-  `SUBSAMPLE_TEXT` mediumtext,
-  `SUBSAMPLE_BINARY` mediumblob
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- Dumping structure for table test.t_modules
+CREATE TABLE IF NOT EXISTS `t_modules` (
+  `UNIQUE_INDEX` smallint(5) unsigned DEFAULT NULL,
+  `MODULE_TEXT_ID` varchar(50) DEFAULT NULL,
+  `MODULE_DESCRIPTION` varchar(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
+
+-- Data exporting was unselected.
+
+
+-- Dumping structure for table test.t_slots
+CREATE TABLE IF NOT EXISTS `t_slots` (
+  `UNIQUE_INDEX` smallint(5) unsigned DEFAULT NULL,
+  `SLOT_TEXT_ID` varchar(50) DEFAULT NULL,
+  `SLOT_DESCRIPTION` varchar(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
 
 -- Data exporting was unselected.
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
