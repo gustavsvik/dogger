@@ -60,7 +60,7 @@ class Sql(Host):
 
 
 
-class DataFile(Sql):
+class File(Sql):
 
 
     def __init__(self, channels = None, scale_functions = None):
@@ -99,6 +99,15 @@ class DataFile(Sql):
         channel = int(channel_string)
 
         return channel
+
+
+
+class DataFile(File):
+
+
+    def __init__(self, channels = None, scale_functions = None):
+
+        File.__init__(self, channels = None, scale_functions = None)
 
 
     def retrieve_file_data(self, current_file = None):
@@ -200,6 +209,12 @@ class DataFile(Sql):
                             self.commit_transaction()
 
                     self.close_db_connection()
+
+
+
+class ImageFile(File):
+
+    pass
 
 
 

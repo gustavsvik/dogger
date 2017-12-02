@@ -130,12 +130,12 @@ class Nidaq(Device):
     def StartTask(self):
         self.CHK( self.nidaq.DAQmxStartTask(self.taskHandleC) )
 
-    def StopAndClearTasks():
+    def StopAndClearTasks(self):
         if self.taskHandleC.value != 0:
             CHK( self.nidaq.DAQmxStopTask(self.taskHandleC) )
             CHK( self.nidaq.DAQmxClearTask(self.taskHandleC) )
             
-    def DisconnectNetworkDevice():
+    def DisconnectNetworkDevice(self):
         CHK( nidaq.DAQmxDeleteNetworkDevice(self.deviceNameC) )
 
 
