@@ -218,7 +218,7 @@ class ImageFile(File):
 
 
 
-class Numpy(DataFile):
+class NumpyFile(DataFile):
 
 
     def __init__(self, channels = None, scale_functions = None):
