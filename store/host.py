@@ -68,7 +68,7 @@ class File(Sql):
         Sql.__init__(self, channels = None, scale_functions = None)
 
         config = metadata.Configure()
-        self.dataFilepath = config.getDataFilePath()
+        self.dataFilepath = config.get_data_filepath()
 
 
     def get_filenames(self, channel = None):

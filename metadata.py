@@ -8,9 +8,9 @@ class Configure(Local):
     DATA_FILEPATH = "../../../data/files/"
     CONFIG_FILENAME = "loggingconfig.ini"
 
-    def __init__(self, configFilename = None):
-        self.configFilename = configFilename
+    def __init__(self, config_filename = None):
+        self.config_filename = config_filename
 
-    def getDataFilePath(self):
-        self.dataFilePath = Configure.DATA_FILEPATH
-        return self.dataFilePath
+    def get_data_filepath(self):
+        self.data_filepath = Configure.DATA_FILEPATH
+        return self.data_filepath

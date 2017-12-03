@@ -27,7 +27,7 @@ class Device:
 
 
         config = metadata.Configure()
-        self.dataFilepath = config.getDataFilePath()
+        self.dataFilepath = config.get_data_filepath()
 
 
 
