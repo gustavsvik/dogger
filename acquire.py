@@ -4,36 +4,214 @@ import ctypes
 import numpy
 import time
 import metadata
+import task
 
 
 
-class Task:
-    pass
+class Channel:
+
+
+    def __init__(self, channel_unique_index = 0, channel_text_id = '', channel_description = '', offset = 0, module_index = 0, device_index = 0, host_index = 0):
+
+        self.unique_index = channel_unique_index # unique key (member, required)
+        self.text_id = channel_text_id           # text label (member, optional)
+        self.description = channel_description   # description (member, optional)
+        self.offset = offset                     # offset (parent, optional) Kan denna inte bara vara positionen i arrayen?
+        self.module_index = module_index         # module (parent, optional) Behövs den? (array av kanaler istället)
+        self.device_index = device_index         # device (parent, optional) Behövs den? (array av kanaler istället)
+        self.host_index = host_index             # host (parent, optional) Behövs den? (array av kanaler istället)
+
+
+
+class AnalogChannel(Channel):
+
+
+    def __init__(self, channel_unique_index = 0, channel_min_value = 0.0, channel_max_value = 1.0, channel_text_id = '', channel_description = '', channel_function = '', channel_lookup = '', offset = 0, module_index = 0, device_index = 0, host_index = 0):
+
+        Channel.__init__(self, channel_unique_index, channel_text_id, channel_description, offset, module_index, device_index, host_index):
+
+        self.min_value = channel_min_value       # minimum value (member, required)
+        self.max_value = channel_max_value       # maximum value (member, required)
+        self.function = channel_function         # data transform function (member, optional)
+        self.lookup = channel_lookup             # data transform lookup table (member, optional)
+
+
+
+class Module:
+
+
+    def __init__(self, module_unique_index = 0, module_text_id = '', module_description = '', device_index = 0, device_slot = 0, module_channels = None):
+
+        self.unique_index = module_unique_index # unique key (member, required)
+        self.text_id = module_text_id           # text label (member, optional)
+        self.description = module_description   # description (member, optional)
+        self.device_index = device_index        # device (parent, required)
+        self.device_slot = device_slot          # slot (parent, required)
+        self.channels = module_channels         # channel list (child, optional)
 
 
 
 class Device:
 
+
+    def __init__(self, device_unique_index = 0, device_port = None, device_modules = None, device_channels = None):
+
+        self.unique_index = device_unique_index
+        self.port = device_port
+        self.modules = device_modules
+        self.channels = device_channels
+
+
+
+class Host:
+
+
+    def __init__(
+        self,
+        host_unique_index,
+        host_persistent_data_path = '',
+        host_channels = None):
+
+        self.unique_index = host_unique_index
+        self.persistent_data_path = host_persistent_data_path
+        self.channels = host_channels
+
+
+
+class Task:
+
+
+    def __init__(
+        self,
+        task_host = None,
+        task_device = None,
+        task_sample_rate = 0.0,
+        task_samples_per_chan = 1,
+        task_subsamples_per_chan = 1):
+
+        self.host = task_host
+        self.device = task_device
+        self.sample_rate = task_sample_rate
+        self.samples_per_chan = samples_per_chan
+        self.subsamples_per_chan = subsamples_per_chan
+
+
     def downsample(y, size):
+
         y_reshape = y.reshape(size, int(len(y)/size))
         y_downsamp = y_reshape.mean(axis=1)
         return y_downsamp
 
-    def __init__(self, sample_rate = 1, samples_per_chan = 1, subsamples_per_chan = 1, min_value = 0, max_value = 10, ip_number = "", module_slot_number = 1, module_chans = [0], unique_chans = [0]):
-
-        self.sample_rate = sample_rate
-        self.samples_per_chan = samples_per_chan
-        self.subsamples_per_chan = subsamples_per_chan
-        self.min_value = min_value
-        self.max_value = max_value
-        self.ip_number = ip_number
-        self.module_slot_number = module_slot_number
-        self.module_chans = numpy.array(module_chans)
-        self.unique_chans = numpy.array(unique_chans)
 
 
-        config = metadata.Configure()
-        self.data_filepath = config.get_data_filepath()
+
+
+
+
+
+
+
+
+
+
+class CdaqDevice(Device)
+
+
+    def setup_tasks()
+        pass
+
+    def __init__(self, device_ip_number = '', device_modules = None):
+
+        Device.__init__(self,  device_ip_number = '', device_modules = None)
+
+        device_modules[0].setup_tasks()
+
+
+
+class NidaqChannel(Channel):
+
+    uint8 = ctypes.c_ubyte
+    int32 = ctypes.c_long
+    uint32 = ctypes.c_ulong
+    uint64 = ctypes.c_ulonglong
+    float64 = ctypes.c_double
+    bool32 = ctypes.c_bool
+    task_handle = uint32
+    points_read = uint32()
+    null = ctypes.POINTER(ctypes.c_int)()
+    value = uint32()
+
+
+    def __init__(self, sample_rate = 1, samples_per_chan = 1, subsamples_per_chan = 1, min_value = 0, max_value = 10, module_chan_index = 0, unique_chan_index = 0):
+
+        Channel.__init__(self, sample_rate, samples_per_chan, subsamples_per_chan, min_value, max_value, module_chan_index, unique_chan_index)
+
+        self.nidaq = ctypes.windll.nicaiu
+
+        self.sample_rate_c = NidaqChannel.float64(self.sample_rate)
+        self.samples_per_chan_c = NidaqChannel.uint64(self.samples_per_chan)
+        self.min_value_c = NidaqChannel.float64(self.min_value)
+        self.max_value_c = NidaqChannel.float64(self.max_value)
+
+
+
+
+
+class RpiChannel(Channel):
+
+    pass
+
+
+
+
+
+
+
+
+
+
+
+
+class NidaqDevice(Device):
+
+
+    def CHK(self, err):
+        self.global_error_code = err
+        if err < 0:
+            buf_size = 1000
+            buf = ctypes.create_string_buffer(b"\000" * buf_size)
+            self.nidaq.DAQmxGetErrorString(err, ctypes.byref(buf), buf_size)
+            print('nidaq call failed with error %d: %s'%(err, repr(buf.value)))
+
+
+    def SetupDevice(self):
+        self.CHK( self.nidaq.DAQmxAddNetworkDevice(self.ip_number_c, "", Nidaq.attempt_reservation, self.timeout_c, self.deviceName_c, Nidaq.device_name_buffer_size) )
+        print( "deviceName: ", (self.deviceName_c.value).decode() )
+        self.CHK( self.nidaq.DAQmxReserveNetworkDevice(self.deviceName_c, Nidaq.override_reservation) )
+
+    def SetupChassis(self):
+
+        deviceModuleNamesString = (self.deviceModuleNames_c.value).decode()
+        deviceModuleNamesList = (deviceModuleNamesString.replace(" ", "")).split(",")
+        self.deviceModuleNamesArray = numpy.array(deviceModuleNamesList)
+        print( "deviceModuleNamesArray:", repr(self.deviceModuleNamesArray) )
+
+    def DisconnectNetworkDevice(self):
+        CHK( nidaq.DAQmxDeleteNetworkDevice(self.deviceName_c) )
+
+def GetDevChassisModuleDevNames:
+        self.CHK( self.nidaq.DAQmxGetDevChassisModuleDevNames(self.deviceName_c, self.deviceModuleNames_c, Nidaq.device_module_names_buffer_size) )
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -140,7 +318,7 @@ class Nidaq(Device):
         if self.task_handle_c.value != 0:
             CHK( self.nidaq.DAQmxStopTask(self.task_handle_c) )
             CHK( self.nidaq.DAQmxClearTask(self.task_handle_c) )
-            
+
     def DisconnectNetworkDevice(self):
         CHK( nidaq.DAQmxDeleteNetworkDevice(self.deviceName_c) )
 
@@ -175,7 +353,7 @@ class NidaqVoltageIn(Nidaq):
     def ReadSamples(self):
         self.points_to_read_c = self.buffer_size_c
         data = numpy.zeros((32*(self.buffer_size_c).value,),dtype=numpy.float64)
-        if self.global_error_code >= 0: 
+        if self.global_error_code >= 0:
             self.CHK( self.nidaq.DAQmxReadAnalogF64(self.task_handle_c, self.points_to_read_c, self.timeout_c, Nidaq.DAQmx_Val_GroupByChannel, data.ctypes.data, Nidaq.uint32(32*(self.buffer_size_c).value), ctypes.byref(self.points_read_c), None) )
         return data
 
@@ -183,7 +361,7 @@ class NidaqVoltageIn(Nidaq):
     def LoopAcquire(self):
 
         while (self.global_error_code >= 0):
-        
+
             readData = None
             try:
                 readData = self.ReadSamples()
@@ -211,14 +389,40 @@ class NidaqVoltageIn(Nidaq):
                     print(e)
 
 
+
 class NidaqCurrentIn(Nidaq):
+
 
     DAQmx_Val_Amps = Nidaq.int32(10342)
 
 
+
 class NidaqTemperatureIn(Nidaq):
+
 
     DAQmx_Val_Pt3851 = Nidaq.int32(10071)
     DAQmx_Val_DegC = Nidaq.int32(10143)
     DAQmx_Val_4Wire = Nidaq.int32(4)
 
+
+
+
+
+
+class NidaqTask(Task):
+
+
+    def SetupTask(self):
+        self.CHK( self.nidaq.DAQmxCreateTask("", ctypes.byref(self.task_handle_c)) )
+
+
+    def ReserveTask(self):
+        self.CHK( self.nidaq.DAQmxTaskControl(self.task_handle_c, Nidaq.DAQmx_Val_Task_Reserve))
+
+    def StartTask(self):
+        self.CHK( self.nidaq.DAQmxStartTask(self.task_handle_c) )
+
+    def StopAndClearTasks(self):
+        if self.task_handle_c.value != 0:
+            CHK( self.nidaq.DAQmxStopTask(self.task_handle_c) )
+            CHK( self.nidaq.DAQmxClearTask(self.task_handle_c) )
