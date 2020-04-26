@@ -44,5 +44,5 @@ try:
     handler = logging.handlers.RotatingFileHandler(log_file, mode='w', backupCount=5)
     if should_roll_over:  # log already exists, roll over!
         handler.doRollover()
-except PermissionError as e:
+except (PermissionError, OSError) as e:
     print(e)
