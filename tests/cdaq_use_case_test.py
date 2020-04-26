@@ -1,4 +1,3 @@
-
 cdaq_device = CdaqDevice(...)
 cdaq_task = CdaqTask(...)
 
