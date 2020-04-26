@@ -4,6 +4,8 @@ import ctypes
 import numpy
 import time
 import scipy.interpolate
+import os
+
 from metadata import Configure
 
 nidaq = ctypes.windll.nicaiu # load the DLL
@@ -13,7 +15,12 @@ nidaq = ctypes.windll.nicaiu # load the DLL
 
 config = Configure()
 env = config.get()
-FILE_PATH = env['WINDOWS_STORE_PATH']
+FILE_PATH = ''
+
+if env['STORE_PATH'] is not None and os.path.exists(env['STORE_PATH']):
+    FILE_PATH = env['STORE_PATH']
+elif env['WINDOWS_STORE_PATH'] is not None and os.path.exists(env['WINDOWS_STORE_PATH']):
+    FILE_PATH = env['WINDOWS_STORE_PATH']
 
 
 ##############################
