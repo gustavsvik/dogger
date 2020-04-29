@@ -12,14 +12,6 @@ import metadata
 
 
 
-class Host:
-
-
-    def __init__(self):
-        pass
-
-
-
 class Http:
     
 
@@ -36,10 +28,12 @@ class Http:
         self.CHANNEL_RANGE_STRING = ''
         for ch in channels: 
             self.CHANNEL_RANGE_STRING +=  str(ch) + ';;'
-
+        
         self.connect_attempts = 0
-          
+        
+        self.clear_channels()
 
+          
     def get_requested(self, channels, ip):
 
         self.connect_attempts += 1
@@ -141,29 +135,21 @@ class Http:
                     if data_string is not None:
                         end = len(data_string)
 
-                    while channel_start < end:
+                    channel_list = []
+                    timestamp_list = []
+                    if data_string is not None:
+                        channel_timestamps = [channel_string.split(",") for channel_string in data_string.split(";")]
+                        channel_list = channel_timestamps[0::2][:-1]
+                        timestamp_list = channel_timestamps[1::2]
+                        
+                    for channel_index in range(len(channel_list)):
+                        print(channel_list[channel_index][0])
+                        print(timestamp_list[channel_index][:-1])
 
-                        channel_end = data_string.find(";", channel_start, end)
-                        channel_string = data_string[channel_start:channel_end]
-                        channel = int(channel_string)
-
-                        points_start = channel_end+1
-                        end_position = len(data_string)
-                        points_end = data_string.find(";", points_start, end_position)
-                        timestamp_start = points_start
-                        requested_timestamps = []
-
-                        if timestamp_start < points_end - 1:
-                            while timestamp_start < points_end - 1:
-                                timestamp_end = data_string.find(",", timestamp_start, points_end)
-                                timestamp_string = data_string[timestamp_start:timestamp_end]
-                                timestamp = int(timestamp_string)
-                                requested_timestamps.append(timestamp)
-                                timestamp_start = timestamp_end + 1
-                        else :
-                            timestamp_end = timestamp_start - 1
-
-                        channel_start = timestamp_end + 2
+                        requested_timestamps = [int(timestamp_string) for timestamp_string in timestamp_list[channel_index][:-1]] 
+                        print(requested_timestamps)
+                        channel_string = channel_list[channel_index][0]
+                        print(channel_string)
 
                         if not requested_timestamps :
                             pass
@@ -176,6 +162,7 @@ class Http:
 
                             sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + channel_string + " AND AD.ACQUIRED_TIME IN " + sql_timestamps
                             runtime.logging.debug("sql_get_values",sql_get_values)
+                            print("sql_get_values",sql_get_values)
                             return_string += channel_string + ";"
                             with conn.cursor() as cursor :
                                 try:
@@ -189,7 +176,7 @@ class Http:
                                     acquired_subsamples = row[2]
                                     acquired_base64 = row[3]
                                     base64_string = acquired_base64.decode('utf-8')
-                                    runtime.logging.debug('Channel: ', channel, ', Value: ', acquired_value, ', Timestamp: ', acquired_time, ', Sub-samples: ', acquired_subsamples, ', base64: ', acquired_base64)
+                                    runtime.logging.debug('Channel: ', channel_string, ', Value: ', acquired_value, ', Timestamp: ', acquired_time, ', Sub-samples: ', acquired_subsamples, ', base64: ', acquired_base64)
                                     if acquired_time in requested_timestamps:
                                         requested_timestamps.remove(acquired_time)
                                     return_string += str(acquired_time) + "," + str(acquired_value) + "," + str(acquired_subsamples) + "," + str(base64_string) + ","
@@ -197,9 +184,7 @@ class Http:
 
                             if len(requested_timestamps) > 0:
                                 if min(requested_timestamps) < int(time.time()) - 3600:
-                                    r_clear = self.clear_data_requests(str(channel) + ';;', ip)
-
-                        channel_start = timestamp_end + 2
+                                    r_clear = self.clear_data_requests(channel_string + ';;', ip)
 
                 except (pymysql.err.OperationalError, pymysql.err.Error) as e:
                     runtime.logging.debug(e)
