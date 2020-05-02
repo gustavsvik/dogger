@@ -1,5 +1,6 @@
 #
 
+
 def strip_string(val_array, label, key, default_val = ''):
     string_val = default_val
     try:
@@ -27,17 +28,13 @@ def to_int(val, default_val = 0):
     return int_val
 
 
+    
 class Local:
     pass
- 
-class Configure(Local):
 
-    #import os
     
-    #DATA_FILEPATH = '/home/heta/Z/data/files/'
-    #WINDOWS_FILEPATH = 'Z:/data/files/'
-    #CONFIG_FILEPATH = os.path.dirname(__file__)
-    #CONFIG_FILENAME = 'conf.ini'
+
+class Configure(Local):
 
 
     def __init__(self, filepath = None, filename = None):
@@ -45,13 +42,6 @@ class Configure(Local):
         self.config_filepath = filepath
         self.config_filename = filename
 
-    #def get_data_filepath(self):
-    #    self.data_filepath = Configure.DATA_FILEPATH
-    #    return self.data_filepath
-
-    #def get_windows_filepath(self):
-    #    self.windows_filepath = Configure.WINDOWS_FILEPATH
-    #    return self.windows_filepath
 
     def get(self) :
 
@@ -128,5 +118,4 @@ class Configure(Local):
         env['STORE_DATABASE_PASSWD'] = store_database_passwd
         env['STORE_DATABASE_DB'] = store_database_db
 
-        
         return env
