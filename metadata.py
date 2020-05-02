@@ -74,9 +74,9 @@ class Configure(Local):
 
         sample_rate = to_float(strip_string(conf, top_label, 'sample_rate'), 0.0)
         samples_per_chan = to_float(strip_string(conf, top_label, 'samples_per_chan'), 0.0)
-        image_channel_1 = to_int(strip_string(conf, top_label, 'image_channel_1'), 0)
-        data_channel_1 = to_int(strip_string(conf, top_label, 'data_channel_1'), 0)
-        no_of_data_channels = to_int(strip_string(conf, top_label, 'no_of_data_channels'), 0)
+        #image_channel_1 = to_int(strip_string(conf, top_label, 'image_channel_1'), 0)
+        #data_channel_1 = to_int(strip_string(conf, top_label, 'data_channel_1'), 0)
+        #no_of_data_channels = to_int(strip_string(conf, top_label, 'no_of_data_channels'), 0)
         archive_interval = to_int(strip_string(conf, top_label, 'archive_interval'), 0)
         image_archive_interval = to_int(strip_string(conf, top_label, 'image_archive_interval'), 0)
         data_archive_interval = to_int(strip_string(conf, top_label, 'data_archive_interval'), 0)
@@ -100,9 +100,9 @@ class Configure(Local):
 
         env['SAMPLE_RATE'] = sample_rate
         env['SAMPLES_PER_CHAN'] = samples_per_chan
-        env['IMAGE_CHANNEL_1'] = image_channel_1
-        env['DATA_CHANNEL_1'] = data_channel_1
-        env['NO_OF_DATA_CHANNELS'] = no_of_data_channels
+        #env['IMAGE_CHANNEL_1'] = image_channel_1
+        #env['DATA_CHANNEL_1'] = data_channel_1
+        #env['NO_OF_DATA_CHANNELS'] = no_of_data_channels
         env['STORE_PATH'] = store_path
         env['WINDOWS_STORE_PATH'] = windows_store_path
         env['ARCHIVE_PATH'] = archive_path
