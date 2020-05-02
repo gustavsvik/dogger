@@ -105,8 +105,6 @@ class DataFile(File):
 
     def __init__(self):
 
-        #self.channels = channels
-
         File.__init__(self)
 
 
