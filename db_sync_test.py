@@ -10,24 +10,30 @@ import metadata
 config = metadata.Configure()
 env = config.get()
 
-table_label = "uplink_process"
-id_range = [1,3]
+table_label = "channel"
+id_range = []
 
 id_range_string = "-9999"
-id_range_string = ",".join(str(x) for x in id_range)
+if len(id_range) > 0 :
+    id_range_string = ",".join(str(x) for x in id_range)
 
 print("id_range_string", id_range_string)
 
 raw_data = requests.post("http://" + "109.74.8.89" + "/common/get_db_rows.php", {'tablelabel': table_label, 'idrange': id_range_string})
 json_data = raw_data.json()
-print("json_data", json_data)
 data = json_data['returnstring']
+print("data", data)
 print("type(data)", type(data))
 print("len(data)", len(data))
-print(data[0])
 
 table_name = "t_" + table_label
 unique_col_name = table_label.upper() + "_UNIQUE_INDEX"
+
+id_range = [rec[unique_col_name] for rec in data]
+id_range_string = ",".join(str(x) for x in id_range)
+print("id_range_string", id_range_string)
+
+
 
 #select_sql = "SELECT " + unique_col_name + " FROM " + table_name + " WHERE " + unique_col_name + " IN (" + id_range_string + ")"
 #print(select_sql)
