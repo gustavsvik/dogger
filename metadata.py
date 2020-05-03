@@ -46,6 +46,7 @@ class Configure(Local):
     def get(self) :
 
         import os
+        import sys
         import configparser
         import runtime
 
@@ -95,9 +96,10 @@ class Configure(Local):
 
         store_path = local_store_path
         if os.path.isdir(net_store_path) : store_path = net_store_path
+        if sys.platform.startswith('win32') : store_path = windows_store_path
         archive_path = local_archive_path
         if os.path.isdir(net_archive_path) : archive_path = net_archive_path
-
+        if sys.platform.startswith('win32') : archive_path = windows_archive_path
         env['SAMPLE_RATE'] = sample_rate
         env['SAMPLES_PER_CHAN'] = samples_per_chan
         #env['IMAGE_CHANNEL_1'] = image_channel_1
