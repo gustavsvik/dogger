@@ -6,15 +6,17 @@ import time
 import scipy.interpolate
 import os
 
-from metadata import Configure
+import metadata
+
 
 nidaq = ctypes.windll.nicaiu # load the DLL
 
 #FILE_PATH = "../../data/files/"
 #FILE_PATH = "C:/Z/THISBUSINESS/Energilab/PROJECTS/logging/data/files/"
 
-config = Configure()
+config = metadata.Configure(filename = 'conf_voltage_2.ini')
 env = config.get()
+         
 FILE_PATH = ''
 
 if env['STORE_PATH'] is not None and os.path.exists(env['STORE_PATH']):
@@ -61,8 +63,8 @@ DAQmx_Val_ChanPerLine = int32(0)
 
 ##############################
 
-SAMPLE_RATE = 1000
-SAMPLES_PER_CHAN = 1000
+SAMPLE_RATE = 10
+SAMPLES_PER_CHAN = 10
 
 # initialize variables
 
@@ -188,16 +190,19 @@ def LoopAcquire():
         #    except PermissionError as e:
         #        print(e)
         
-        for channel_index in range(0, 1):
+        for channel_index in range(16, 32):
 
-            voltage_array = scale_Opto_22_AD3_SATT_ETT45_0101(voltage[SAMPLES_PER_CHAN*(channel_index+20+0):SAMPLES_PER_CHAN*(channel_index+20+1)])
-            turb_cool_temp_sec = downsample(voltage_array, 1)
+            voltage_array = voltage[SAMPLES_PER_CHAN*(channel_index+0):SAMPLES_PER_CHAN*(channel_index+1)]
+            if channel_index == 20 : voltage_array = scale_Opto_22_AD3_SATT_ETT45_0101(voltage_array)
+            if channel_index == 21 : voltage_array = scale_Opto_22_AD3_SATT_ETT45_0101(voltage_array)
+            if channel_index == 22 : voltage_array = scale_Opto_22_AD3_SATT_ETT45_0101(voltage_array)
+            if channel_index == 23 : voltage_array = scale_Opto_22_AD3_SATT_ETT45_0101(voltage_array)
+            voltage_avg = downsample(voltage_array, 1)
             voltage_array = numpy.concatenate(([0.0], acq_microsec_part, voltage_array), axis=None)
-            voltage_array[0] = turb_cool_temp_sec
+            voltage_array[0] = voltage_avg
             try:
-                filename_turb_cool = repr(20+channel_index) + "_" + repr(acq_finish_secs)
-                numpy.save(FILE_PATH+filename_turb_cool, voltage_array)
-                #print(filename_turb_cool, turb_cool_temp_sec)
+                filename_voltage = repr(1+channel_index) + "_" + repr(acq_finish_secs)
+                numpy.save(FILE_PATH+filename_voltage, voltage_array)
             except PermissionError as e:
                 print(e)
 
