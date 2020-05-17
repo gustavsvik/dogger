@@ -5,6 +5,8 @@ import pymysql
 import numpy
 import os
 import math
+import base64
+
 import metadata
 import timefiles
 import runtime
@@ -79,26 +81,6 @@ class File(Sql):
         return files
 
 
-    def get_file_timestamp(self, current_file = None):
-
-        position = current_file.find("_")
-        acquired_time_string = current_file[position+1:position+1+10]
-        acquired_time = int(acquired_time_string)
-
-        return acquired_time
-
-
-    def get_file_channel(self, current_file = None):
-        runtime.logging.debug(current_file)
-        position_after = current_file.find("_")
-        string_before_timestamp = current_file[0:position_after]
-        position_before = current_file.rfind("/")
-        channel_string = current_file[position_before+1:position_after]
-        channel = int(channel_string)
-
-        return channel
-
-
 
 class DataFile(File):
 
@@ -110,8 +92,8 @@ class DataFile(File):
 
     def retrieve_file_data(self, current_file = None):
 
-        current_channel = self.get_file_channel(current_file)
-        acquired_time = self.get_file_timestamp(current_file)
+        current_channel = timefiles.get_file_channel(current_file)
+        acquired_time = timefiles.get_file_timestamp(current_file)
         acquired_time_string = repr(acquired_time)
 
         acquired_value = -9999.0
@@ -121,6 +103,7 @@ class DataFile(File):
         try:
             acquired_values = self.load_file(current_file)
             if len(acquired_values) > 1:
+                # acquired_subsamples = base64.b64encode( (acquired_values[2:]).astype('float32',casting='same_kind') )
                 acquired_subsamples = numpy.array2string(acquired_values[2:], separator=' ', max_line_width=numpy.inf, formatter={'float': lambda x: format(x, '6.5E')})
             acquired_value = acquired_values[0]
             acquired_microsecs = acquired_values[1]
@@ -226,11 +209,10 @@ class NumpyFile(DataFile):
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
-
-        DataFile.__init__(self)
-
         self.channels = channels
         self.file_extensions = ['npy']
+        
+        DataFile.__init__(self)
         
 
     def load_file(self, current_file = None):
