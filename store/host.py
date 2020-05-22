@@ -30,7 +30,7 @@ class Host:
 
 
         
-class Sql(Host):
+class StoreSQL(Host):
 
 
     def __init__(self):
@@ -66,12 +66,12 @@ class Sql(Host):
 
 
 
-class File(Sql):
+class LoadFile(StoreSQL):
 
 
     def __init__(self):
 
-        Sql.__init__(self)
+        StoreSQL.__init__(self)
 
 
     def get_filenames(self, channel = None):
@@ -82,12 +82,12 @@ class File(Sql):
 
 
 
-class DataFile(File):
+class DataFile(LoadFile):
 
 
     def __init__(self):
 
-        File.__init__(self)
+        LoadFile.__init__(self)
 
 
     def retrieve_file_data(self, current_file = None):
@@ -96,33 +96,11 @@ class DataFile(File):
         acquired_time = timefiles.get_file_timestamp(current_file)
         acquired_time_string = repr(acquired_time)
 
-        acquired_value = -9999.0
-        acquired_microsecs = 9999
-        acquired_subsamples = ''
-
-        try:
-            acquired_values = self.load_file(current_file)
-            if len(acquired_values) > 1:
-                # acquired_subsamples = base64.b64encode( (acquired_values[2:]).astype('float32',casting='same_kind') )
-                acquired_subsamples = numpy.array2string(acquired_values[2:], separator=' ', max_line_width=numpy.inf, formatter={'float': lambda x: format(x, '6.5E')})
-            acquired_value = acquired_values[0]
-            acquired_microsecs = acquired_values[1]
-        except (OSError, ValueError) as e:
-            runtime.logging.exception(e)
-            try:
-                os.remove(current_file)
-            except (PermissionError, FileNotFoundError) as e:
-                runtime.logging.exception(e)
-
-        acquired_base64 = b''
-
         self.current_channel = current_channel
         self.acquired_time = acquired_time
-        self.acquired_microsecs = acquired_microsecs
-        self.acquired_value = acquired_value
-        self.acquired_subsamples = acquired_subsamples
-        self.acquired_base64 = acquired_base64
         self.current_file = current_file
+
+        self.acquired_microsecs, self.acquired_value, self.acquired_subsamples, self.acquired_base64 = self.load_file(current_file)
 
 
     def store_file_data(self):
@@ -193,15 +171,41 @@ class DataFile(File):
 
 
 
-class ImageFile(File):
+class ImageFile(DataFile):
 
 
-    def __init__(self):
+    def __init__(self, channels = None, scale_functions = None, config_filepath = None, config_filename = None):
+    
+    
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+        self.channels = channels
+        self.file_extensions = ['jpg', 'png']
 
-        File.__init__(self)
+        DataFile.__init__(self)
+
+        
+    def load_file(self, current_file = None):
+        
+        acquired_microsecs = 9999
+        acquired_value = -9999.0
+        acquired_subsamples = ''
+        acquired_base64 = b''
+
+        try :
+            with open(current_file, "rb") as image_file :
+                acquired_base64 = base64.b64encode(image_file.read())
+        except OSError as e :
+            runtime.logging.exception(e)
+            try:
+                os.remove(current_file)
+            except (PermissionError, FileNotFoundError, OSError) as e:
+                runtime.logging.exception(e)
+
+        return acquired_microsecs, acquired_value, acquired_subsamples, acquired_base64
 
 
-
+            
 class NumpyFile(DataFile):
 
 
@@ -217,4 +221,59 @@ class NumpyFile(DataFile):
 
     def load_file(self, current_file = None):
 
-        return numpy.load(current_file)
+        acquired_microsecs = 9999
+        acquired_value = -9999.0
+        acquired_subsamples = ''
+        acquired_base64 = b''
+        
+        try:
+            acquired_values = numpy.load(current_file)
+            if len(acquired_values) > 1:
+                # acquired_subsamples = base64.b64encode( (acquired_values[2:]).astype('float32',casting='same_kind') )
+                acquired_subsamples = numpy.array2string(acquired_values[2:], separator=' ', max_line_width=numpy.inf, formatter={'float': lambda x: format(x, '6.5E')})
+            acquired_value = acquired_values[0]
+            acquired_microsecs = acquired_values[1]
+        except (OSError, ValueError) as e:
+            runtime.logging.exception(e)
+            try:
+                os.remove(current_file)
+            except (PermissionError, FileNotFoundError, OSError) as e:
+                runtime.logging.exception(e)
+
+        return acquired_microsecs, acquired_value, acquired_subsamples, acquired_base64
+
+
+class TextFile(DataFile):
+
+
+    def __init__(self, channels = None, scale_functions = None, config_filepath = None, config_filename = None):
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+        self.channels = channels
+        self.file_extensions = ['csv', 'txt']
+        
+        DataFile.__init__(self)
+        
+
+    def load_file(self, current_file = None):
+
+        acquired_microsecs = 9999
+        acquired_value = -9999.0
+        acquired_subsamples = ''
+        acquired_base64 = b''
+        
+        try:
+            acquired_values = numpy.genfromtxt(current_file, delimiter = ',')
+            if len(acquired_values) > 1:
+                acquired_subsamples = numpy.array2string(acquired_values[2:], separator=' ', max_line_width = numpy.inf, formatter = {'float': lambda x: format(x, '6.5E')})
+            acquired_value = acquired_values[0]
+            acquired_microsecs = acquired_values[1]
+        except (OSError, ValueError) as e:
+            runtime.logging.exception(e)
+            try:
+                os.remove(current_file)
+            except (PermissionError, FileNotFoundError, OSError) as e:
+                runtime.logging.exception(e)
+
+        return acquired_microsecs, acquired_value, acquired_subsamples, acquired_base64
