@@ -80,5 +80,3 @@ class NetworkTime:
                 adj_time = self.get_network_time()
                 self.adjust_system_time(adj_time)
                 diff_time = 0
-
-    
