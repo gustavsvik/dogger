@@ -7,13 +7,13 @@ import os
 import math
 import base64
 
-import metadata
-import timefiles
-import runtime
+import gateway.metadata as md
+import gateway.timefiles as tf
+import gateway.runtime as rt
 
 
 
-class Host:
+class Task:
 
 
     def __init__(self):
@@ -23,19 +23,19 @@ class Host:
         
     def get_env(self): 
 
-        config = metadata.Configure(filepath = self.config_filepath, filename = self.config_filename)
+        config = md.Configure(filepath = self.config_filepath, filename = self.config_filename)
         env = config.get()
 
         return env
 
 
         
-class StoreSQL(Host):
+class StoreSQL(Task):
 
 
     def __init__(self):
 
-        Host.__init__(self)
+        Task.__init__(self)
         
         self.delete_sql = "DELETE FROM t_acquired_data WHERE ACQUIRED_TIME=%s AND CHANNEL_INDEX=%s"
         self.insert_sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,ACQUIRED_MICROSECS,CHANNEL_INDEX,ACQUIRED_VALUE,ACQUIRED_SUBSAMPLES,ACQUIRED_BASE64) VALUES (%s,%s,%s,%s,%s,%s)"
@@ -46,7 +46,7 @@ class StoreSQL(Host):
         try:
             self.conn = pymysql.connect(host = self.env['STORE_DATABASE_HOST'], user = self.env['STORE_DATABASE_USER'], passwd = self.env['STORE_DATABASE_PASSWD'], db = self.env['STORE_DATABASE_DB'], autocommit = True)
         except (pymysql.err.OperationalError, pymysql.err.Error) as e:
-            runtime.logging.exception(e)
+            rt.logging.exception(e)
 
 
     def commit_transaction(self):
@@ -54,7 +54,7 @@ class StoreSQL(Host):
         try:
             self.conn.commit()
         except (pymysql.err.OperationalError, pymysql.err.Error) as e:
-            runtime.logging.exception(e)
+            rt.logging.exception(e)
 
 
     def close_db_connection(self):
@@ -62,7 +62,7 @@ class StoreSQL(Host):
         try:
             self.conn.close()
         except (pymysql.err.OperationalError, pymysql.err.Error) as e:
-            runtime.logging.exception(e)
+            rt.logging.exception(e)
 
 
 
@@ -76,7 +76,7 @@ class LoadFile(StoreSQL):
 
     def get_filenames(self, channel = None):
       
-        files = timefiles.get_all_files(self.env['STORE_PATH'], self.file_extensions, channel)
+        files = tf.get_all_files(self.env['STORE_PATH'], self.file_extensions, channel)
 
         return files
 
@@ -92,8 +92,8 @@ class DataFile(LoadFile):
 
     def retrieve_file_data(self, current_file = None):
 
-        current_channel = timefiles.get_file_channel(current_file)
-        acquired_time = timefiles.get_file_timestamp(current_file)
+        current_channel = tf.get_file_channel(current_file)
+        acquired_time = tf.get_file_timestamp(current_file)
         acquired_time_string = repr(acquired_time)
 
         self.current_channel = current_channel
@@ -119,25 +119,25 @@ class DataFile(LoadFile):
                 try:
                     cursor.execute(self.delete_sql, (acquired_time_string, channel_string) )
                 except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
-                    runtime.logging.exception(e)
+                    rt.logging.exception(e)
 
             if not math.isnan(float(self.acquired_value)):
                 with self.conn.cursor() as cursor :
                     try:
-                        runtime.logging.debug(acquired_time_string + channel_string + acquired_value_string + str(self.acquired_subsamples) + str(self.acquired_base64))
+                        rt.logging.debug(acquired_time_string + channel_string + acquired_value_string + str(self.acquired_subsamples) + str(self.acquired_base64))
                         cursor.execute(self.insert_sql, (acquired_time_string, acquired_microsecs_string, channel_string, acquired_value_string, self.acquired_subsamples[1:-1], self.acquired_base64))
                     except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
-                        runtime.logging.exception(e)
+                        rt.logging.exception(e)
                     insert_result = cursor.rowcount
 
         except (pymysql.err.OperationalError, pymysql.err.Error) as e:
-            runtime.logging.exception(e)
+            rt.logging.exception(e)
      
         try:
             if insert_result > -1:
                 os.remove(self.current_file)
         except (PermissionError, FileNotFoundError) as e:
-            runtime.logging.exception(e)
+            rt.logging.exception(e)
 
         return insert_result
 
@@ -153,7 +153,7 @@ class DataFile(LoadFile):
                 insert_failure = False
 
                 files = self.get_filenames(channel = channel_index)        
-                runtime.logging.debug('channel_index' + str(channel_index) + 'len(files)' + str(len(files)))
+                rt.logging.debug('channel_index' + str(channel_index) + 'len(files)' + str(len(files)))
 
                 if len(files) > 2 :
                         
@@ -196,11 +196,11 @@ class ImageFile(DataFile):
             with open(current_file, "rb") as image_file :
                 acquired_base64 = base64.b64encode(image_file.read())
         except OSError as e :
-            runtime.logging.exception(e)
+            rt.logging.exception(e)
             try:
                 os.remove(current_file)
             except (PermissionError, FileNotFoundError, OSError) as e:
-                runtime.logging.exception(e)
+                rt.logging.exception(e)
 
         return acquired_microsecs, acquired_value, acquired_subsamples, acquired_base64
 
@@ -229,16 +229,16 @@ class NumpyFile(DataFile):
         try:
             acquired_values = numpy.load(current_file)
             if len(acquired_values) > 1:
-                # acquired_subsamples = base64.b64encode( (acquired_values[2:]).astype('float32',casting='same_kind') )
-                acquired_subsamples = numpy.array2string(acquired_values[2:], separator=' ', max_line_width=numpy.inf, formatter={'float': lambda x: format(x, '6.5E')})
+                # acquired_subsamples = base64.b64encode( (acquired_values[2:]).astype('float32', casting = 'same_kind') )
+                acquired_subsamples = numpy.array2string(acquired_values[2:], separator=' ', max_line_width = numpy.inf, formatter = {'float': lambda x: format(x, '6.5E')})
             acquired_value = acquired_values[0]
             acquired_microsecs = acquired_values[1]
-        except (OSError, ValueError) as e:
-            runtime.logging.exception(e)
+        except (OSError, ValueError, IndexError) as e:
+            rt.logging.exception(e)
             try:
                 os.remove(current_file)
             except (PermissionError, FileNotFoundError, OSError) as e:
-                runtime.logging.exception(e)
+                rt.logging.exception(e)
 
         return acquired_microsecs, acquired_value, acquired_subsamples, acquired_base64
 
@@ -269,11 +269,11 @@ class TextFile(DataFile):
                 acquired_subsamples = numpy.array2string(acquired_values[2:], separator=' ', max_line_width = numpy.inf, formatter = {'float': lambda x: format(x, '6.5E')})
             acquired_value = acquired_values[0]
             acquired_microsecs = acquired_values[1]
-        except (OSError, ValueError) as e:
-            runtime.logging.exception(e)
+        except (OSError, ValueError, IndexError) as e:
+            rt.logging.exception(e)
             try:
                 os.remove(current_file)
             except (PermissionError, FileNotFoundError, OSError) as e:
-                runtime.logging.exception(e)
+                rt.logging.exception(e)
 
         return acquired_microsecs, acquired_value, acquired_subsamples, acquired_base64
