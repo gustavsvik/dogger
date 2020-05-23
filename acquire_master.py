@@ -6,19 +6,22 @@ import time
 import scipy.interpolate
 import os
 
-from metadata import Configure
+import gateway.metadata as md
 
 nidaq = ctypes.windll.nicaiu # load the DLL
 
 #FILE_PATH = "../../data/files/"
 #FILE_PATH = "C:/Z/THISBUSINESS/Energilab/PROJECTS/logging/data/files/"
 
-config = Configure()
+config = md.Configure(filepath = 'Z:\\app\\python\\dogger\\', filename = 'conf.ini')
 env = config.get()
+
 FILE_PATH = ''
 
 if env['STORE_PATH'] is not None and os.path.exists(env['STORE_PATH']):
     FILE_PATH = env['STORE_PATH']
+
+FILE_PATH = 'Z:/data/files/'
 
 
 ##############################
