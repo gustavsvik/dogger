@@ -48,8 +48,7 @@ class Configure(Local):
         import os
         import sys
         import configparser
-        import runtime
-
+        
         conf = configparser.ConfigParser()
         filepath = os.path.dirname(__file__) #Configure.CONFIG_FILEPATH
         filename = 'conf.ini' #Configure.CONFIG_FILENAME
@@ -57,6 +56,7 @@ class Configure(Local):
             filepath = self.config_filepath
         if self.config_filename is not None :
             filename = self.config_filename
+
         conf.read(os.path.join(filepath, filename))
         top_label = 'dogger'
 
