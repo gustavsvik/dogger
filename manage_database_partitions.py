@@ -3,10 +3,11 @@ import datetime
 import calendar
 import pymysql
 
-import runtime as rt
-from metadata import Configure
+import gateway.runtime as rt
+import gateway.metadata as md
 
-config = Configure()
+
+config = md.Configure(filepath = '/home/heta/Z/app/python/dogger/', filename = 'conf_voltage_2.ini')
 env = config.get()
 
 previous_monthday = -1
