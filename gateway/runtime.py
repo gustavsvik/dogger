@@ -3,10 +3,10 @@ import logging.handlers
 import os
 import sys
 
-import metadata
+import gateway.metadata as md
 
 
-config = metadata.Configure()
+config = md.Configure()
 env = config.get()
 
 
