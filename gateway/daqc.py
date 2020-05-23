@@ -8,12 +8,12 @@ import sys
 #import cv2
 import ctypes
 
-import daqc.device
-import runtime
-import metadata
+import gateway.device as dv
+import gateway.runtime as rt
+import gateway.metadata as md
 
 
-class Host:
+class Task:
 
 
     def __init__(self):
@@ -23,19 +23,19 @@ class Host:
         
     def get_env(self): 
 
-        config = metadata.Configure(filepath = self.config_filepath, filename = self.config_filename)
+        config = md.Configure(filepath = self.config_filepath, filename = self.config_filename)
         env = config.get()
 
         return env
 
 
         
-class NidaqVoltageIn(Host):
+class NidaqVoltageIn(Task):
 
 
     def __init__(self, sample_rate = 1, samplesPerChan = 1, subSamplesPerChan = 1, minValue = 0, maxValue = 10, IPNumber = "", moduleSlotNumber = 1, moduleChanRange = [0], uniqueChanIndexRange = [0]):
 
-        self.nidaq = daqc.device.NidaqVoltageIn(sample_rate, samplesPerChan, subSamplesPerChan, minValue, maxValue, IPNumber, moduleSlotNumber, moduleChanRange, uniqueChanIndexRange)
+        self.nidaq = dv.NidaqVoltageIn(sample_rate, samplesPerChan, subSamplesPerChan, minValue, maxValue, IPNumber, moduleSlotNumber, moduleChanRange, uniqueChanIndexRange)
 
 
     def run(self):
@@ -52,7 +52,7 @@ class NidaqVoltageIn(Host):
                 self.nidaq.InitAcquire()
             time.sleep(10)
 
-class NidaqCurrentIn(Host):
+class NidaqCurrentIn(Task):
 
 
     def __init__(self, sample_rate = 1, samplesPerChan = 1, subSamplesPerChan = 1, minValue = 0, maxValue = 10, IPNumber = "", moduleSlotNumber = 1, moduleChanRange = [0], uniqueChanIndexRange = [0]):
@@ -75,7 +75,7 @@ class NidaqCurrentIn(Host):
             time.sleep(10)
             
             
-class USBCam(Host):
+class USBCam(Task):
     
 
     def __init__(self, config_filepath = None, config_filename = None, channels = None, sample_rate = 1.0, start_delay = 0, video_unit = '/dev/video0', video_res = {800, 600}, video_rate = 10):
@@ -92,7 +92,7 @@ class USBCam(Host):
         (self.CHANNEL,) = self.channels
         self.capture_filename = 'image_' + str(self.CHANNEL) + '.jpg'
         
-        Host.__init__(self)
+        Task.__init__(self)
 
         
     def read_samples(self):
@@ -138,12 +138,12 @@ class USBCam(Host):
                             pass
                             #shutil.copy(capture_filename, archive_filename)
                     except (FileNotFoundError, PermissionError) as e:
-                        runtime.logging.exception(e)
+                        rt.logging.exception(e)
                     count = count+1
 
                     
                     
-class AcquireCurrent(Host):
+class AcquireCurrent(Task):
 
     """ Adapted from https://scipy-cookbook.readthedocs.io/items/Data_Acquisition_with_NIDAQmx.html."""
 
@@ -154,7 +154,7 @@ class AcquireCurrent(Host):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        Host.__init__(self)
+        Task.__init__(self)
         
         self.nidaq = None
         if sys.platform.startswith('win32') : 
