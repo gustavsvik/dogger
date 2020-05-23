@@ -1,4 +1,4 @@
-import store.host
+import gateway.store
 
-numpy_sql = store.host.NumpyFile(channels = {97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112}, config_filename = 'conf.ini')
+numpy_sql = gateway.store.NumpyFile(channels = {97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112}, config_filepath = '/home/heta/Z/app/python/dogger/', config_filename = 'conf_current.ini')
 numpy_sql.run()
