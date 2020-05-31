@@ -7,8 +7,9 @@ import gateway.runtime as rt
 import gateway.metadata as md
 
 
-config = md.Configure(filepath = '/home/heta/Z/app/python/dogger/', filename = 'conf_voltage_2.ini')
+config = md.Configure(filepath = '/home/heta/Z/app/python/dogger/', filename = 'conf.ini')
 env = config.get()
+conn_data = env['GATEWAY_DATABASE_CONNECTION']
 
 previous_monthday = -1
 
@@ -38,7 +39,8 @@ while (True):
 
         try:
 
-            conn = pymysql.connect(host=env['STORE_DATABASE_HOST'], user=env['STORE_DATABASE_USER'], passwd=env['STORE_DATABASE_PASSWD'], db=env['STORE_DATABASE_DB'], autocommit=True)
+            conn_data = env['GATEWAY_DATABASE_CONNECTION']
+            conn = pymysql.connect(host = conn_data['host'], user = conn_data['user'], passwd = conn_data['passwd'], db = conn_data['db'], autocommit = True)
 
             sql_reorganize_partitions = "ALTER TABLE t_acquired_data REORGANIZE PARTITION acquired_time_max INTO ( PARTITION acquired_time_" + new_partition_name_string + " VALUES LESS THAN (" + new_partition_timestamp_string + "), PARTITION acquired_time_max VALUES LESS THAN (MAXVALUE) )"
             with conn.cursor() as cursor :
