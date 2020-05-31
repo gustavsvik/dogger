@@ -12,31 +12,32 @@ import gateway.device as dv
 import gateway.runtime as rt
 import gateway.metadata as md
 
+import gateway.task as t
 
-class Task:
+
+ 
+class File(t.AcquireControl):
 
 
     def __init__(self):
 
         self.env = self.get_env()
+        if self.file_path is None: self.file_path = self.env['FILE_PATH']
+        if self.archive_file_path is None: self.archive_file_path = self.env['ARCHIVE_FILE_PATH']
+
+        t.AcquireControl.__init__(self)
 
         
-    def get_env(self): 
-
-        config = md.Configure(filepath = self.config_filepath, filename = self.config_filename)
-        env = config.get()
-
-        return env
-
-
         
-class NidaqVoltageIn(Task):
+class NidaqVoltageIn(File):
 
 
     def __init__(self, sample_rate = 1, samplesPerChan = 1, subSamplesPerChan = 1, minValue = 0, maxValue = 10, IPNumber = "", moduleSlotNumber = 1, moduleChanRange = [0], uniqueChanIndexRange = [0]):
 
         self.nidaq = dv.NidaqVoltageIn(sample_rate, samplesPerChan, subSamplesPerChan, minValue, maxValue, IPNumber, moduleSlotNumber, moduleChanRange, uniqueChanIndexRange)
 
+        File.__init__(self)
+
 
     def run(self):
 
@@ -52,13 +53,17 @@ class NidaqVoltageIn(Task):
                 self.nidaq.InitAcquire()
             time.sleep(10)
 
-class NidaqCurrentIn(Task):
+            
+            
+class NidaqCurrentIn(File):
 
 
     def __init__(self, sample_rate = 1, samplesPerChan = 1, subSamplesPerChan = 1, minValue = 0, maxValue = 10, IPNumber = "", moduleSlotNumber = 1, moduleChanRange = [0], uniqueChanIndexRange = [0]):
 
         self.nidaq = daqc.device.NidaqVoltageIn(sample_rate, samplesPerChan, subSamplesPerChan, minValue, maxValue, IPNumber, moduleSlotNumber, moduleChanRange, uniqueChanIndexRange)
 
+        File.__init__(self)
+
 
     def run(self):
 
@@ -73,33 +78,43 @@ class NidaqCurrentIn(Task):
                 self.nidaq.StopAndClearTasks()
                 self.nidaq.InitAcquire()
             time.sleep(10)
-            
-            
-class USBCam(Task):
+
+
+        
+class USBCam(File):
     
 
-    def __init__(self, config_filepath = None, config_filename = None, channels = None, sample_rate = 1.0, start_delay = 0, video_unit = '/dev/video0', video_res = {800, 600}, video_rate = 10):
+    def __init__(self, channels = None, start_delay = 0, sample_rate = None, file_path = None, archive_file_path = None, video_unit = None, video_res = None, video_rate = None, config_filepath = None, config_filename = None):
 
-        self.config_filepath = config_filepath
-        self.config_filename = config_filename
         self.channels = channels
         self.start_delay = start_delay
         self.sample_rate = sample_rate
+
+        self.file_path = file_path
+        self.archive_file_path = archive_file_path
         self.video_unit = video_unit
         self.video_res = video_res
         self.video_rate = video_rate
 
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        self.env = self.get_env()
+        if self.video_unit is None: self.video_unit = self.env['VIDEO_UNIT']
+        if self.video_res is None: self.video_res = self.env['VIDEO_RES']
+        if self.video_rate is None: self.video_rate = self.env['VIDEO_RATE']
+
         (self.CHANNEL,) = self.channels
         self.capture_filename = 'image_' + str(self.CHANNEL) + '.jpg'
         
-        Task.__init__(self)
+        File.__init__(self)
 
         
     def read_samples(self):
 
         try:
             #camera.capture(capture_filename, format='jpeg', quality=10)
-            os.system('fswebcam -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 1 --jpeg 95 --no-banner --save ' + self.capture_filename)
+            os.system('fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 1 --jpeg 95 --no-banner --save ' + self.capture_filename)
             #ret, frame = cam.read()
             #cv2.imwrite(capture_filename, frame)
         except PermissionError as e:
@@ -128,13 +143,13 @@ class USBCam(Task):
             
                 self.read_samples()
 
-                if self.env['STORE_PATH'] is not None and os.path.exists(self.env['STORE_PATH']):
+                if self.file_path is not None and os.path.exists(self.file_path):
 
-                    store_filename = self.env['STORE_PATH'] + str(self.CHANNEL) + '_' + str(sample_secs) + '.jpg'
-                    archive_filename = self.env['ARCHIVE_PATH'] + str(self.CHANNEL) + '_' + str(sample_secs) + '.jpg'
+                    store_filename = self.file_path + str(self.CHANNEL) + '_' + str(sample_secs) + '.jpg'
+                    archive_filename = self.archive_file_path + str(self.CHANNEL) + '_' + str(sample_secs) + '.jpg'
                     try:
                         shutil.copy(self.capture_filename, store_filename)
-                        if self.env['ARCHIVE_PATH'] is not None and os.path.exists(self.env['ARCHIVE_PATH']):
+                        if self.archive_file_path is not None and os.path.exists(self.archive_file_path):
                             pass
                             #shutil.copy(capture_filename, archive_filename)
                     except (FileNotFoundError, PermissionError) as e:
@@ -143,18 +158,24 @@ class USBCam(Task):
 
                     
                     
-class AcquireCurrent(Task):
+class AcquireCurrent(File):
 
     """ Adapted from https://scipy-cookbook.readthedocs.io/items/Data_Acquisition_with_NIDAQmx.html."""
 
     
-    def __init__(self, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = 0, sample_rate = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
 
+        self.channels = channels
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+
+        self.file_path = file_path
+        self.archive_file_path = archive_file_path
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        Task.__init__(self)
+        File.__init__(self)
         
         self.nidaq = None
         if sys.platform.startswith('win32') : 
@@ -293,7 +314,7 @@ class AcquireCurrent(Task):
             except OSError as e:
                 print(e)
 
-            if self.env['STORE_PATH'] is not None and os.path.exists(self.env['STORE_PATH']):
+            if self.file_path is not None and os.path.exists(self.file_path):
 
                 acq_finish_time = numpy.float64(time.time())
                 acq_finish_secs = numpy.int64(acq_finish_time)
@@ -309,11 +330,11 @@ class AcquireCurrent(Task):
                     if channel_index == 0 : current_array = self.scale_cond_transmitter(current_array)
                     if channel_index == 1 : current_array = self.scale_Opto_22_AD3_SATT_ETT45_0101(current_array)
                     current_avg = self.downsample(current_array, 1)
-                    current_array = numpy.concatenate(([0.0], acq_microsec_part, current_array), axis=None)
+                    current_array = numpy.concatenate(([0.0], acq_microsec_part, current_array), axis = None)
                     current_array[0] = current_avg
                     try:
                         filename_current = repr(97+channel_index) + "_" + repr(acq_finish_secs)
-                        numpy.save(self.env['STORE_PATH']+filename_current, current_array)
+                        numpy.save(self.file_path+filename_current, current_array)
                     except PermissionError as e:
                         print(e)
 
