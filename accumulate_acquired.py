@@ -8,7 +8,6 @@ import gateway.metadata as md
 config = md.Configure(filepath = '/home/heta/Z/app/python/dogger/', filename = 'conf.ini')
 env = config.get()
 
-
 time.sleep(20)
 
 channels = [21,23,20,24]
@@ -43,8 +42,8 @@ while (True):
             accumulated_binary = b''
             
             try :
-
-                conn = pymysql.connect(host = env['STORE_DATABASE_HOST'], user = env['STORE_DATABASE_USER'], passwd = env['STORE_DATABASE_PASSWD'], db = env['STORE_DATABASE_DB'], autocommit = True)
+                conn_data = env['GATEWAY_DATABASE_CONNECTION']
+                conn = pymysql.connect(host = conn_data['host'], user = conn_data['user'], passwd = conn_data['passwd'], db = conn_data['db'], autocommit = True)
 
                 accumulated_bin_size = 60
                 accumulated_bin_end_time = current_timestamp - accumulated_bin_size
