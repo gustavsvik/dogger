@@ -1,4 +1,12 @@
 import gateway.store
 
-image_sql = gateway.store.ImageFile(config_filepath = '/home/heta/Z/app/python/dogger/', config_filename = 'conf_screen.ini', channels = {600})
+
+image_sql = gateway.store.ScreenshotFile(
+    channels = {600}, 
+    start_delay = 0, 
+    gateway_database_connection = {"host": "localhost", "user": "root", "passwd": "admin", "db": "test"}, 
+    file_path = '/home/heta/Z/data/files/screenshots/',
+    config_filepath = '/home/heta/Z/app/python/dogger/', 
+    config_filename = 'conf_screen.ini')
+
 image_sql.run()
