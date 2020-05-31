@@ -3,6 +3,7 @@ def get_all_files(path, extensions, channel) :
     import glob
 
     files = []
+
     for extension in extensions :
         file_pattern = str(channel) + '_*.' + extension
         pattern = path + file_pattern
@@ -10,7 +11,7 @@ def get_all_files(path, extensions, channel) :
 
     return files
 
-    
+
 def delete_multiple(files) :
 
     import os
