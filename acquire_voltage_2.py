@@ -19,8 +19,8 @@ env = config.get()
          
 FILE_PATH = ''
 
-if env['STORE_PATH'] is not None and os.path.exists(env['STORE_PATH']):
-    FILE_PATH = env['STORE_PATH']
+if env['FILE_PATH'] is not None and os.path.exists(env['FILE_PATH']):
+    FILE_PATH = env['FILE_PATH']
 
 FILE_PATH = 'Z:/data/files/voltage/'
 
