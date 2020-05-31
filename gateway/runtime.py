@@ -3,11 +3,6 @@ import logging.handlers
 import os
 import sys
 
-import gateway.metadata as md
-
-
-config = md.Configure()
-env = config.get()
 
 
 class LogRecord(logging.LogRecord):
@@ -20,6 +15,8 @@ class LogRecord(logging.LogRecord):
                 msg = msg.format(*self.args)
         return msg
 
+        
+        
 class Logger(logging.Logger):
     def makeRecord(self, name, level, fn, lno, msg, args, exc_info, func=None, extra=None):
         rv = LogRecord(name, level, fn, lno, msg, args, exc_info, func)
@@ -28,20 +25,20 @@ class Logger(logging.Logger):
                 rv.__dict__[key] = extra[key]
         return rv
 
-        
-log_file = 'logging.log'
 
-if env['STORE_PATH'] is not None and os.path.exists(env['STORE_PATH']):
-    log_file = env['STORE_PATH'] + log_file
-elif env['WINDOWS_STORE_PATH'] is not None and os.path.exists(env['WINDOWS_STORE_PATH']):
-    log_file = env['WINDOWS_STORE_PATH'] + log_file
+runtime_filepath = os.path.dirname(__file__) + '/logs/'
+runtime_log_file = 'logging.log'
+
+if runtime_filepath is not None and os.path.exists(runtime_filepath):
+    runtime_log_file = runtime_filepath + runtime_log_file
+
 
 logging.setLoggerClass(Logger)
-logging.basicConfig(filename=log_file,level=logging.ERROR)
-should_roll_over = os.path.isfile(log_file)
+logging.basicConfig(filename = runtime_log_file, level = logging.ERROR)
+should_roll_over = os.path.isfile(runtime_log_file)
 
 try:
-    handler = logging.handlers.RotatingFileHandler(log_file, mode='w', backupCount=5)
+    handler = logging.handlers.RotatingFileHandler(runtime_log_file, mode = 'w', backupCount = 20)
     if should_roll_over:  # log already exists, roll over!
         handler.doRollover()
 except (PermissionError, OSError) as e:
