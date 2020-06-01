@@ -32,7 +32,6 @@ class Http(Uplink):
 
     def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, cloud_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
-    
         self.channels = channels
         self.start_delay = start_delay
         self.gateway_database_connection = gateway_database_connection
@@ -47,29 +46,10 @@ class Http(Uplink):
 
         Uplink.__init__(self)
 
-        #print("self.channels", self.channels)
-        #print("self.start_delay", self.start_delay)
-        #print("self.gateway_database_connection", self.gateway_database_connection)
-        #print("self.ip_list", self.ip_list)
-        #print("self.cloud_api_url", self.cloud_api_url)
-        #print("self.max_connect_attempts", self.max_connect_attempts)
-
-
-        self.CHANNEL_RANGE_STRING = ''
-        for ch in channels: 
-            self.CHANNEL_RANGE_STRING +=  str(ch) + ';;'
-        
+        self.channel_range_string = ';;'.join([str(ch) for ch in channels]) + ';;'
         self.connect_attempts = 0
         
-        self.clear_channels()
-        
-
-    #def get_env(self): 
-    #
-    #    config = md.Configure(filepath = self.config_filepath, filename = self.config_filename)
-    #    env = config.get()
-    #
-    #    return env        
+        self.clear_channels()      
 
 
     def get_requested(self, channels, ip):
@@ -134,7 +114,7 @@ class Http(Uplink):
         for ip in self.ip_list :
 
             cleared_channels = ''
-            r_clear = self.clear_data_requests(self.CHANNEL_RANGE_STRING, ip)
+            r_clear = self.clear_data_requests(self.channel_range_string, ip)
             rt.logging.debug("r_clear", r_clear)
             if r_clear is not None:
                 try:
@@ -152,7 +132,7 @@ class Http(Uplink):
             for ip in self.ip_list :
 
                 data_string = ''
-                r_get = self.get_requested(self.CHANNEL_RANGE_STRING, ip)
+                r_get = self.get_requested(self.channel_range_string, ip)
                 rt.logging.debug("r_get", r_get)
                 if r_get is not None:
                     try:
@@ -185,17 +165,13 @@ class Http(Uplink):
                         
                     for channel_index in range(len(channel_list)):
 
-                        requested_timestamps = [int(timestamp_string) for timestamp_string in timestamp_list[channel_index][:-1]] 
+                        requested_timestamps = [int(ts_string) for ts_string in timestamp_list[channel_index][:-1]] 
                         channel_string = channel_list[channel_index][0]
 
                         if not requested_timestamps :
                             pass
                         else :
-                            sql_timestamps = '('
-                            for timestamp in requested_timestamps[:-1] :
-                                sql_timestamps += str(timestamp) + ','
-                            sql_timestamps += str(requested_timestamps[-1])
-                            sql_timestamps += ')'
+                            sql_timestamps = '(' + ','.join([str(ts) for ts in requested_timestamps]) + ')'
 
                             sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + channel_string + " AND AD.ACQUIRED_TIME IN " + sql_timestamps
                             rt.logging.debug("sql_get_values",sql_get_values)
