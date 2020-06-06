@@ -5,8 +5,15 @@ import gateway.runtime as rt
 import gateway.metadata as md
 
 
-config = md.Configure(filepath = '/home/heta/Z/app/python/dogger/', filename = 'conf.ini')
-env = config.get()
+gateway_database_connection = {"host": "localhost", "user": "root", "passwd": "admin", "db": "test"}
+config_filepath = None #'/home/heta/Z/app/python/dogger/' 
+config_filename = None #'conf.ini'
+if config_filepath is not None and config_filename is not None :
+    print('config_filepath', config_filepath)
+    print('config_filename', config_filename)
+    config = md.Configure(config_filepath, config_filename)
+    env = config.get()
+    if gateway_database_connection is None : gateway_database_connection = env['GATEWAY_DATABASE_CONNECTION']
 
 time.sleep(20)
 
@@ -42,8 +49,8 @@ while (True):
             accumulated_binary = b''
             
             try :
-                conn_data = env['GATEWAY_DATABASE_CONNECTION']
-                conn = pymysql.connect(host = conn_data['host'], user = conn_data['user'], passwd = conn_data['passwd'], db = conn_data['db'], autocommit = True)
+
+                conn = pymysql.connect(host = gateway_database_connection['host'], user = gateway_database_connection['user'], passwd = gateway_database_connection['passwd'], db = gateway_database_connection['db'], autocommit = True)
 
                 accumulated_bin_size = 60
                 accumulated_bin_end_time = current_timestamp - accumulated_bin_size
