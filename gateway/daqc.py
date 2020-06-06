@@ -5,14 +5,17 @@ import numpy
 import shutil
 import os
 import sys
+import io
 #import cv2
 import ctypes
+import base64
+import pyscreenshot as ImageGrab
 
 import gateway.device as dv
 import gateway.runtime as rt
 import gateway.metadata as md
-
 import gateway.task as t
+import gateway.uplink as ul
 
 
  
@@ -81,56 +84,27 @@ class NidaqCurrentIn(File):
 
 
         
-class USBCam(File):
+class Image(File):
     
 
-    def __init__(self, channels = None, start_delay = 0, sample_rate = None, file_path = None, archive_file_path = None, video_unit = None, video_res = None, video_rate = None, config_filepath = None, config_filename = None):
-
-        self.channels = channels
-        self.start_delay = start_delay
-        self.sample_rate = sample_rate
-
-        self.file_path = file_path
-        self.archive_file_path = archive_file_path
-        self.video_unit = video_unit
-        self.video_res = video_res
-        self.video_rate = video_rate
-
-        self.config_filepath = config_filepath
-        self.config_filename = config_filename
+    def __init__(self):
 
         self.env = self.get_env()
-        if self.video_unit is None: self.video_unit = self.env['VIDEO_UNIT']
         if self.video_res is None: self.video_res = self.env['VIDEO_RES']
-        if self.video_rate is None: self.video_rate = self.env['VIDEO_RATE']
 
-        (self.CHANNEL,) = self.channels
-        self.capture_filename = 'image_' + str(self.CHANNEL) + '.jpg'
+        (self.channel,) = self.channels
+        self.capture_filename = 'image_' + str(self.channel) + '.' + self.file_extension
         
         File.__init__(self)
-
-        
-    def read_samples(self):
-
-        try:
-            #camera.capture(capture_filename, format='jpeg', quality=10)
-            os.system('fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 1 --jpeg 95 --no-banner --save ' + self.capture_filename)
-            #ret, frame = cam.read()
-            #cv2.imwrite(capture_filename, frame)
-        except PermissionError as e:
-            print(e)
 
             
     def run(self):
 
         time.sleep(self.start_delay)
 
-        count = 0
         divisor = numpy.int64(1/numpy.float64(self.sample_rate))
         current_time = numpy.float64(time.time())
         current_secs = numpy.int64(current_time)
-
-        #cam = cv2.VideoCapture(-1)
 
         while True :
 
@@ -141,12 +115,12 @@ class USBCam(File):
                 time.sleep(0.1)
             else :
             
-                self.read_samples()
+                self.read_samples(sample_secs)
 
                 if self.file_path is not None and os.path.exists(self.file_path):
 
-                    store_filename = self.file_path + str(self.CHANNEL) + '_' + str(sample_secs) + '.jpg'
-                    archive_filename = self.archive_file_path + str(self.CHANNEL) + '_' + str(sample_secs) + '.jpg'
+                    store_filename = self.file_path + str(self.channel) + '_' + str(sample_secs) + '.' + self.file_extension
+                    archive_filename = self.archive_file_path + str(self.channel) + '_' + str(sample_secs) + '.' + self.file_extension
                     try:
                         shutil.copy(self.capture_filename, store_filename)
                         if self.archive_file_path is not None and os.path.exists(self.archive_file_path):
@@ -154,10 +128,109 @@ class USBCam(File):
                             #shutil.copy(capture_filename, archive_filename)
                     except (FileNotFoundError, PermissionError) as e:
                         rt.logging.exception(e)
-                    count = count+1
+
 
                     
-                    
+class USBCam(Image):
+
+
+    def __init__(self, channels = None, start_delay = 0, sample_rate = None, file_path = None, archive_file_path = None, file_extension = 'jpg', video_unit = None, video_res = None, video_rate = None, config_filepath = None, config_filename = None):
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+
+        self.file_path = file_path
+        self.archive_file_path = archive_file_path
+        self.file_extension = file_extension
+        self.video_unit = video_unit
+        self.video_res = video_res
+        self.video_rate = video_rate
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        self.env = self.get_env()
+        if self.video_unit is None: self.video_unit = self.env['VIDEO_UNIT']
+        if self.video_rate is None: self.video_rate = self.env['VIDEO_RATE']
+        
+        Image.__init__(self)
+
+        #self.cam = cv2.VideoCapture(-1)
+
+
+    def read_samples(self, sample_secs = -9999):
+
+        try :
+            #camera.capture(capture_filename, format='jpeg', quality=10)
+            os.system('fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 1 --jpeg 95 --no-banner --save ' + self.capture_filename)
+            #ret, frame = self.cam.read()
+            #cv2.imwrite(capture_filename, frame)
+        except PermissionError as e :
+            print(e)
+
+
+
+class Screenshot(Image):
+
+
+    def __init__(self, channels = None, start_delay = 0, sample_rate = None, file_path = None, archive_file_path = None, file_extension = 'jpg', video_res = None, ip_list = None, crop = None, config_filepath = None, config_filename = None):
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+
+        self.file_path = file_path
+        self.archive_file_path = archive_file_path
+        self.file_extension = file_extension
+        self.video_res = video_res
+        self.ip_list = ip_list
+        self.crop = crop
+        
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+        
+        Image.__init__(self)
+        
+
+    def read_samples(self, sample_secs = -9999):
+
+        try :
+            img = ImageGrab.grab( bbox = (self.crop[0], self.crop[1], self.crop[2], self.crop[3]) )
+            jpeg_image_buffer = io.BytesIO()
+            img.save(jpeg_image_buffer, format="JPEG")
+            img_str = base64.b64encode(jpeg_image_buffer.getvalue())
+            http = ul.Http(channels = self.channels, start_delay = self.start_delay, host_api_url = '/host/', client_api_url = '/client/', max_connect_attempts = 50)
+            (channel,) = self.channels
+            res = http.send_request(start_time = sample_secs, end_time = sample_secs, duration = 10, unit = 1, delete_horizon = 3600, ip = self.ip_list[0])
+            data_string = str(channel) + ';' + str(sample_secs) + ',-9999.0,,' + str(img_str.decode('utf-8')) + ',;'
+            print('data_string', data_string[0:100])
+            res = http.set_requested(data_string, ip = self.ip_list[0])
+        except PermissionError as e :
+            print(e)
+
+
+    def run(self):
+
+        time.sleep(self.start_delay)
+
+        divisor = numpy.int64(1/numpy.float64(self.sample_rate))
+        current_time = numpy.float64(time.time())
+        current_secs = numpy.int64(current_time)
+
+        while True :
+
+            sample_secs = current_secs + numpy.int64( divisor - current_secs % divisor )
+            current_time = numpy.float64(time.time())
+            current_secs = numpy.int64(current_time)
+            if sample_secs > current_secs :
+                time.sleep(0.1)
+            else :
+            
+                self.read_samples(sample_secs)
+
+            
+
 class AcquireCurrent(File):
 
     """ Adapted from https://scipy-cookbook.readthedocs.io/items/Data_Acquisition_with_NIDAQmx.html."""
