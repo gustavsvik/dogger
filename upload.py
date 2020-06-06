@@ -1,7 +1,7 @@
 import gateway.uplink
 
 
-http_upload = gateway.uplink.Http(
+http_upload = gateway.uplink.Replicate(
     channels = {20,21,23,24,40,97,98,99,100,161,500}, 
     start_delay = 0, 
     gateway_database_connection = {"host": "localhost", "user": "root", "passwd": "admin", "db": "test"}, 
