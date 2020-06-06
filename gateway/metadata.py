@@ -27,14 +27,9 @@ def to_int(val, default_val = 0):
         int_val = default_val
     return int_val
 
-
-    
-class Local:
-    pass
-
     
 
-class Configure(Local):
+class Configure:
 
 
     def __init__(self, filepath = None, filename = None):
@@ -51,15 +46,16 @@ class Configure(Local):
         import configparser
         
         conf = configparser.ConfigParser()
-        filepath = os.path.dirname(__file__) 
-        filename = 'conf.ini' 
-        if self.config_filepath is not None :
-            filepath = self.config_filepath
-        if self.config_filename is not None :
-            filename = self.config_filename
-
-
-        conf.read(os.path.join(filepath, filename))
+        #filepath = os.path.dirname(__file__) 
+        #filename = 'conf.ini' 
+        #if self.config_filepath is not None :
+        filepath = self.config_filepath
+        #if self.config_filename is not None :
+        filename = self.config_filename
+        try :
+            conf.read(os.path.join(filepath, filename))
+        except :
+            pass
         top_label = 'dogger'
 
         env = dict()
@@ -77,11 +73,14 @@ class Configure(Local):
         #gateway_database_name = strip_string(conf, top_label, 'gateway_database_name', '')
         gateway_database_connection = strip_string(conf, top_label, 'gateway_database_connection', '')
         ip_list = strip_string(conf, top_label, 'ip_list', '')
-        cloud_api_url = strip_string(conf, top_label, 'cloud_api_url', '')
+        host_api_url = strip_string(conf, top_label, 'host_api_url', '')
+        client_api_url = strip_string(conf, top_label, 'client_api_url', '')
         max_connect_attempts = strip_string(conf, top_label, 'max_connect_attempts', '')
         video_unit = strip_string(conf, top_label, 'video_unit', '')
         video_res = strip_string(conf, top_label, 'video_res', '')
+        crop = strip_string(conf, top_label, 'crop', '')
 
+        start_delay = to_float(strip_string(conf, top_label, 'start_delay'), 0.0)
         sample_rate = to_float(strip_string(conf, top_label, 'sample_rate'), 0.0)
         samples_per_chan = to_float(strip_string(conf, top_label, 'samples_per_chan'), 0.0)
         video_rate = to_float(strip_string(conf, top_label, 'video_rate'), 0.0)
@@ -95,6 +94,7 @@ class Configure(Local):
         acquired_truncate_interval = to_int(strip_string(conf, top_label, 'acquired_truncate_interval'), 0)
         accumulated_delete_interval = to_int(strip_string(conf, top_label, 'accumulated_delete_interval'), 0)
 
+        if start_delay < 0.0 : start_delay = 0.0
         if sample_rate < 1.0 : sample_rate = 1.0
         if samples_per_chan < 1.0 : samples_per_chan = 1.0
         if video_rate < 0.0 : video_rate = 0.0
@@ -106,6 +106,7 @@ class Configure(Local):
         if accumulated_delete_interval < 1 : accumulated_delete_interval = 1
 
         env['CHANNELS'] = channels
+        env['START_DELAY'] = start_delay
         file_path = local_file_path
         if os.path.isdir(net_file_path) : file_path = net_file_path
         if sys.platform.startswith('win32') : file_path = windows_file_path
@@ -136,11 +137,13 @@ class Configure(Local):
         except ValueError:
             env['GATEWAY_DATABASE_CONNECTION'] = gateway_database_connection
         env['IP_LIST'] = ip_list
-        env['CLOUD_API_URL'] = cloud_api_url
+        env['HOST_API_URL'] = host_api_url
+        env['CLIENT_API_URL'] = client_api_url
         env['MAX_CONNECT_ATTEMPTS'] = max_connect_attempts
         env['VIDEO_UNIT'] = video_unit
         env['VIDEO_RES'] = video_res
         env['VIDEO_RATE'] = video_rate
+        env['CROP'] = crop
 
 
         return env
