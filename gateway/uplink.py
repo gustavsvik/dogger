@@ -20,7 +20,7 @@ class Uplink(t.StoreUplink):
 
         self.env = self.get_env()
         if self.ip_list is None: self.ip_list = self.env['IP_LIST']
-        if self.cloud_api_url is None: self.cloud_api_url = self.env['CLOUD_API_URL']
+        if self.host_api_url is None: self.host_api_url = self.env['HOST_API_URL']
         if self.max_connect_attempts is None: self.max_connect_attempts = self.env['MAX_CONNECT_ATTEMPTS']
         
         t.StoreUplink.__init__(self)
@@ -30,54 +30,52 @@ class Uplink(t.StoreUplink):
 class Http(Uplink):
     
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, cloud_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
-        self.cloud_api_url = cloud_api_url
+        self.host_api_url = host_api_url
+        self.client_api_url = client_api_url
         self.max_connect_attempts = max_connect_attempts
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
-        
-        self.env = self.get_env()
 
         Uplink.__init__(self)
-
-        self.channel_range_string = ';;'.join([str(ch) for ch in channels]) + ';;'
-        self.connect_attempts = 0
         
-        self.clear_channels()      
+        self.channel_range_string = ';;'.join([str(ch) for ch in channels]) + ';;'
+
+        self.connect_attempts = 0
 
 
-    def get_requested(self, channels, ip):
+    def get_requested(self, ip = '127.0.0.1'):
 
         self.connect_attempts += 1
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            rt.logging.debug("channels", channels)
-            raw_data = requests.post("http://" + ip + self.cloud_api_url + "get_requested.php", timeout = 5, data = {'channelrange': channels, 'duration': 10, 'unit': 1})
+            rt.logging.debug("self.channel_range_string", self.channel_range_string)
+            raw_data = requests.post("http://" + ip + self.host_api_url + "get_requested.php", timeout = 5, data = {"channelrange": self.channel_range_string, "duration": 10, "unit": 1})
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
             rt.logging.debug(e)
             time.sleep(10)
             if self.connect_attempts < self.max_connect_attempts:
-                self.get_requested(channels, ip)
+                self.get_requested(ip)
             else:
                 exit(-1)
 
 
-    def set_requested(self, data_string, ip):
+    def set_requested(self, data_string, ip = '127.0.0.1'):
 
         self.connect_attempts += 1
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            raw_data = requests.post("http://" + ip + self.cloud_api_url + "set_requested.php", timeout = 5, data = {'returnstring': data_string})
+            raw_data = requests.post("http://" + ip + self.host_api_url + "set_requested.php", timeout = 5, data = {"returnstring": data_string})
             rt.logging.debug("data_string", data_string)
             self.connect_attempts = 0
             return raw_data
@@ -90,23 +88,72 @@ class Http(Uplink):
                 exit(-1)
 
                 
-    def clear_data_requests(self, channels, ip):
+    def clear_data_requests(self, ip = '127.0.0.1'):
 
         self.connect_attempts += 1
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            rt.logging.debug("channels", channels)
-            raw_data = requests.post("http://" + ip + self.cloud_api_url + "clear_data_requests.php", timeout = 5, data = {'channelrange': channels})
+            rt.logging.debug("self.channel_range_string", self.channel_range_string)
+            raw_data = requests.post("http://" + ip + self.host_api_url + "clear_data_requests.php", timeout = 5, data = {"channelrange": self.channel_range_string})
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
             rt.logging.debug(e)
             time.sleep(10)
             if self.connect_attempts < self.max_connect_attempts:
-                self.clear_data_requests(channels, ip)
+                self.clear_data_requests(ip)
             else:
                 exit(-1)
+
+                
+    def send_request(self, ip = '127.0.0.1', start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600):
+
+        self.connect_attempts += 1
+        if self.connect_attempts > 1:
+            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
+        try:
+            #print("http://" + ip + self.client_api_url + "send_request.php")
+            d = {"channels": self.channel_range_string, "start_time": start_time, "end_time": end_time, "duration": duration, "unit": unit, "delete_horizon": delete_horizon}
+            #print(d)
+            raw_data = requests.post("http://" + ip + self.client_api_url + "send_request.php", timeout = 5, data = d)
+            #print(raw_data)
+            self.connect_attempts = 0
+            return raw_data
+        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
+            rt.logging.debug(e)
+            #print(e)
+            time.sleep(10)
+            #print('time.sleep(10)')
+            if self.connect_attempts < self.max_connect_attempts:
+                self.send_request(ip, start_time, end_time, duration, unit, delete_horizon)
+            else:
+                exit(-1)
+
+            
+            
+class Replicate(Http):
+
+
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.gateway_database_connection = gateway_database_connection
+        self.ip_list = ip_list
+        self.host_api_url = host_api_url
+        self.max_connect_attempts = max_connect_attempts
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+        
+        self.env = self.get_env()
+
+        Http.__init__(self)
+
+        self.connect_attempts = 0
+        
+        self.clear_channels()
 
 
     def clear_channels(self):
@@ -119,11 +166,11 @@ class Http(Uplink):
             if r_clear is not None:
                 try:
                     requested_data = r_clear.json()
-                    cleared_channels = requested_data['returnstring']
+                    cleared_channels = requested_data["returnstring"]
                 except ValueError as e:  # includes simplejson.decoder.JSONDecodeError
                     rt.logging.debug("Decoding JSON has failed", e)
             rt.logging.debug("cleared_channels",cleared_channels)
-
+            
 
     def run(self):
 
