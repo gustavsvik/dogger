@@ -35,7 +35,6 @@ class StoreUplink(Task):
 
         
 
-        
 class AcquireControl(Task):
 
 
