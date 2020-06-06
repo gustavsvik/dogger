@@ -113,18 +113,13 @@ class Http(Uplink):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            #print("http://" + ip + self.client_api_url + "send_request.php")
             d = {"channels": self.channel_range_string, "start_time": start_time, "end_time": end_time, "duration": duration, "unit": unit, "delete_horizon": delete_horizon}
-            #print(d)
             raw_data = requests.post("http://" + ip + self.client_api_url + "send_request.php", timeout = 5, data = d)
-            #print(raw_data)
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
             rt.logging.debug(e)
-            #print(e)
             time.sleep(10)
-            #print('time.sleep(10)')
             if self.connect_attempts < self.max_connect_attempts:
                 self.send_request(ip, start_time, end_time, duration, unit, delete_horizon)
             else:
