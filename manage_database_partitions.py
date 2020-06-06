@@ -47,7 +47,6 @@ while (True):
             conn = pymysql.connect(host = conn_data['host'], user = conn_data['user'], passwd = conn_data['passwd'], db = conn_data['db'], autocommit = True)
 
             sql_reorganize_partitions = "ALTER TABLE t_acquired_data REORGANIZE PARTITION acquired_time_max INTO ( PARTITION acquired_time_" + new_partition_name_string + " VALUES LESS THAN (" + new_partition_timestamp_string + "), PARTITION acquired_time_max VALUES LESS THAN (MAXVALUE) )"
-            print(sql_reorganize_partitions)
             with conn.cursor() as cursor :
                 try:
                     cursor.execute(sql_reorganize_partitions)
