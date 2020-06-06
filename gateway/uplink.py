@@ -130,13 +130,14 @@ class Http(Uplink):
 class Replicate(Http):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.host_api_url = host_api_url
+        self.client_api_url = client_api_url
         self.max_connect_attempts = max_connect_attempts
 
         self.config_filepath = config_filepath
@@ -144,7 +145,7 @@ class Replicate(Http):
         
         self.env = self.get_env()
 
-        Http.__init__(self)
+        Http.__init__(self, self.channels, self.start_delay, self.gateway_database_connection, self.ip_list, self.host_api_url, self.client_api_url, self.max_connect_attempts, self.config_filepath, self.config_filename)
 
         self.connect_attempts = 0
         
@@ -156,7 +157,7 @@ class Replicate(Http):
         for ip in self.ip_list :
 
             cleared_channels = ''
-            r_clear = self.clear_data_requests(self.channel_range_string, ip)
+            r_clear = self.clear_data_requests(ip)
             rt.logging.debug("r_clear", r_clear)
             if r_clear is not None:
                 try:
@@ -174,7 +175,7 @@ class Replicate(Http):
             for ip in self.ip_list :
 
                 data_string = ''
-                r_get = self.get_requested(self.channel_range_string, ip)
+                r_get = self.get_requested(ip)
                 rt.logging.debug("r_get", r_get)
                 if r_get is not None:
                     try:
@@ -238,7 +239,7 @@ class Replicate(Http):
 
                             if len(requested_timestamps) > 0:
                                 if min(requested_timestamps) < int(time.time()) - 3600:
-                                    r_clear = self.clear_data_requests(channel_string + ';;', ip)
+                                    r_clear = self.clear_data_requests(ip)
 
                 except (pymysql.err.OperationalError, pymysql.err.Error) as e:
                     rt.logging.debug(e)
