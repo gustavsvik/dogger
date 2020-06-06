@@ -9,8 +9,6 @@ gateway_database_connection = {"host": "localhost", "user": "root", "passwd": "a
 config_filepath = None #'/home/heta/Z/app/python/dogger/' 
 config_filename = None #'conf.ini'
 if config_filepath is not None and config_filename is not None :
-    print('config_filepath', config_filepath)
-    print('config_filename', config_filename)
     config = md.Configure(config_filepath, config_filename)
     env = config.get()
     if gateway_database_connection is None : gateway_database_connection = env['GATEWAY_DATABASE_CONNECTION']
