@@ -6,7 +6,7 @@ import pymysql
 import gateway.runtime as rt
 import gateway.metadata as md
 
-gateway_database_connection = {"host": "localhost", "user": "root", "passwd": "admin", "db": "test"}
+gateway_database_connection = {"host": "host", "user": "user", "passwd": "passwd", "db": "db"}
 config_filepath = None 
 config_filename = None 
 if config_filepath is not None and config_filename is not None :
