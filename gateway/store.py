@@ -103,10 +103,11 @@ class Accumulate(SQL) :
                         accumulated_bin_size = 60
                         accumulated_bin_end_time = current_timestamp - accumulated_bin_size
 
-                        sql_get_minute_data = 'SELECT ACQUIRED_TIME,ACQUIRED_VALUE FROM t_acquired_data WHERE CHANNEL_INDEX=' + str(channel_index) + ' AND ACQUIRED_TIME<' + str(accumulated_bin_end_time) + ' AND ACQUIRED_TIME>=' + str(accumulated_bin_end_time - 60) + ' ORDER BY ACQUIRED_TIME DESC'
+                        #sql_get_minute_data = 'SELECT ACQUIRED_TIME,ACQUIRED_VALUE FROM t_acquired_data WHERE CHANNEL_INDEX=' + str(channel_index) + ' AND ACQUIRED_TIME<' + str(accumulated_bin_end_time) + ' AND ACQUIRED_TIME>=' + str(accumulated_bin_end_time - 60) + ' ORDER BY ACQUIRED_TIME DESC'
+                        sql_get_minute_data = "SELECT ACQUIRED_TIME,ACQUIRED_VALUE FROM t_acquired_data WHERE CHANNEL_INDEX=%s AND ACQUIRED_TIME<%s AND ACQUIRED_TIME>=%s ORDER BY ACQUIRED_TIME DESC"
 
                         with self.conn.cursor() as cursor :
-                            cursor.execute(sql_get_minute_data)
+                            cursor.execute(sql_get_minute_data, (channel_index, accumulated_bin_end_time, accumulated_bin_end_time - 60) )
                             results = cursor.fetchall()
                             for row in results:
                                 acquired_time = row[0]
@@ -161,7 +162,7 @@ class Accumulate(SQL) :
                     finally:
                     
                         try: 
-                            self.conn.close()
+                            self.close_db_connection()
                         except NameError:
                             pass
 
