@@ -20,9 +20,6 @@ class SQL(t.StoreUplink):
 
     def __init__(self):
 
-        self.delete_sql = "DELETE FROM t_acquired_data WHERE ACQUIRED_TIME=%s AND CHANNEL_INDEX=%s"
-        self.insert_sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,ACQUIRED_MICROSECS,CHANNEL_INDEX,ACQUIRED_VALUE,ACQUIRED_SUBSAMPLES,ACQUIRED_BASE64) VALUES (%s,%s,%s,%s,%s,%s)"
-
         t.StoreUplink.__init__(self)
 
 
@@ -52,6 +49,129 @@ class SQL(t.StoreUplink):
 
 
 
+class Accumulate(SQL) :
+
+
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, config_filepath = None, config_filename = None) :
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.gateway_database_connection = gateway_database_connection
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        SQL.__init__(self)
+
+        self.previous_minute = -1
+        self.previous_timestamp = int(time.mktime(time.localtime()))
+
+
+    def run(self) :
+
+        time.sleep(self.start_delay)
+
+        while (True) :
+
+            time.sleep(0.1)
+
+            current_localtime = time.localtime()
+            current_hour =  current_localtime.tm_hour
+            current_minute = current_localtime.tm_min
+            current_second = current_localtime.tm_sec
+            current_timestamp = int(time.mktime(time.localtime()))
+
+            if current_timestamp - self.previous_timestamp > 60 :
+                current_timestamp = self.previous_timestamp + 60
+                current_minute = self.previous_minute + 1
+            
+            if current_second == 0 and current_minute != self.previous_minute :
+
+                for channel_index in self.channels: #list(range(env['DATA_CHANNEL_1'], env['DATA_CHANNEL_1'] + env['NO_OF_DATA_CHANNELS'])):
+
+                    accumulated_min_samples = 0
+                    accumulated_min_value = 0.0
+                    accumulated_hour_samples = 0
+                    accumulated_hour_value = 0.0
+                    accumulated_text = ''
+                    accumulated_binary = b''
+                    
+                    try :
+
+                        #conn = pymysql.connect(host = gateway_database_connection['host'], user = gateway_database_connection['user'], passwd = gateway_database_connection['passwd'], db = gateway_database_connection['db'], autocommit = True)
+                        self.connect_db()
+
+                        accumulated_bin_size = 60
+                        accumulated_bin_end_time = current_timestamp - accumulated_bin_size
+
+                        sql_get_minute_data = 'SELECT ACQUIRED_TIME,ACQUIRED_VALUE FROM t_acquired_data WHERE CHANNEL_INDEX=' + str(channel_index) + ' AND ACQUIRED_TIME<' + str(accumulated_bin_end_time) + ' AND ACQUIRED_TIME>=' + str(accumulated_bin_end_time - 60) + ' ORDER BY ACQUIRED_TIME DESC'
+
+                        with self.conn.cursor() as cursor :
+                            cursor.execute(sql_get_minute_data)
+                            results = cursor.fetchall()
+                            for row in results:
+                                acquired_time = row[0]
+                                acquired_value = row[1]
+                                if not -9999.01 < acquired_value < -9998.99 :
+                                    accumulated_min_value += acquired_value
+                                    accumulated_min_samples += 1
+
+                        accumulated_min_mean = 0.0
+                        if accumulated_min_samples > 0 :
+                            accumulated_min_mean = accumulated_min_value / accumulated_min_samples
+
+                        sql_insert_accumulated_60 = 'INSERT INTO t_accumulated_data (CHANNEL_INDEX,ACCUMULATED_BIN_END_TIME,ACCUMULATED_BIN_SIZE,ACCUMULATED_NO_OF_SAMPLES,ACCUMULATED_VALUE,ACCUMULATED_TEXT,ACCUMULATED_BINARY) VALUES (%s,%s,%s,%s,%s,%s,%s)'
+                        with self.conn.cursor() as cursor :
+                            try:
+                                cursor.execute(sql_insert_accumulated_60, (channel_index,accumulated_bin_end_time,accumulated_bin_size,accumulated_min_samples,accumulated_min_mean,accumulated_text,accumulated_binary))
+                            except pymysql.err.IntegrityError as e:
+                                rt.logging.exception(e)
+
+                        accumulated_min_samples = 0
+                        accumulated_min_value = 0.0
+
+                        if current_minute == 1 :
+
+                            accumulated_bin_size = 3600
+
+                            sql_get_hour_data = 'SELECT ACQUIRED_TIME,ACQUIRED_VALUE FROM t_acquired_data WHERE CHANNEL_INDEX=' + str(channel_index) + ' AND ACQUIRED_TIME<' + str(accumulated_bin_end_time) + ' AND ACQUIRED_TIME>=' + str(accumulated_bin_end_time - 3600) + ' ORDER BY ACQUIRED_TIME DESC'
+                            with self.conn.cursor() as cursor :
+                                cursor.execute(sql_get_hour_data)
+                                results = cursor.fetchall()
+                                for row in results:
+                                    acquired_time = row[0]
+                                    acquired_value = row[1]
+                                    if not -9999.01 < acquired_value < -9998.99 :
+                                        accumulated_hour_value += acquired_value
+                                        accumulated_hour_samples += 1
+
+                            accumulated_hour_mean = 0.0
+                            if accumulated_hour_samples > 0 :
+                                accumulated_hour_mean = accumulated_hour_value / accumulated_hour_samples
+                                
+                            sql_insert_accumulated_3600 = "INSERT INTO t_accumulated_data (CHANNEL_INDEX,ACCUMULATED_BIN_END_TIME,ACCUMULATED_BIN_SIZE,ACCUMULATED_NO_OF_SAMPLES,ACCUMULATED_VALUE,ACCUMULATED_TEXT,ACCUMULATED_BINARY) VALUES (%s,%s,%s,%s,%s,%s,%s)"
+                            with self.conn.cursor() as cursor :
+                                try:
+                                    cursor.execute(sql_insert_accumulated_3600, (channel_index,accumulated_bin_end_time,accumulated_bin_size,accumulated_hour_samples,accumulated_hour_mean,accumulated_text,accumulated_binary))
+                                except pymysql.err.IntegrityError as e:
+                                    rt.logging.exception(e)
+
+                            accumulated_hour_samples = 0
+                            accumulated_hour_value = 0.0
+
+                    finally:
+                    
+                        try: 
+                            self.conn.close()
+                        except NameError:
+                            pass
+
+                        
+                self.previous_minute = current_minute
+                self.previous_timestamp = current_timestamp
+
+
+
 class LoadFile(SQL):
 
 
@@ -74,6 +194,9 @@ class DataFile(LoadFile):
     def __init__(self):
 
         LoadFile.__init__(self)
+
+        self.delete_sql = "DELETE FROM t_acquired_data WHERE ACQUIRED_TIME=%s AND CHANNEL_INDEX=%s"
+        self.insert_sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,ACQUIRED_MICROSECS,CHANNEL_INDEX,ACQUIRED_VALUE,ACQUIRED_SUBSAMPLES,ACQUIRED_BASE64) VALUES (%s,%s,%s,%s,%s,%s)"
 
 
     def retrieve_file_data(self, current_file = None):
