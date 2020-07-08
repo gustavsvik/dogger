@@ -20,18 +20,6 @@ class Task:
         env = config.get()
 
         return env
-        
-        
-
-class StoreUplink(Task):
-
-
-    def __init__(self):
-
-        self.env = self.get_env()
-        if self.gateway_database_connection is None: self.gateway_database_connection = self.env['GATEWAY_DATABASE_CONNECTION']
-
-        Task.__init__(self)
 
         
 
@@ -43,5 +31,17 @@ class AcquireControl(Task):
         self.env = self.get_env()
         
         if self.sample_rate is None: self.sample_rate = self.env['SAMPLE_RATE']
+
+        Task.__init__(self)
+
+
+
+class StoreUplink(Task):
+
+
+    def __init__(self):
+
+        self.env = self.get_env()
+        if self.gateway_database_connection is None: self.gateway_database_connection = self.env['GATEWAY_DATABASE_CONNECTION']
 
         Task.__init__(self)
