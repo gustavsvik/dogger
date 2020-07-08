@@ -87,7 +87,7 @@ class Accumulate(SQL) :
             
             if current_second == 0 and current_minute != self.previous_minute :
 
-                for channel_index in self.channels: #list(range(env['DATA_CHANNEL_1'], env['DATA_CHANNEL_1'] + env['NO_OF_DATA_CHANNELS'])):
+                for channel_index in self.channels: 
 
                     accumulated_min_samples = 0
                     accumulated_min_value = 0.0
@@ -98,7 +98,6 @@ class Accumulate(SQL) :
                     
                     try :
 
-                        #conn = pymysql.connect(host = gateway_database_connection['host'], user = gateway_database_connection['user'], passwd = gateway_database_connection['passwd'], db = gateway_database_connection['db'], autocommit = True)
                         self.connect_db()
 
                         accumulated_bin_size = 60
