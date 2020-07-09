@@ -57,7 +57,9 @@ class Http(Uplink):
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
             rt.logging.debug("self.channel_range_string", self.channel_range_string)
+            #print("self.channel_range_string", self.channel_range_string)
             raw_data = requests.post("http://" + ip + self.host_api_url + "get_requested.php", timeout = 5, data = {"channelrange": self.channel_range_string, "duration": 10, "unit": 1})
+            #print("raw_data.request.headers", raw_data.request.headers)
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
@@ -75,12 +77,15 @@ class Http(Uplink):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
+            #print("http://" + ip + self.host_api_url + "set_requested.php")
+            #print(data_string)
             raw_data = requests.post("http://" + ip + self.host_api_url + "set_requested.php", timeout = 5, data = {"returnstring": data_string})
             rt.logging.debug("data_string", data_string)
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
             rt.logging.debug(e)
+            #print(e)
             time.sleep(10)
             if self.connect_attempts < self.max_connect_attempts:
                 self.set_requested(data_string, ip)
@@ -144,8 +149,8 @@ class Replicate(Http):
         self.config_filename = config_filename
         
         self.env = self.get_env()
-
         Http.__init__(self, self.channels, self.start_delay, self.gateway_database_connection, self.ip_list, self.host_api_url, self.client_api_url, self.max_connect_attempts, self.config_filepath, self.config_filename)
+        #print("self.ip_list Replicate", self.ip_list)
 
         self.connect_attempts = 0
         
