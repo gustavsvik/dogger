@@ -10,46 +10,12 @@ import base64
 import gateway.metadata as md
 import gateway.timefiles as tf
 import gateway.runtime as rt
-
+import gateway.database as db
 import gateway.task as t
 
 
 
-class SQL(t.StoreUplink):
-
-
-    def __init__(self):
-
-        t.StoreUplink.__init__(self)
-
-
-    def connect_db(self):
-
-        try:
-            conn_data = self.gateway_database_connection
-            self.conn = pymysql.connect(host = conn_data['host'], user = conn_data['user'], passwd = conn_data['passwd'], db = conn_data['db'], autocommit = True)
-        except (pymysql.err.OperationalError, pymysql.err.Error) as e:
-            rt.logging.exception(e)
-
-
-    def commit_transaction(self):
-
-        try:
-            self.conn.commit()
-        except (pymysql.err.OperationalError, pymysql.err.Error) as e:
-            rt.logging.exception(e)
-
-
-    def close_db_connection(self):
-
-        try:
-            self.conn.close()
-        except (pymysql.err.OperationalError, pymysql.err.Error) as e:
-            rt.logging.exception(e)
-
-
-
-class Accumulate(SQL) :
+class Accumulate(t.StoreUplink) :
 
 
     def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, config_filepath = None, config_filename = None) :
@@ -61,15 +27,16 @@ class Accumulate(SQL) :
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        SQL.__init__(self)
+        t.StoreUplink.__init__(self)
 
+        self.sql = db.SQL(self.gateway_database_connection)
         self.previous_minute = -1
         self.previous_timestamp = int(time.mktime(time.localtime()))
 
 
     def run(self) :
 
-        time.sleep(self.start_delay)
+        #time.sleep(self.start_delay)
 
         while (True) :
 
@@ -98,7 +65,7 @@ class Accumulate(SQL) :
                     
                     try :
 
-                        self.connect_db()
+                        self.sql.connect_db()
 
                         accumulated_bin_size = 60
                         accumulated_bin_end_time = current_timestamp - accumulated_bin_size
@@ -106,7 +73,7 @@ class Accumulate(SQL) :
                         #sql_get_minute_data = 'SELECT ACQUIRED_TIME,ACQUIRED_VALUE FROM t_acquired_data WHERE CHANNEL_INDEX=' + str(channel_index) + ' AND ACQUIRED_TIME<' + str(accumulated_bin_end_time) + ' AND ACQUIRED_TIME>=' + str(accumulated_bin_end_time - 60) + ' ORDER BY ACQUIRED_TIME DESC'
                         sql_get_minute_data = "SELECT ACQUIRED_TIME,ACQUIRED_VALUE FROM t_acquired_data WHERE CHANNEL_INDEX=%s AND ACQUIRED_TIME<%s AND ACQUIRED_TIME>=%s ORDER BY ACQUIRED_TIME DESC"
 
-                        with self.conn.cursor() as cursor :
+                        with self.sql.conn.cursor() as cursor :
                             cursor.execute(sql_get_minute_data, (channel_index, accumulated_bin_end_time, accumulated_bin_end_time - 60) )
                             results = cursor.fetchall()
                             for row in results:
@@ -121,7 +88,7 @@ class Accumulate(SQL) :
                             accumulated_min_mean = accumulated_min_value / accumulated_min_samples
 
                         sql_insert_accumulated_60 = 'INSERT INTO t_accumulated_data (CHANNEL_INDEX,ACCUMULATED_BIN_END_TIME,ACCUMULATED_BIN_SIZE,ACCUMULATED_NO_OF_SAMPLES,ACCUMULATED_VALUE,ACCUMULATED_TEXT,ACCUMULATED_BINARY) VALUES (%s,%s,%s,%s,%s,%s,%s)'
-                        with self.conn.cursor() as cursor :
+                        with self.sql.conn.cursor() as cursor :
                             try:
                                 cursor.execute(sql_insert_accumulated_60, (channel_index,accumulated_bin_end_time,accumulated_bin_size,accumulated_min_samples,accumulated_min_mean,accumulated_text,accumulated_binary))
                             except pymysql.err.IntegrityError as e:
@@ -135,7 +102,7 @@ class Accumulate(SQL) :
                             accumulated_bin_size = 3600
 
                             sql_get_hour_data = 'SELECT ACQUIRED_TIME,ACQUIRED_VALUE FROM t_acquired_data WHERE CHANNEL_INDEX=' + str(channel_index) + ' AND ACQUIRED_TIME<' + str(accumulated_bin_end_time) + ' AND ACQUIRED_TIME>=' + str(accumulated_bin_end_time - 3600) + ' ORDER BY ACQUIRED_TIME DESC'
-                            with self.conn.cursor() as cursor :
+                            with self.sql.conn.cursor() as cursor :
                                 cursor.execute(sql_get_hour_data)
                                 results = cursor.fetchall()
                                 for row in results:
@@ -150,7 +117,7 @@ class Accumulate(SQL) :
                                 accumulated_hour_mean = accumulated_hour_value / accumulated_hour_samples
                                 
                             sql_insert_accumulated_3600 = "INSERT INTO t_accumulated_data (CHANNEL_INDEX,ACCUMULATED_BIN_END_TIME,ACCUMULATED_BIN_SIZE,ACCUMULATED_NO_OF_SAMPLES,ACCUMULATED_VALUE,ACCUMULATED_TEXT,ACCUMULATED_BINARY) VALUES (%s,%s,%s,%s,%s,%s,%s)"
-                            with self.conn.cursor() as cursor :
+                            with self.sql.conn.cursor() as cursor :
                                 try:
                                     cursor.execute(sql_insert_accumulated_3600, (channel_index,accumulated_bin_end_time,accumulated_bin_size,accumulated_hour_samples,accumulated_hour_mean,accumulated_text,accumulated_binary))
                                 except pymysql.err.IntegrityError as e:
@@ -162,7 +129,7 @@ class Accumulate(SQL) :
                     finally:
                     
                         try: 
-                            self.close_db_connection()
+                            self.sql.close_db_connection()
                         except NameError:
                             pass
 
@@ -172,12 +139,12 @@ class Accumulate(SQL) :
 
 
 
-class LoadFile(SQL):
+class LoadFile(t.StoreUplink):
 
 
     def __init__(self):
 
-        SQL.__init__(self)
+        t.StoreUplink.__init__(self)
 
 
     def get_filenames(self, channel = None):
@@ -188,12 +155,14 @@ class LoadFile(SQL):
 
 
 
-class DataFile(LoadFile):
+class FileToSQL(LoadFile):
 
 
     def __init__(self):
 
         LoadFile.__init__(self)
+
+        self.sql = db.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
         self.delete_sql = "DELETE FROM t_acquired_data WHERE ACQUIRED_TIME=%s AND CHANNEL_INDEX=%s"
         self.insert_sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,ACQUIRED_MICROSECS,CHANNEL_INDEX,ACQUIRED_VALUE,ACQUIRED_SUBSAMPLES,ACQUIRED_BASE64) VALUES (%s,%s,%s,%s,%s,%s)"
@@ -223,7 +192,7 @@ class DataFile(LoadFile):
 
         try:
 
-            with self.conn.cursor() as cursor :
+            with self.sql.conn.cursor() as cursor :
 
                 try:
                     cursor.execute(self.delete_sql, (acquired_time_string, channel_string) )
@@ -231,7 +200,7 @@ class DataFile(LoadFile):
                     rt.logging.exception(e)
 
             if not math.isnan(float(self.acquired_value)):
-                with self.conn.cursor() as cursor :
+                with self.sql.conn.cursor() as cursor :
                     try:
                         rt.logging.debug(acquired_time_string + channel_string + acquired_value_string + str(self.acquired_subsamples) + str(self.acquired_base64))
                         cursor.execute(self.insert_sql, (acquired_time_string, acquired_microsecs_string, channel_string, acquired_value_string, self.acquired_subsamples[1:-1], self.acquired_base64))
@@ -266,21 +235,21 @@ class DataFile(LoadFile):
 
                 if len(files) > 2 :
 
-                    self.connect_db()
+                    if self.sql.connect_db() :
 
-                    for current_file in files:
+                        for current_file in files:
 
-                        if len(files) > 2:
+                            if len(files) > 2:
 
-                            self.retrieve_file_data(current_file)
-                            store_result = self.store_file_data()
-                            if store_result <= -1: insert_failure = True
+                                self.retrieve_file_data(current_file)
+                                store_result = self.store_file_data()
+                                if store_result <= -1: insert_failure = True
 
-                    self.close_db_connection()
+                        self.sql.close_db_connection()
 
 
 
-class ImageFile(DataFile):
+class ImageFile(FileToSQL):
 
 
     def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['jpg', 'png'], config_filepath = None, config_filename = None):
@@ -294,7 +263,7 @@ class ImageFile(DataFile):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        DataFile.__init__(self)
+        FileToSQL.__init__(self)
 
 
     def load_file(self, current_file = None):
@@ -349,7 +318,7 @@ class ScreenshotFile(ImageFile):
 
 
 
-class NumpyFile(DataFile):
+class NumpyFile(FileToSQL):
 
 
     def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['npy'], config_filepath = None, config_filename = None):
@@ -363,7 +332,7 @@ class NumpyFile(DataFile):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        DataFile.__init__(self)
+        FileToSQL.__init__(self)
 
 
     def load_file(self, current_file = None):
@@ -390,7 +359,7 @@ class NumpyFile(DataFile):
         return acquired_microsecs, acquired_value, acquired_subsamples, acquired_base64
 
 
-class TextFile(DataFile):
+class TextFile(FileToSQL):
 
 
     def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['csv', 'txt'], config_filepath = None, config_filename = None):
@@ -404,7 +373,7 @@ class TextFile(DataFile):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        DataFile.__init__(self)
+        FileToSQL.__init__(self)
 
 
     def load_file(self, current_file = None):
