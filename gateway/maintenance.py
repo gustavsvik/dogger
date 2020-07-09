@@ -47,8 +47,12 @@ class NetworkTime:
 
         except gaierror as e :
             print(e)
-
-        dt = datetime.datetime.utcfromtimestamp(self.current_system_time + self.current_system_time_offset)
+        
+        dt = None
+        try :
+            dt = datetime.datetime.utcfromtimestamp(self.current_system_time + self.current_system_time_offset)
+        except OSError as e :
+            print(e)
 
         return dt
 
@@ -65,7 +69,8 @@ class NetworkTime:
         import time, numpy
 
         adj_time = self.get_network_time()
-        self.adjust_system_time(adj_time)
+        if adj_time is not None :
+            self.adjust_system_time(adj_time)
 
         acq_prev_time = numpy.float64(time.time())
         
@@ -79,5 +84,6 @@ class NetworkTime:
 
             if diff_time > secs_interval :
                 adj_time = self.get_network_time()
-                self.adjust_system_time(adj_time)
-                diff_time = 0
+                if adj_time is not None :
+                    self.adjust_system_time(adj_time)
+                    diff_time = 0
