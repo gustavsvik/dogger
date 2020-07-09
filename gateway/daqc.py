@@ -163,7 +163,7 @@ class USBCam(Image):
 
         try :
             #camera.capture(capture_filename, format='jpeg', quality=10)
-            os.system('fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 1 --jpeg 95 --no-banner --save ' + self.capture_filename)
+            os.system('fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 1 --jpeg 50 --no-banner --save ' + self.capture_filename)
             #ret, frame = self.cam.read()
             #cv2.imwrite(capture_filename, frame)
         except PermissionError as e :
@@ -171,24 +171,27 @@ class USBCam(Image):
 
 
 
-class Screenshot(Image):
+class ScreenshotUpload(Image):
 
 
-    def __init__(self, channels = None, start_delay = 0, sample_rate = None, file_path = None, archive_file_path = None, file_extension = 'jpg', video_res = None, ip_list = None, crop = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, sample_rate = None, crop = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
-        self.start_delay = start_delay
+        self.start_delay = 0
         self.sample_rate = sample_rate
 
-        self.file_path = file_path
-        self.archive_file_path = archive_file_path
-        self.file_extension = file_extension
-        self.video_res = video_res
-        self.ip_list = ip_list
+        self.file_path = None
+        self.archive_file_path = None
+        self.file_extension = 'jpg'
+        self.video_res = None
+        self.ip_list = None
         self.crop = crop
         
         self.config_filepath = config_filepath
         self.config_filename = config_filename
+
+        self.env = self.get_env()
+        if self.ip_list is None: self.ip_list = self.env['IP_LIST']
         
         Image.__init__(self)
         
@@ -200,7 +203,7 @@ class Screenshot(Image):
             jpeg_image_buffer = io.BytesIO()
             img.save(jpeg_image_buffer, format="JPEG")
             img_str = base64.b64encode(jpeg_image_buffer.getvalue())
-            http = ul.Http(channels = self.channels, start_delay = self.start_delay, host_api_url = '/host/', client_api_url = '/client/', max_connect_attempts = 50)
+            http = ul.DirectUpload(channels = self.channels, start_delay = self.start_delay)
             (channel,) = self.channels
             res = http.send_request(start_time = sample_secs, end_time = sample_secs, duration = 10, unit = 1, delete_horizon = 3600, ip = self.ip_list[0])
             data_string = str(channel) + ';' + str(sample_secs) + ',-9999.0,,' + str(img_str.decode('utf-8')) + ',;'
