@@ -41,7 +41,4 @@ class StoreUplink(Task):
 
     def __init__(self):
 
-        self.env = self.get_env()
-        if self.gateway_database_connection is None: self.gateway_database_connection = self.env['GATEWAY_DATABASE_CONNECTION']
-
         Task.__init__(self)
