@@ -67,10 +67,6 @@ class Configure:
         net_archive_file_path = strip_string(conf, top_label, 'net_archive_file_path', '')
         local_archive_file_path = strip_string(conf, top_label, 'local_archive_file_path', '')
         windows_archive_file_path = strip_string(conf, top_label, 'windows_archive_file_path', '')
-        #gateway_database_host = strip_string(conf, top_label, 'gateway_database_host', '')
-        #gateway_database_user = strip_string(conf, top_label, 'gateway_database_user', '')
-        #gateway_database_passwd = strip_string(conf, top_label, 'gateway_database_passwd', '')
-        #gateway_database_name = strip_string(conf, top_label, 'gateway_database_name', '')
         gateway_database_connection = strip_string(conf, top_label, 'gateway_database_connection', '')
         ip_list = strip_string(conf, top_label, 'ip_list', '')
         host_api_url = strip_string(conf, top_label, 'host_api_url', '')
@@ -84,9 +80,6 @@ class Configure:
         sample_rate = to_float(strip_string(conf, top_label, 'sample_rate'), 0.0)
         samples_per_chan = to_float(strip_string(conf, top_label, 'samples_per_chan'), 0.0)
         video_rate = to_float(strip_string(conf, top_label, 'video_rate'), 0.0)
-        #image_channel_1 = to_int(strip_string(conf, top_label, 'image_channel_1'), 0)
-        #data_channel_1 = to_int(strip_string(conf, top_label, 'data_channel_1'), 0)
-        #no_of_data_channels = to_int(strip_string(conf, top_label, 'no_of_data_channels'), 0)
         archive_interval = to_int(strip_string(conf, top_label, 'archive_interval'), 0)
         image_archive_interval = to_int(strip_string(conf, top_label, 'image_archive_interval'), 0)
         data_archive_interval = to_int(strip_string(conf, top_label, 'data_archive_interval'), 0)
@@ -115,9 +108,6 @@ class Configure:
         if sys.platform.startswith('win32') : archive_file_path = windows_archive_file_path
         env['SAMPLE_RATE'] = sample_rate
         env['SAMPLES_PER_CHAN'] = samples_per_chan
-        #env['IMAGE_CHANNEL_1'] = image_channel_1
-        #env['DATA_CHANNEL_1'] = data_channel_1
-        #env['NO_OF_DATA_CHANNELS'] = no_of_data_channels
         env['FILE_PATH'] = file_path
         env['WINDOWS_FILE_PATH'] = windows_file_path
         env['ARCHIVE_FILE_PATH'] = archive_file_path
@@ -128,15 +118,17 @@ class Configure:
         env['ARCHIVE_INTERVAL'] = archive_interval
         env['IMAGE_ARCHIVE_INTERVAL'] = image_archive_interval
         env['DATA_ARCHIVE_INTERVAL'] = data_archive_interval
-        #env['GATEWAY_DATABASE_HOST'] = gateway_database_host
-        #env['GATEWAY_DATABASE_USER'] = gateway_database_user
-        #env['GATEWAY_DATABASE_PASSWD'] = gateway_database_passwd
-        #env['GATEWAY_DATABASE_NAME'] = gateway_database_name
+
         try:
             env['GATEWAY_DATABASE_CONNECTION'] = json.loads(gateway_database_connection)
         except ValueError:
             env['GATEWAY_DATABASE_CONNECTION'] = gateway_database_connection
-        env['IP_LIST'] = ip_list
+        try:
+            env['IP_LIST'] = json.loads(ip_list)
+        except ValueError:
+            env['IP_LIST'] = ip_list
+        #print("env['IP_LIST'] Configure", env['IP_LIST'])
+
         env['HOST_API_URL'] = host_api_url
         env['CLIENT_API_URL'] = client_api_url
         env['MAX_CONNECT_ATTEMPTS'] = max_connect_attempts
