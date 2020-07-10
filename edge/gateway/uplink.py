@@ -181,6 +181,8 @@ class Replicate(Http):
 
     def run(self):
 
+        time.sleep(self.start_delay)
+
         while True:
 
             for ip in self.ip_list :
