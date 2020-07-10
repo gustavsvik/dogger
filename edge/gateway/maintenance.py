@@ -16,7 +16,7 @@ class NetworkTime:
         from socket import gaierror, socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
         import struct, time, sys, datetime
 
-        NTPSERVER, PORT = 'pool.ntp.org', 123
+        NTPSERVER, PORT = 'ntp.se', 123
 
         
         try :
