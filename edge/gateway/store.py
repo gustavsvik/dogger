@@ -36,7 +36,7 @@ class Accumulate(t.StoreUplink) :
 
     def run(self) :
 
-        #time.sleep(self.start_delay)
+        time.sleep(self.start_delay)
 
         while (True) :
 
@@ -216,6 +216,8 @@ class FileToSQL(LoadFile):
 
 
     def run(self):
+
+        time.sleep(self.start_delay)
 
         while True:
 
