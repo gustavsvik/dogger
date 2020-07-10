@@ -6,9 +6,11 @@ import pymysql
 import gateway.runtime as rt
 import gateway.metadata as md
 
-gateway_database_connection = {"host": "localhost", "user": "root", "passwd": "admin", "db": "test"}
-config_filepath = None 
-config_filename = None 
+gateway_database_connection = None
+
+config_filepath = '/home/heta/Z/app/python/dogger/'
+config_filename = 'conf.ini'
+
 if config_filepath is not None and config_filename is not None :
     config = md.Configure(config_filepath, config_filename)
     env = config.get()
