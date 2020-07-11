@@ -6,7 +6,7 @@ import shutil
 import os
 import sys
 import io
-#import cv2
+import cv2
 import ctypes
 import base64
 import pyscreenshot as ImageGrab
@@ -91,6 +91,7 @@ class Image(File):
 
         self.env = self.get_env()
         if self.video_res is None: self.video_res = self.env['VIDEO_RES']
+        if self.video_quality is None: self.video_res = self.env['VIDEO_QUALITY']
 
         (self.channel,) = self.channels
         self.capture_filename = 'image_' + str(self.channel) + '.' + self.file_extension
@@ -134,7 +135,7 @@ class Image(File):
 class USBCam(Image):
 
 
-    def __init__(self, channels = None, start_delay = 0, sample_rate = None, file_path = None, archive_file_path = None, file_extension = 'jpg', video_unit = None, video_res = None, video_rate = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = 0, sample_rate = None, file_path = None, archive_file_path = None, file_extension = 'jpg', video_unit = None, video_res = None, video_rate = None, video_quality = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
@@ -146,6 +147,7 @@ class USBCam(Image):
         self.video_unit = video_unit
         self.video_res = video_res
         self.video_rate = video_rate
+        self.video_quality = video_quality
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
@@ -156,16 +158,23 @@ class USBCam(Image):
         
         Image.__init__(self)
 
-        #self.cam = cv2.VideoCapture(-1)
-
+        self.cam = cv2.VideoCapture( int(''.join(filter(str.isdigit, self.video_unit))) )
+        self.cam.set(cv2.CAP_PROP_FRAME_WIDTH , self.video_res[0])
+        self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, self.video_res[1])
+        self.cam.set(cv2.CAP_PROP_FPS , self.video_rate)
 
     def read_samples(self, sample_secs = -9999):
 
         try :
+            time_before = time.time()
             #camera.capture(capture_filename, format='jpeg', quality=10)
-            os.system('fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 1 --jpeg 50 --no-banner --save ' + self.capture_filename)
-            #ret, frame = self.cam.read()
-            #cv2.imwrite(capture_filename, frame)
+            #uvccapture_str = 'uvccapture -m -x1280 -y720 -q50 -d' + self.video_unit + ' -o' + self.capture_filename
+            #print(uvccapture_str)
+            #os.system(uvccapture_str)
+            #os.system('fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 1 --jpeg 50 --no-banner --save ' + self.capture_filename)
+            ret, frame = self.cam.read()
+            cv2.imwrite( self.capture_filename, frame, [cv2.IMWRITE_JPEG_QUALITY, self.video_quality] )
+            print(time.time() - time_before)
         except PermissionError as e :
             print(e)
 
