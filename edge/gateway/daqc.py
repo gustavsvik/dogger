@@ -242,16 +242,20 @@ class ScreenshotUpload(Image):
     def read_samples(self, sample_secs = -9999):
 
         try :
+
             img = ImageGrab.grab( bbox = (self.crop[0], self.crop[1], self.crop[2], self.crop[3]) )
             jpeg_image_buffer = io.BytesIO()
             img.save(jpeg_image_buffer, format="JPEG")
             img_str = base64.b64encode(jpeg_image_buffer.getvalue())
             http = ul.DirectUpload(channels = self.channels, start_delay = self.start_delay)
             (channel,) = self.channels
-            res = http.send_request(start_time = sample_secs, end_time = sample_secs, duration = 10, unit = 1, delete_horizon = 3600, ip = self.ip_list[0])
-            data_string = str(channel) + ';' + str(sample_secs) + ',-9999.0,,' + str(img_str.decode('utf-8')) + ',;'
-            rt.logging.debug('data_string', data_string[0:100])
-            res = http.set_requested(data_string, ip = self.ip_list[0])
+
+            for current_ip in self.ip_list :
+                res = http.send_request(start_time = sample_secs, end_time = sample_secs, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
+                data_string = str(channel) + ';' + str(sample_secs) + ',-9999.0,,' + str(img_str.decode('utf-8')) + ',;'
+                rt.logging.debug('data_string', data_string[0:100])
+                res = http.set_requested(data_string, ip = current_ip)
+                
         except PermissionError as e :
             rt.logging.exception(e)
 
