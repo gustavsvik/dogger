@@ -135,7 +135,7 @@ class Image(File):
 class USBCam(Image):
 
 
-    def __init__(self, channels = None, start_delay = 0, sample_rate = None, file_path = None, archive_file_path = None, file_extension = 'jpg', video_unit = None, video_res = None, video_rate = None, video_quality = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = 0, sample_rate = None, file_path = None, archive_file_path = None, file_extension = 'jpg', video_unit = None, video_res = None, video_rate = None, video_quality = None, video_capture_method = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
@@ -148,6 +148,7 @@ class USBCam(Image):
         self.video_res = video_res
         self.video_rate = video_rate
         self.video_quality = video_quality
+        self.video_capture_method = video_capture_method
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
@@ -155,21 +156,61 @@ class USBCam(Image):
         self.env = self.get_env()
         if self.video_unit is None: self.video_unit = self.env['VIDEO_UNIT']
         if self.video_rate is None: self.video_rate = self.env['VIDEO_RATE']
+        if self.video_capture_method is None: self.video_capture_method = self.env['VIDEO_CAPTURE_METHOD']
         
         Image.__init__(self)
 
-        self.cam = cv2.VideoCapture( int(''.join(filter(str.isdigit, self.video_unit))) )
-        self.cam.set(cv2.CAP_PROP_FRAME_WIDTH , self.video_res[0])
-        self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, self.video_res[1])
-        self.cam.set(cv2.CAP_PROP_FPS , self.video_rate)
+        if str.lower(self.video_capture_method) == 'opencv' :
+
+            self.cam = cv2.VideoCapture( int(''.join(filter(str.isdigit, self.video_unit))), cv2.CAP_ANY )  # cv2.CAP_OPENCV_MJPEG
+
+            resolutions = [ (320,200), (320,240), (640,480), (720,480), (854,450), (800,480), (768,576), (800,600), (1024,768), (1152,768), (1280,720), (1280,800), (1280,768), (1280,1024), (1366,768), (1440,960), (1400,1050), (1680,1050), (1600,1200), (1920,1080), (1920,1200) ]			
+            for res in resolutions :
+                self.cam.set(cv2.CAP_PROP_FRAME_WIDTH , res[0])
+                self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, res[1])
+                width = self.cam.get(cv2.CAP_PROP_FRAME_WIDTH)
+                height = self.cam.get(cv2.CAP_PROP_FRAME_HEIGHT)
+                if width == res[0] and height == res[1] :
+                    rt.logging.debug("width, height: ", width, height)
+
+            huge_dim = 10000
+            self.cam.set(cv2.CAP_PROP_FRAME_WIDTH , huge_dim)
+            self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, huge_dim)
+            max_width = self.cam.get(cv2.CAP_PROP_FRAME_WIDTH)
+            max_height = self.cam.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            self.cam.set(cv2.CAP_PROP_FRAME_WIDTH , max_width)
+            self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, max_height)
+
+            self.cam.set(cv2.CAP_PROP_FPS , self.video_rate)
+
 
     def read_samples(self, sample_secs = -9999):
 
         try :
-            ret, frame = self.cam.read()
-            cv2.imwrite( self.capture_filename, frame, [cv2.IMWRITE_JPEG_QUALITY, self.video_quality] )
+
+            time_before = time.time()
+
+            if str.lower(self.video_capture_method) == 'opencv' :
+                ret, frame = self.cam.read()
+                frame = cv2.resize(frame, tuple(self.video_res), interpolation = cv2.INTER_AREA)
+                cv2.imwrite( self.capture_filename, frame, [cv2.IMWRITE_JPEG_QUALITY, self.video_quality] )
+                
+            elif str.lower(self.video_capture_method) == 'uvccapture' :
+                os.system('uvccapture -m -x' + str(self.video_res[0]) + ' -y' + str(self.video_res[1]) + ' -q' + str(self.video_quality) + ' -d' + self.video_unit + ' -o' + self.capture_filename)
+                
+            elif str.lower(self.video_capture_method) == 'ffmpeg' :
+                os.system('ffmpeg -y -f v4l2 -hide_banner -loglevel warning -i ' + self.video_unit + ' -s ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' -vframes 1 ' + self.capture_filename)  # -input_format mjpeg 
+
+            else : # fswebcam
+                os.system('fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 1 --jpeg ' + str(self.video_quality) + ' --no-banner --save ' + self.capture_filename) 
+                # --set "Brightness"=127 --set "Contrast"=63 --set "Saturation"=127 --set "Hue"=90 --set "Gamma"=250 --set "White Balance Temperature, Auto"=True
+
+            rt.logging.debug("Capture time: ", time.time() - time_before)
+
         except PermissionError as e :
-            print(e)
+
+            rt.logging.exception(e)
+
 
 
 
@@ -209,10 +250,10 @@ class ScreenshotUpload(Image):
             (channel,) = self.channels
             res = http.send_request(start_time = sample_secs, end_time = sample_secs, duration = 10, unit = 1, delete_horizon = 3600, ip = self.ip_list[0])
             data_string = str(channel) + ';' + str(sample_secs) + ',-9999.0,,' + str(img_str.decode('utf-8')) + ',;'
-            print('data_string', data_string[0:100])
+            rt.logging.debug('data_string', data_string[0:100])
             res = http.set_requested(data_string, ip = self.ip_list[0])
         except PermissionError as e :
-            print(e)
+            rt.logging.exception(e)
 
 
     def run(self):
@@ -329,7 +370,7 @@ class AcquireCurrent(File):
             buf = ctypes.create_string_buffer(b"\000" * buf_size)
             self.nidaq.DAQmxGetErrorString(err,ctypes.byref(buf),buf_size)
             #raise RuntimeError('nidaq call failed with error %d: %s'%(err,repr(buf.value)))
-            print('nidaq call failed with error %d: %s'%(err,repr(buf.value)))
+            rt.logging.debug('nidaq call failed with error %d: %s'%(err,repr(buf.value)))
 
 
     def scale_cond_transmitter(self, I_cond):
@@ -349,9 +390,9 @@ class AcquireCurrent(File):
         self.device2NameOut = b"cDAQ9188-1AD0C2F"
 
         self.CHK( self.nidaq.DAQmxGetDevChassisModuleDevNames(self.device2NameOut, self.device2ModuleNamesOut, self.device2ModuleNamesOutBufferSize) )
-        print("device2ModuleNamesOut: ", repr(self.device2ModuleNamesOut.value))
+        rt.logging.debug("device2ModuleNamesOut: ", repr(self.device2ModuleNamesOut.value))
         self.CHK( self.nidaq.DAQmxGetDevAIPhysicalChans(self.defaultModuleName22, self.module22ChansOut, 2000) )
-        print("module22ChansOut: ", repr(self.module22ChansOut.value))
+        rt.logging.debug("module22ChansOut: ", repr(self.module22ChansOut.value))
         self.CHK(self.nidaq.DAQmxCreateTask("",ctypes.byref(self.taskCurrent)))
         self.CHK(self.nidaq.DAQmxCreateAICurrentChan(self.taskCurrent,self.module22ChansOut,"",self.DAQmx_Val_RSE,self.minCurrent,self.maxCurrent,self.DAQmx_Val_Amps,self.DAQmx_Val_Internal,None,None))
         self.CHK(self.nidaq.DAQmxCfgSampClkTiming(self.taskCurrent, self.clockSource, self.sampleRate, self.DAQmx_Val_Rising, self.DAQmx_Val_ContSamps, self.samplesPerChan))
@@ -390,7 +431,7 @@ class AcquireCurrent(File):
             try:
                 current = self.ReadCurrent()
             except OSError as e:
-                print(e)
+                rt.logging.exception(e)
 
             if self.file_path is not None and os.path.exists(self.file_path):
 
@@ -414,7 +455,7 @@ class AcquireCurrent(File):
                         filename_current = repr(97+channel_index) + "_" + repr(acq_finish_secs)
                         numpy.save(self.file_path+filename_current, current_array)
                     except PermissionError as e:
-                        print(e)
+                        rt.logging.exception(e)
 
 
     def run(self):
