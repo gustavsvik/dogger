@@ -166,15 +166,8 @@ class USBCam(Image):
     def read_samples(self, sample_secs = -9999):
 
         try :
-            time_before = time.time()
-            #camera.capture(capture_filename, format='jpeg', quality=10)
-            #uvccapture_str = 'uvccapture -m -x1280 -y720 -q50 -d' + self.video_unit + ' -o' + self.capture_filename
-            #print(uvccapture_str)
-            #os.system(uvccapture_str)
-            #os.system('fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 1 --jpeg 50 --no-banner --save ' + self.capture_filename)
             ret, frame = self.cam.read()
             cv2.imwrite( self.capture_filename, frame, [cv2.IMWRITE_JPEG_QUALITY, self.video_quality] )
-            print(time.time() - time_before)
         except PermissionError as e :
             print(e)
 
