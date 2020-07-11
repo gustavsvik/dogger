@@ -74,6 +74,7 @@ class Configure:
         max_connect_attempts = strip_string(conf, top_label, 'max_connect_attempts', '')
         video_unit = strip_string(conf, top_label, 'video_unit', '')
         video_res = strip_string(conf, top_label, 'video_res', '')
+        video_capture_method = strip_string(conf, top_label, 'video_capture_method', '')
         crop = strip_string(conf, top_label, 'crop', '')
 
         start_delay = to_float(strip_string(conf, top_label, 'start_delay'), 0.0)
@@ -86,6 +87,8 @@ class Configure:
         truncate_interval = to_int(strip_string(conf, top_label, 'truncate_interval'), 0)
         acquired_truncate_interval = to_int(strip_string(conf, top_label, 'acquired_truncate_interval'), 0)
         accumulated_delete_interval = to_int(strip_string(conf, top_label, 'accumulated_delete_interval'), 0)
+        video_quality = to_int(strip_string(conf, top_label, 'video_quality'), 0)
+
 
         if start_delay < 0.0 : start_delay = 0.0
         if sample_rate < 1.0 : sample_rate = 1.0
@@ -97,6 +100,7 @@ class Configure:
         if truncate_interval < 1 : truncate_interval = 1
         if acquired_truncate_interval < 1 : acquired_truncate_interval = 1
         if accumulated_delete_interval < 1 : accumulated_delete_interval = 1
+        if video_quality < 0 : video_quality = 0
 
         env['CHANNELS'] = channels
         env['START_DELAY'] = start_delay
@@ -118,7 +122,6 @@ class Configure:
         env['ARCHIVE_INTERVAL'] = archive_interval
         env['IMAGE_ARCHIVE_INTERVAL'] = image_archive_interval
         env['DATA_ARCHIVE_INTERVAL'] = data_archive_interval
-
         try:
             env['GATEWAY_DATABASE_CONNECTION'] = json.loads(gateway_database_connection)
         except ValueError:
@@ -127,14 +130,14 @@ class Configure:
             env['IP_LIST'] = json.loads(ip_list)
         except ValueError:
             env['IP_LIST'] = ip_list
-        #print("env['IP_LIST'] Configure", env['IP_LIST'])
-
         env['HOST_API_URL'] = host_api_url
         env['CLIENT_API_URL'] = client_api_url
         env['MAX_CONNECT_ATTEMPTS'] = max_connect_attempts
         env['VIDEO_UNIT'] = video_unit
         env['VIDEO_RES'] = video_res
         env['VIDEO_RATE'] = video_rate
+        env['VIDEO_QUALITY'] = video_quality
+        env['VIDEO_CAPTURE_METHOD'] = video_capture_method
         env['CROP'] = crop
 
 
