@@ -6,7 +6,6 @@ import shutil
 import os
 import sys
 import io
-import cv2
 import ctypes
 import base64
 import pyscreenshot as ImageGrab
@@ -161,6 +160,7 @@ class USBCam(Image):
         Image.__init__(self)
 
         if str.lower(self.video_capture_method) == 'opencv' :
+            import cv2
 
             self.cam = cv2.VideoCapture( int(''.join(filter(str.isdigit, self.video_unit))), cv2.CAP_ANY )  # cv2.CAP_OPENCV_MJPEG
 
@@ -191,6 +191,7 @@ class USBCam(Image):
             time_before = time.time()
 
             if str.lower(self.video_capture_method) == 'opencv' :
+                import cv2
                 ret, frame = self.cam.read()
                 frame = cv2.resize(frame, tuple(self.video_res), interpolation = cv2.INTER_AREA)
                 cv2.imwrite( self.capture_filename, frame, [cv2.IMWRITE_JPEG_QUALITY, self.video_quality] )
@@ -217,7 +218,7 @@ class USBCam(Image):
 class ScreenshotUpload(Image):
 
 
-    def __init__(self, channels = None, sample_rate = None, crop = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, sample_rate = None, crop = None, video_quality = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = 0
@@ -229,6 +230,8 @@ class ScreenshotUpload(Image):
         self.video_res = None
         self.ip_list = None
         self.crop = crop
+        self.video_quality = video_quality
+
         
         self.config_filepath = config_filepath
         self.config_filename = config_filename
