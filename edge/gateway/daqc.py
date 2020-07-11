@@ -91,7 +91,7 @@ class Image(File):
 
         self.env = self.get_env()
         if self.video_res is None: self.video_res = self.env['VIDEO_RES']
-        if self.video_quality is None: self.video_res = self.env['VIDEO_QUALITY']
+        if self.video_quality is None: self.video_quality = self.env['VIDEO_QUALITY']
 
         (self.channel,) = self.channels
         self.capture_filename = 'image_' + str(self.channel) + '.' + self.file_extension
