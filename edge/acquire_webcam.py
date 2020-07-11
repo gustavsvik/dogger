@@ -4,7 +4,7 @@ import gateway.daqc
 usb_cam = gateway.daqc.USBCam(
     channels = {160}, 
     start_delay = 10, 
-    sample_rate = 1, 
+    sample_rate = 1.0, 
     file_path = '/home/heta/Z/data/files/images/', 
     video_unit = '/dev/video0', 
     video_res = [1280, 720], 
