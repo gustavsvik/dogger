@@ -91,7 +91,7 @@ class Image(File):
         self.env = self.get_env()
         if self.video_res is None: self.video_res = self.env['VIDEO_RES']
         if self.video_quality is None: self.video_quality = self.env['VIDEO_QUALITY']
-
+        #print(self.channels)
         (self.channel,) = self.channels
         self.capture_filename = 'image_' + str(self.channel) + '.' + self.file_extension
         
@@ -137,6 +137,7 @@ class USBCam(Image):
     def __init__(self, channels = None, start_delay = 0, sample_rate = None, file_path = None, archive_file_path = None, file_extension = 'jpg', video_unit = None, video_res = None, video_rate = None, video_quality = None, video_capture_method = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
+        #print(self.channels)
         self.start_delay = start_delay
         self.sample_rate = sample_rate
 
@@ -160,6 +161,7 @@ class USBCam(Image):
         Image.__init__(self)
 
         if str.lower(self.video_capture_method) == 'opencv' :
+
             import cv2
 
             self.cam = cv2.VideoCapture( int(''.join(filter(str.isdigit, self.video_unit))), cv2.CAP_ANY )  # cv2.CAP_OPENCV_MJPEG
@@ -183,6 +185,23 @@ class USBCam(Image):
 
             self.cam.set(cv2.CAP_PROP_FPS , self.video_rate)
 
+        if str.lower(self.video_capture_method) == 'raspicam' :
+
+            import picamera
+
+            self.picam = picamera.PiCamera()
+            self.picam.resolution = (1280, 720)
+            self.picam.hflip = False
+            self.picam.vflip = False
+            #self.picam.rotation = 90
+            self.picam.brightness = 50
+            #self.picam.zoom = (0.6, 0.6, 0.5, 0.5)
+            #self.picam.awb_mode = 'off'
+            #self.picam.awb_gains = (1.0, 2.5)
+            self.picam.shutter_speed = 50000
+            self.picam.exposure_compensation = -24
+            self.picam.iso = 100
+            self.picam.contrast = -15
 
     def read_samples(self, sample_secs = -9999):
 
@@ -202,8 +221,11 @@ class USBCam(Image):
             elif str.lower(self.video_capture_method) == 'ffmpeg' :
                 os.system('ffmpeg -y -f v4l2 -hide_banner -loglevel warning -i ' + self.video_unit + ' -s ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' -vframes 1 ' + self.capture_filename)  # -input_format mjpeg 
 
+            elif str.lower(self.video_capture_method) == 'raspicam' :
+                self.picam.capture(self.capture_filename, format='jpeg', quality=10)
+
             else : # fswebcam
-                os.system('fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 1 --jpeg ' + str(self.video_quality) + ' --no-banner --save ' + self.capture_filename) 
+                os.system('fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 2 --jpeg ' + str(self.video_quality) + ' --no-banner --save ' + self.capture_filename) 
                 # --set "Brightness"=127 --set "Contrast"=63 --set "Saturation"=127 --set "Hue"=90 --set "Gamma"=250 --set "White Balance Temperature, Auto"=True
 
             rt.logging.debug("Capture time: ", time.time() - time_before)
@@ -211,7 +233,6 @@ class USBCam(Image):
         except PermissionError as e :
 
             rt.logging.exception(e)
-
 
 
 
@@ -281,6 +302,74 @@ class ScreenshotUpload(Image):
             else :
             
                 self.read_samples(sample_secs)
+
+
+
+class TempFileUpload(Image):
+
+
+    def __init__(self, channels = None, sample_rate = None, config_filepath = None, config_filename = None):
+
+        self.channels = channels
+        #print(self.channels)
+        self.start_delay = 0
+        self.sample_rate = sample_rate
+
+        self.file_path = None
+        self.archive_file_path = None
+        self.file_extension = 'jpg'
+        self.video_res = None
+        self.video_quality = None
+        self.ip_list = None
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        self.env = self.get_env()
+        if self.ip_list is None: self.ip_list = self.env['IP_LIST']
+        
+        Image.__init__(self)
+        
+
+    def upload_file(self, sample_secs = -9999):
+
+        try :
+            #print(self.video_unit, self.video_res, self.video_rate, self.video_quality, self.capture_filename)
+            with open(self.capture_filename, "rb") as image_file:
+                img_str = base64.b64encode(image_file.read())
+            #print(str(img_str.decode('utf-8')))
+            http = ul.DirectUpload(channels = self.channels, start_delay = self.start_delay)
+            (channel,) = self.channels
+            #print(self.ip_list)
+            for current_ip in self.ip_list :
+                res = http.send_request(start_time = sample_secs, end_time = sample_secs, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
+                #print(res)
+                data_string = str(channel) + ';' + str(sample_secs) + ',-9999.0,,' + str(img_str.decode('utf-8')) + ',;'
+                rt.logging.debug('data_string', data_string[0:100])
+                res = http.set_requested(data_string, ip = current_ip)
+                
+        except PermissionError as e :
+            rt.logging.exception(e)
+
+
+    def run(self):
+
+        time.sleep(self.start_delay)
+
+        divisor = numpy.int64(1/numpy.float64(self.sample_rate))
+        current_time = numpy.float64(time.time())
+        current_secs = numpy.int64(current_time)
+
+        while True :
+
+            sample_secs = current_secs + numpy.int64( divisor - current_secs % divisor )
+            current_time = numpy.float64(time.time())
+            current_secs = numpy.int64(current_time)
+            if sample_secs > current_secs :
+                time.sleep(0.1)
+            else :
+            
+                self.upload_file(sample_secs)
 
             
 
