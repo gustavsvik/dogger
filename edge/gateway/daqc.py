@@ -8,6 +8,7 @@ import sys
 import io
 import ctypes
 import base64
+import socket
 import pyscreenshot as ImageGrab
 
 import gateway.device as dv
@@ -83,6 +84,56 @@ class NidaqCurrentIn(File):
 
 
         
+class Udp(File):
+
+
+    def __init__(self, port = None):
+
+        (self.channel,) = self.channels
+        self.port = port
+
+        File.__init__(self)
+
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
+
+        server_address = ('', self.port)
+        self.socket.bind(server_address)
+
+
+    def run(self):
+
+        time.sleep(self.start_delay)
+
+        divisor = numpy.int64(1/numpy.float64(self.sample_rate))
+        current_time = numpy.float64(time.time())
+        current_secs = numpy.int64(current_time)
+            
+        while True :
+
+            sample_secs = current_secs + numpy.int64( divisor - current_secs % divisor )
+            current_time = numpy.float64(time.time())
+            current_secs = numpy.int64(current_time)
+
+            if sample_secs > current_secs :
+                pass
+                time.sleep(0.1)
+            else :
+                data, address = sock.recvfrom(4096)
+                print(data, address)
+                #self.read_samples(sample_secs)
+
+            if data :
+
+                for channel in self.channels :
+
+                    try:
+                        filename = repr(channel) + "_" + repr(current_secs)
+                        print
+                        #numpy.save(self.file_path + filename, current_array)
+                    except PermissionError as e:
+                        rt.logging.exception(e)
+
+
 class Image(File):
     
 
@@ -91,7 +142,6 @@ class Image(File):
         self.env = self.get_env()
         if self.video_res is None: self.video_res = self.env['VIDEO_RES']
         if self.video_quality is None: self.video_quality = self.env['VIDEO_QUALITY']
-        #print(self.channels)
         (self.channel,) = self.channels
         self.capture_filename = 'image_' + str(self.channel) + '.' + self.file_extension
         
