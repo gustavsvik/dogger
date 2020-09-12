@@ -1,6 +1,7 @@
 #
 
 import time
+import datetime
 import numpy
 import shutil
 import os
@@ -9,6 +10,7 @@ import io
 import ctypes
 import base64
 import socket
+import struct
 import pyscreenshot as ImageGrab
 
 import gateway.device as dv
@@ -19,6 +21,68 @@ import gateway.uplink as ul
 
 
  
+class Udp(t.AcquireControl):
+
+
+    def __init__(self):
+
+        t.AcquireControl.__init__(self)
+
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
+
+        server_address = ('', self.port)
+        self.socket.bind(server_address)
+
+
+
+class UdpHttp(Udp):
+
+
+    def __init__(self, port = None, start_delay = None, config_filepath = None, config_filename = None):
+
+        self.channels = None
+        self.ip_list = None
+        self.port = port
+        self.start_delay = start_delay
+        self.sample_rate = None
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        self.env = self.get_env()
+        if self.ip_list is None: self.ip_list = self.env['IP_LIST']
+
+        Udp.__init__(self)
+        
+
+    def upload_data(self, channel, sample_secs, data_value):
+
+        try :
+            http = ul.DirectUpload(channels = [channel], start_delay = self.start_delay)
+            for current_ip in self.ip_list :
+                res = http.send_request(start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
+                data_string = str(channel) + ';' + str(sample_secs) + ',' + str(data_value) + ',,,;'
+                print('data_string', data_string[0:100])
+                res = http.set_requested(data_string, ip = current_ip)
+                
+        except PermissionError as e :
+            rt.logging.exception(e)
+
+
+    def run(self):
+
+        time.sleep(self.start_delay)
+
+        while True :
+
+            time.sleep(0.1)
+            data, address = self.socket.recvfrom(4096)
+            print(list(data))
+            values = struct.unpack('>HIf', data)
+            print(values)
+            print(repr(datetime.datetime.fromtimestamp(values[1])))
+            self.upload_data(int(values[0]), int(values[1]), float(values[2]))
+
 class File(t.AcquireControl):
 
 
@@ -84,20 +148,41 @@ class NidaqCurrentIn(File):
 
 
         
-class Udp(File):
+class UdpFile(File):
 
 
-    def __init__(self, port = None):
-
-        (self.channel,) = self.channels
-        self.port = port
+    def __init__(self):
 
         File.__init__(self)
 
+        #(self.channel,) = self.channels
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
 
         server_address = ('', self.port)
         self.socket.bind(server_address)
+
+
+
+class Nmea(UdpFile):
+
+
+    def __init__(self, channels = None, port = None, start_delay = None, sample_rate = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
+
+        self.channels = channels
+        self.port = port
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+        self.file_path = file_path
+        self.archive_file_path = archive_file_path
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        UdpFile.__init__(self)
+
+        #(self.channel,) = self.channels
+        self.field_separator = ','
+        self.line_identifier = 'GGA'
 
 
     def run(self):
@@ -110,28 +195,76 @@ class Udp(File):
             
         while True :
 
+            time.sleep(0.1)
             sample_secs = current_secs + numpy.int64( divisor - current_secs % divisor )
             current_time = numpy.float64(time.time())
             current_secs = numpy.int64(current_time)
 
-            if sample_secs > current_secs :
-                pass
-                time.sleep(0.1)
-            else :
-                data, address = sock.recvfrom(4096)
-                print(data, address)
-                #self.read_samples(sample_secs)
+            data = None
+            last_line = None
 
-            if data :
+            data, address = self.socket.recvfrom(4096)
+            rt.logging.debug(data)
+            data_lines = data.decode("utf-8").splitlines()
+            #field_index = []
+            selected_lines = [line for line in data_lines if (self.line_identifier in line)]
+            #last_line = None
+            if len(selected_lines) > 0 :
+                last_line = selected_lines[-1]
+            #if last_line is not None :
+                #print(base64.b64encode(last_line.encode("utf-8")))
+            #self.read_samples(sample_secs)
 
-                for channel in self.channels :
+            channels = list(self.channels)
 
-                    try:
-                        filename = repr(channel) + "_" + repr(current_secs)
-                        print
-                        #numpy.save(self.file_path + filename, current_array)
-                    except PermissionError as e:
-                        rt.logging.exception(e)
+            if last_line :
+
+                line_fields = last_line.split(self.field_separator)
+                rt.logging.debug(line_fields)
+                hour = int(float(line_fields[1])) // 10000
+                minute = ( int(float(line_fields[1])) - hour * 10000 ) // 100
+                second = int(float(line_fields[1])) - hour * 10000 - minute * 100
+                microsecond = int ( ( float(line_fields[1]) - hour * 10000 - minute * 100 - second ) * 1000000 )
+                datetime_current = datetime.datetime.fromtimestamp(current_secs)
+                current_timestamp = datetime_current.timetuple()
+                year = current_timestamp.tm_year
+                month = current_timestamp.tm_mon
+                monthday = current_timestamp.tm_mday
+                datetime_origin = datetime.datetime(year, month, monthday, hour, minute, second, microsecond)
+                orig_secs = int(datetime_origin.timestamp())
+
+                channel = channels[0]
+                filename = self.file_path + repr(channel) + "_" + repr(current_secs) + '.' + 'txt'
+                try:
+                    with open(filename, 'w') as text_file:
+                        text_file.write(last_line)
+                except PermissionError as e:
+                    rt.logging.exception(e)
+                
+                acquired_microsecs = microsecond
+                
+                channel = channels[1]
+                filename = self.file_path + repr(channel) + "_" + repr(current_secs) + '.' + 'npy'
+                latitude = float(line_fields[2])/100
+                if line_fields[3] == 'S' : latitude = -latitude
+                latitude_array = numpy.concatenate(([0.0], acquired_microsecs), axis = None)
+                latitude_array[0] = latitude
+                try:
+                    numpy.save(filename, latitude_array)
+                except PermissionError as e:
+                    rt.logging.exception(e)
+
+                channel = channels[2]
+                filename = self.file_path + repr(channel) + "_" + repr(current_secs) + '.' + 'npy'
+                longitude = float(line_fields[4])/100
+                if line_fields[5] == 'W' : longitude = -longitude
+                longitude_array = numpy.concatenate(([0.0], acquired_microsecs), axis = None)
+                longitude_array[0] = longitude
+                try:
+                    numpy.save(filename, longitude_array)
+                except PermissionError as e:
+                    rt.logging.exception(e)
+
 
 
 class Image(File):
@@ -142,6 +275,7 @@ class Image(File):
         self.env = self.get_env()
         if self.video_res is None: self.video_res = self.env['VIDEO_RES']
         if self.video_quality is None: self.video_quality = self.env['VIDEO_QUALITY']
+        #print(self.channels)
         (self.channel,) = self.channels
         self.capture_filename = 'image_' + str(self.channel) + '.' + self.file_extension
         
