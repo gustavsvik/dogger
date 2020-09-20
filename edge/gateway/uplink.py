@@ -275,19 +275,9 @@ class Replicate(Http):
 
 
 class Udp(Uplink):
-    
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
 
-        self.channels = channels
-        self.start_delay = start_delay
-        self.gateway_database_connection = gateway_database_connection
-        self.ip_list = ip_list
-        self.port = port
-        self.max_age = max_age
-
-        self.config_filepath = config_filepath
-        self.config_filename = config_filename
+    def __init__(self) :
 
         Uplink.__init__(self)
 
@@ -298,9 +288,8 @@ class Udp(Uplink):
     def set_requested(self, channel, acquired_time, data_value, ip = '127.0.0.1'):
 
         data_bytes = struct.pack('>HIf', int(channel), int(acquired_time), float(data_value))   # short unsigned int, big endian
-        print(int(channel), int(acquired_time), float(data_value))
-        #print(list(data_bytes))
-        #print(data_bytes)
+        rt.logging.debug(int(channel), int(acquired_time), float(data_value))
+
         try:
             self.socket.sendto(data_bytes, (ip, self.port))
             return data_bytes
@@ -328,15 +317,15 @@ class Udp(Uplink):
                         back_timestamp = current_timestamp - self.max_age
 
                         sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + str(channel) + " AND AD.ACQUIRED_TIME BETWEEN " + str(back_timestamp) + " AND " + str(current_timestamp) + " ORDER BY AD.ACQUIRED_TIME DESC" 
-                        print("sql_get_values",sql_get_values)
+                        rt.logging.debug("sql_get_values",sql_get_values)
 
                         with conn.cursor() as cursor :
                             try:
                                 cursor.execute(sql_get_values)
                             except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
-                                print(e)
+                                rt.logging.debug(e)
                             results = cursor.fetchall()
-                            print(results)
+                            rt.logging.debug(results)
                             if len(results) > 0 :
                                 row = results[0]
                                 acquired_time = row[0]
@@ -344,12 +333,12 @@ class Udp(Uplink):
                                 acquired_subsamples = row[2]
                                 acquired_base64 = row[3]
                                 base64_string = acquired_base64.decode('utf-8')
-                                print("Channel: ", str(channel), ", Value: ", acquired_value, ", Timestamp: ", acquired_time, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
+                                rt.logging.debug("Channel: ", str(channel), ", Value: ", acquired_value, ", Timestamp: ", acquired_time, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
                                 
                                 bytes_sent = self.set_requested(int(channel), int(acquired_time), float(acquired_value), ip)
 
                 except (pymysql.err.OperationalError, pymysql.err.Error) as e:
-                    print(e)
+                    rt.logging.debug(e)
 
                 finally:
 
@@ -357,6 +346,26 @@ class Udp(Uplink):
 
 
             time.sleep(1.0)
+
+
+
+class UdpRaw(Udp):
+    
+
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_connect_attempts = None, max_age = None, config_filepath = None, config_filename = None) :
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.gateway_database_connection = gateway_database_connection
+        self.ip_list = ip_list
+        self.port = port
+        self.max_connect_attempts = max_connect_attempts
+        self.max_age = max_age
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        Udp.__init__(self)
 
 
 
@@ -383,16 +392,17 @@ class UdpNmea(Udp):
 
     def set_requested(self, channel, acquired_time, data_value, ip = '127.0.0.1'):
 
-        #print(data_value)
+        rt.logging.debug(data_value)
         try:
             nmea_data = self.nmea_prepend
             try :
                 nmea_data += "{:.{}f}".format(float(data_value) / 1.0, 2) 
             except ValueError as e :
                 nmea_data += '9999.0'
-                #print(e)
+                rt.logging.debug(e)
             finally :
                 nmea_data += self.nmea_append
+            rt.logging.debug(nmea_data)
             nmea_bytearray = bytes(nmea_data, encoding='utf8')
             checksum = 0
             for i in range(0, len(nmea_bytearray)) :
@@ -400,7 +410,6 @@ class UdpNmea(Udp):
                   checksum = checksum ^ nmea_bytearray[i]
             checksum_hex = hex(checksum)
             nmea_string = '$' + nmea_data + '*' + checksum_hex[2:] + '\n'
-            #print(nmea_string)
             self.socket.sendto(nmea_string.encode('utf-8'), (ip, self.port))
             return nmea_string
         except :
