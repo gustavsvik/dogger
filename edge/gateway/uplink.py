@@ -2,6 +2,7 @@
 
 import requests
 import time
+               
 import json
 import pymysql
 import socket
@@ -12,6 +13,7 @@ import gateway.runtime as rt
 import gateway.metadata as md
 import gateway.task as t
 import gateway.database as db
+import gateway.utils as u
 
 
 
@@ -34,6 +36,7 @@ class Http(Uplink):
     
         self.env = self.get_env()
         if self.host_api_url is None: self.host_api_url = self.env['HOST_API_URL']
+        if self.client_api_url is None: self.client_api_url = self.env['CLIENT_API_URL']
         if self.max_connect_attempts is None: self.max_connect_attempts = self.env['MAX_CONNECT_ATTEMPTS']
 
         Uplink.__init__(self)
@@ -119,11 +122,30 @@ class Http(Uplink):
                 exit(-1)
 
 
+    def get_uploaded(self, ip = '127.0.0.1', start_time = -9999, end_time = -9999, duration = 10, unit = 1, lowest_status = 0):
+
+        self.connect_attempts += 1
+        if self.connect_attempts > 1:
+            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
+        try:
+            d = {"channels": self.channel_range_string, "start_time": start_time, "end_time": end_time, "duration": duration, "unit": unit, "lowest_status": lowest_status}
+            raw_data = requests.post("http://" + ip + self.client_api_url + "get_uploaded.php", timeout = 5, data = d)
+            self.connect_attempts = 0
+            return raw_data
+        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
+            rt.logging.debug(e)
+            time.sleep(10)
+            if self.connect_attempts < self.max_connect_attempts:
+                self.get_uploaded(ip, start_time, end_time, duration, unit, lowest_status)
+            else:
+                exit(-1)
+
+
 
 class DirectUpload(Http):
 
 
-    def __init__(self, channels = None, start_delay = None, ip_list = None, host_api_url = '/host/', client_api_url = '/client/', max_connect_attempts = 50, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, ip_list = None, host_api_url = None, client_api_url = None, max_connect_attempts = 50, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
@@ -143,20 +165,20 @@ class DirectUpload(Http):
 class Replicate(Http):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.host_api_url = host_api_url
-        self.client_api_url = client_api_url
         self.max_connect_attempts = max_connect_attempts
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
         
         self.env = self.get_env()
+        self.client_api_url = None
         Http.__init__(self)
 
         self.sql = db.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
@@ -206,7 +228,7 @@ class Replicate(Http):
 
                 try:
 
-                    conn = self.sql.connect_db()
+                    self.sql.connect_db()
 
                     return_string = ""
 
@@ -236,7 +258,7 @@ class Replicate(Http):
                             rt.logging.debug("sql_get_values",sql_get_values)
 
                             return_string += channel_string + ';'
-                            with conn.cursor() as cursor :
+                            with self.sql.conn.cursor() as cursor :
                                 try:
                                     cursor.execute(sql_get_values)
                                 except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
@@ -274,6 +296,115 @@ class Replicate(Http):
 
 
 
+class Download(Http):
+
+
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.gateway_database_connection = gateway_database_connection
+        self.ip_list = ip_list
+        self.client_api_url = client_api_url
+        self.max_connect_attempts = max_connect_attempts
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+        
+        self.env = self.get_env()
+        self.host_api_url = None
+        Http.__init__(self)
+
+        self.sql = db.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
+
+        self.connect_attempts = 0
+ 
+
+    def run(self):
+
+        time.sleep(self.start_delay)
+
+        while True:
+
+
+            for ip in self.ip_list :
+
+                data_string = ''
+                r_get = self.get_uploaded(ip)
+                rt.logging.debug("r_get", r_get)
+
+                if r_get is not None:
+                    try:
+                        requested_data = r_get.json()
+                        data_string = requested_data['returnstring']
+                    except ValueError as e:  # includes simplejson.decoder.JSONDecodeError
+                        rt.logging.debug("Decoding JSON has failed", e)
+                rt.logging.debug("data_string",data_string)
+
+                try:
+
+                    self.sql.connect_db()
+
+                    channel_start = 0
+                    end = 0
+                    if data_string is not None:
+                        end = len(data_string)
+
+                    while channel_start < end:
+                        
+                        insert_failure = False
+
+                        channel_end = data_string.find(";", channel_start, end)
+                        channel_string = data_string[channel_start:channel_end]
+
+                        points_start = channel_end+1
+                        points_end = data_string.find(";", points_start, end)
+
+                        timestamp_start = points_start
+                        
+                        while timestamp_start < points_end - 1:
+                            timestamp_end = data_string.find(",", timestamp_start, points_end)
+                            timestamp_string = data_string[timestamp_start:timestamp_end]
+                            rt.logging.debug("timestamp_string",timestamp_string)
+                            value_start = timestamp_end+1
+                            value_end = data_string.find(",", value_start, points_end)
+                            value_string = data_string[value_start:value_end]
+                            rt.logging.debug("value_string", value_string)
+                            timestamp_start = value_end+1
+
+                            if value_string != "":
+                                with self.sql.conn.cursor() as cursor :
+                                    # TODO: precede by SELECT to avoid INSERT attempts causing primary key violations
+                                    sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,CHANNEL_INDEX,ACQUIRED_VALUE,STATUS) VALUES (" + timestamp_string + "," + channel_string + "," + value_string + ",0)"
+                                    rt.logging.debug("sql", sql)
+                                    try:
+                                        cursor.execute(sql)
+                                    except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
+                                        rt.logging.debug(e)
+                                    result = cursor.rowcount
+                                    rt.logging.debug("result", result)
+                                    if result <= -1 : insert_failure = True
+
+                        if not insert_failure:
+                            self.sql.commit_transaction()
+
+                        channel_start = value_end + 4
+
+                except (pymysql.err.OperationalError, pymysql.err.Error) as e:
+
+                    rt.logging.debug(e)
+
+                finally:
+                 
+                    try:
+                        self.sql.close_db_connection()
+                    except pymysql.err.Error as e:
+                        rt.logging.debug(e)
+
+            time.sleep(1.0)
+
+
+
 class Udp(Uplink):
 
 
@@ -281,6 +412,8 @@ class Udp(Uplink):
 
         Uplink.__init__(self)
 
+                         
+                          
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
         self.sql = db.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
@@ -291,6 +424,9 @@ class Udp(Uplink):
         rt.logging.debug(int(channel), int(acquired_time), float(data_value))
 
         try:
+                                                                                                                      
+                                                                   
+                
             self.socket.sendto(data_bytes, (ip, self.port))
             return data_bytes
         except :
@@ -310,6 +446,9 @@ class Udp(Uplink):
                 try:
 
                     conn = self.sql.connect_db()
+
+                                    
+                                   
 
                     for channel in self.channels :
 
@@ -332,10 +471,14 @@ class Udp(Uplink):
                                 acquired_value = row[1]
                                 acquired_subsamples = row[2]
                                 acquired_base64 = row[3]
+                                                  
+                                                                
                                 base64_string = acquired_base64.decode('utf-8')
                                 rt.logging.debug("Channel: ", str(channel), ", Value: ", acquired_value, ", Timestamp: ", acquired_time, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
                                 
+                                                                  
                                 bytes_sent = self.set_requested(int(channel), int(acquired_time), float(acquired_value), ip)
+                                                                                                     
 
                 except (pymysql.err.OperationalError, pymysql.err.Error) as e:
                     rt.logging.debug(e)
@@ -392,25 +535,92 @@ class UdpNmea(Udp):
 
     def set_requested(self, channel, acquired_time, data_value, ip = '127.0.0.1'):
 
+                             
+
+                
+                                             
+                     
+                                                                         
+                                        
+                                         
+                                       
+                         
+                                                 
         rt.logging.debug(data_value)
+                
+                                                                                       
+                                                                                
+                                  
+
+                                  
+                                   
+
+
+
+                       
+
+
+                                                                                                                                                                                                                                                                    
+
+                                
+                                      
+                                                                      
+                              
+                        
+                                                        
+                                        
+                                      
+                              
+
+                                              
+                                              
+
+                          
+
+        
+                                                                       
+
         try:
+
             nmea_data = self.nmea_prepend
+            
             try :
                 nmea_data += "{:.{}f}".format(float(data_value) / 1.0, 2) 
+                                  
+                                           
+                                            
+                                                       
+                                                         
+                                                
+                                                                   
+                
+                                   
+                                            
+                                              
+                                                          
+                                                           
+                                                  
+                                                                      
+                
+                                                                                
+                                                              
+                                               
+                                             
+                                             
+                                                                                      
+                                                                                                                                                                                                                        
+
             except ValueError as e :
                 nmea_data += '9999.0'
                 rt.logging.debug(e)
             finally :
                 nmea_data += self.nmea_append
             rt.logging.debug(nmea_data)
-            nmea_bytearray = bytes(nmea_data, encoding='utf8')
-            checksum = 0
-            for i in range(0, len(nmea_bytearray)) :
-              if nmea_bytearray[i] != 44 :
-                  checksum = checksum ^ nmea_bytearray[i]
-            checksum_hex = hex(checksum)
-            nmea_string = '$' + nmea_data + '*' + checksum_hex[2:] + '\n'
+            
+            nmea_string = '$' + nmea_data + '*' + nmea_checksum(nmea_data) + '\n'
+                                                        
             self.socket.sendto(nmea_string.encode('utf-8'), (ip, self.port))
             return nmea_string
+
         except :
             pass
