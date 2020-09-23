@@ -356,6 +356,7 @@ class NumpyFile(FileToSQL):
         return acquired_microsecs, acquired_value, acquired_subsamples, acquired_base64
 
 
+
 class TextFile(FileToSQL):
 
 
@@ -387,6 +388,45 @@ class TextFile(FileToSQL):
             acquired_value = acquired_values[0]
             acquired_microsecs = acquired_values[1]
         except (OSError, ValueError, IndexError) as e:
+            rt.logging.exception(e)
+            try:
+                os.remove(current_file)
+            except (PermissionError, FileNotFoundError, OSError) as e:
+                rt.logging.exception(e)
+
+        return acquired_microsecs, acquired_value, acquired_subsamples, acquired_base64
+
+
+
+class TextStringFile(FileToSQL):
+
+
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['csv', 'txt'], config_filepath = None, config_filename = None):
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.gateway_database_connection = gateway_database_connection
+        self.file_path = file_path
+        self.file_extensions = file_extensions
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        FileToSQL.__init__(self)
+
+
+    def load_file(self, current_file = None):
+
+        acquired_microsecs = 9999
+        acquired_value = -9999.0
+        acquired_subsamples = ''
+        acquired_base64 = b''
+
+        try :
+            with open(current_file, "r") as text_file :
+                text_string = text_file.read()
+                acquired_base64 = text_string.encode("utf-8") # base64.b64encode(
+        except OSError as e :
             rt.logging.exception(e)
             try:
                 os.remove(current_file)
