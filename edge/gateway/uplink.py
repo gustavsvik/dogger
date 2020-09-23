@@ -2,7 +2,7 @@
 
 import requests
 import time
-               
+import datetime
 import json
 import pymysql
 import socket
@@ -57,7 +57,7 @@ class Http(Uplink):
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
-            rt.logging.debug(e)
+            rt.logging.exception(e)
             time.sleep(10)
             if self.connect_attempts < self.max_connect_attempts:
                 self.get_requested(ip)
@@ -76,7 +76,7 @@ class Http(Uplink):
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
-            rt.logging.debug(e)
+            rt.logging.exception(e)
             time.sleep(10)
             if self.connect_attempts < self.max_connect_attempts:
                 self.set_requested(data_string, ip)
@@ -95,7 +95,7 @@ class Http(Uplink):
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
-            rt.logging.debug(e)
+            rt.logging.exception(e)
             time.sleep(10)
             if self.connect_attempts < self.max_connect_attempts:
                 self.clear_data_requests(ip)
@@ -114,7 +114,7 @@ class Http(Uplink):
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
-            rt.logging.debug(e)
+            rt.logging.exception(e)
             time.sleep(10)
             if self.connect_attempts < self.max_connect_attempts:
                 self.send_request(ip, start_time, end_time, duration, unit, delete_horizon)
@@ -133,7 +133,7 @@ class Http(Uplink):
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
-            rt.logging.debug(e)
+            rt.logging.exception(e)
             time.sleep(10)
             if self.connect_attempts < self.max_connect_attempts:
                 self.get_uploaded(ip, start_time, end_time, duration, unit, lowest_status)
@@ -262,7 +262,7 @@ class Replicate(Http):
                                 try:
                                     cursor.execute(sql_get_values)
                                 except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
-                                    rt.logging.debug(e)
+                                    rt.logging.exception(e)
                                 results = cursor.fetchall()
                                 for row in results:
                                     acquired_time = row[0]
@@ -281,7 +281,7 @@ class Replicate(Http):
                                     r_clear = self.clear_data_requests(ip)
 
                 except (pymysql.err.OperationalError, pymysql.err.Error) as e:
-                    rt.logging.debug(e)
+                    rt.logging.exception(e)
 
                 finally:
 
@@ -339,67 +339,46 @@ class Download(Http):
                         data_string = requested_data['returnstring']
                     except ValueError as e:  # includes simplejson.decoder.JSONDecodeError
                         rt.logging.debug("Decoding JSON has failed", e)
+
                 rt.logging.debug("data_string",data_string)
+
+                channel_data = [channel_string.split(',') for channel_string in data_string.split(';')]
+                channel_list = channel_data[0::4][:-1]
+                data_list = channel_data[1::4]
+                times_list = [data[0::4][:-1] for data in data_list]
+                values_list = [data[1::4] for data in data_list]
 
                 try:
 
                     self.sql.connect_db()
+ 
+                    for channel, times, values in zip(channel_list, times_list, values_list) :
 
-                    channel_start = 0
-                    end = 0
-                    if data_string is not None:
-                        end = len(data_string)
+                        channel= channel[0]
 
-                    while channel_start < end:
-                        
-                        insert_failure = False
+                        for timestamp, value in zip(times, values) :
 
-                        channel_end = data_string.find(";", channel_start, end)
-                        channel_string = data_string[channel_start:channel_end]
-
-                        points_start = channel_end+1
-                        points_end = data_string.find(";", points_start, end)
-
-                        timestamp_start = points_start
-                        
-                        while timestamp_start < points_end - 1:
-                            timestamp_end = data_string.find(",", timestamp_start, points_end)
-                            timestamp_string = data_string[timestamp_start:timestamp_end]
-                            rt.logging.debug("timestamp_string",timestamp_string)
-                            value_start = timestamp_end+1
-                            value_end = data_string.find(",", value_start, points_end)
-                            value_string = data_string[value_start:value_end]
-                            rt.logging.debug("value_string", value_string)
-                            timestamp_start = value_end+1
-
-                            if value_string != "":
-                                with self.sql.conn.cursor() as cursor :
-                                    # TODO: precede by SELECT to avoid INSERT attempts causing primary key violations
-                                    sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,CHANNEL_INDEX,ACQUIRED_VALUE,STATUS) VALUES (" + timestamp_string + "," + channel_string + "," + value_string + ",0)"
-                                    rt.logging.debug("sql", sql)
-                                    try:
-                                        cursor.execute(sql)
-                                    except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
-                                        rt.logging.debug(e)
-                                    result = cursor.rowcount
-                                    rt.logging.debug("result", result)
-                                    if result <= -1 : insert_failure = True
-
-                        if not insert_failure:
-                            self.sql.commit_transaction()
-
-                        channel_start = value_end + 4
+                            with self.sql.conn.cursor() as cursor :
+                                # TODO: precede by SELECT to avoid INSERT attempts causing primary key violations
+                                sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,CHANNEL_INDEX,ACQUIRED_VALUE,STATUS) VALUES (" + str(timestamp) + "," + str(channel) + "," + str(value) + ",0)"
+                                rt.logging.debug("sql", sql)
+                                try:
+                                    cursor.execute(sql)
+                                except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
+                                    rt.logging.exception(e)
+                                result = cursor.rowcount
+                                rt.logging.debug("result", result)
 
                 except (pymysql.err.OperationalError, pymysql.err.Error) as e:
 
-                    rt.logging.debug(e)
+                    rt.logging.exception(e)
 
                 finally:
                  
                     try:
                         self.sql.close_db_connection()
                     except pymysql.err.Error as e:
-                        rt.logging.debug(e)
+                        rt.logging.exception(e)
 
             time.sleep(1.0)
 
@@ -412,25 +391,27 @@ class Udp(Uplink):
 
         Uplink.__init__(self)
 
-                         
-                          
+        self.times = None
+        self.values = None
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
         self.sql = db.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
 
-    def set_requested(self, channel, acquired_time, data_value, ip = '127.0.0.1'):
+    def set_requested(self, channels, times, values, ip = '127.0.0.1'):
+ 
+        for i in range(len(values)) :
 
-        data_bytes = struct.pack('>HIf', int(channel), int(acquired_time), float(data_value))   # short unsigned int, big endian
-        rt.logging.debug(int(channel), int(acquired_time), float(data_value))
-
-        try:
-                                                                                                                      
-                                                                   
+            try :
                 
-            self.socket.sendto(data_bytes, (ip, self.port))
-            return data_bytes
-        except :
-            pass
+                data_bytes = struct.pack('>HIf', int(channels[i]), int(times[i]), float(values[i]))   # short unsigned int, big endian
+                rt.logging.debug(int(channels[i]), int(times[i]), float(values[i]), ip, self.port)
+                try :
+                    self.socket.sendto(data_bytes, (ip, self.port))
+                except Exception as e:
+                    rt.logging.exception('Exception', e)
+ 
+            except Exception as e:
+                rt.logging.exception('Exception', e)
 
 
     def run(self):
@@ -447,8 +428,8 @@ class Udp(Uplink):
 
                     conn = self.sql.connect_db()
 
-                                    
-                                   
+                    self.values = []
+                    self.times = []
 
                     for channel in self.channels :
 
@@ -462,7 +443,7 @@ class Udp(Uplink):
                             try:
                                 cursor.execute(sql_get_values)
                             except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
-                                rt.logging.debug(e)
+                                rt.logging.exception(e)
                             results = cursor.fetchall()
                             rt.logging.debug(results)
                             if len(results) > 0 :
@@ -471,17 +452,18 @@ class Udp(Uplink):
                                 acquired_value = row[1]
                                 acquired_subsamples = row[2]
                                 acquired_base64 = row[3]
-                                                  
-                                                                
-                                base64_string = acquired_base64.decode('utf-8')
+                                base64_string = ''
+                                if acquired_base64 is not None :
+                                    base64_string = acquired_base64.decode('utf-8')
                                 rt.logging.debug("Channel: ", str(channel), ", Value: ", acquired_value, ", Timestamp: ", acquired_time, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
-                                
-                                                                  
-                                bytes_sent = self.set_requested(int(channel), int(acquired_time), float(acquired_value), ip)
-                                                                                                     
+                                self.times.append(acquired_time)
+                                self.values.append(acquired_value)
+
+                    rt.logging.debug(list(self.channels), self.times, self.values, ip)
+                    self.set_requested(list(self.channels), self.times, self.values, ip)
 
                 except (pymysql.err.OperationalError, pymysql.err.Error) as e:
-                    rt.logging.debug(e)
+                    rt.logging.exception(e)
 
                 finally:
 
@@ -533,94 +515,91 @@ class UdpNmea(Udp):
         Udp.__init__(self)
 
 
-    def set_requested(self, channel, acquired_time, data_value, ip = '127.0.0.1'):
+    def set_requested(self, channels, times, values, ip = '127.0.0.1'):
 
-                             
+        for value in values :
 
+            try:
+                nmea_data = self.nmea_prepend
+                try :
+                    nmea_data += "{:.{}f}".format(float(value) / 1.0, 2) 
+                except ValueError as e :
+                    nmea_data += '9999.0'
+                    rt.logging.exception(e)
+                finally :
+                    nmea_data += self.nmea_append
+                rt.logging.debug(nmea_data)
                 
-                                             
-                     
-                                                                         
-                                        
-                                         
-                                       
-                         
-                                                 
-        rt.logging.debug(data_value)
-                
-                                                                                       
-                                                                                
-                                  
+                nmea_string = '$' + nmea_data + '*' + u.nmea_checksum(nmea_data) + '\n'
+                self.socket.sendto(nmea_string.encode('utf-8'), (ip, self.port))
 
-                                  
-                                   
+            except Exception as e:
+                rt.logging.exception(e)
 
 
 
-                       
+class UdpNmeaPos(Udp) :
 
 
-                                                                                                                                                                                                                                                                    
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_connect_attempts = None, nmea_prepend = None, nmea_append = None, max_age = None, config_filepath = None, config_filename = None) :
 
-                                
-                                      
-                                                                      
-                              
-                        
-                                                        
-                                        
-                                      
-                              
+        self.channels = channels
+        self.start_delay = start_delay
+        self.gateway_database_connection = gateway_database_connection
+        self.ip_list = ip_list
+        self.port = port
+        self.max_connect_attempts = max_connect_attempts
+        self.nmea_prepend = nmea_prepend
+        self.nmea_append = nmea_append
+        self.max_age = max_age
 
-                                              
-                                              
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
 
-                          
+        Udp.__init__(self)
 
         
-                                                                       
+    def set_requested(self, channels, times, values, ip = '127.0.0.1'):
 
-        try:
+        try : 
 
             nmea_data = self.nmea_prepend
             
             try :
-                nmea_data += "{:.{}f}".format(float(data_value) / 1.0, 2) 
-                                  
-                                           
-                                            
-                                                       
-                                                         
-                                                
-                                                                   
+            
+                latitude_dir = 'N'
+                latitude = float(values[0])
+                latitude_abs = abs(latitude)
+                latitude_sign = latitude / latitude_abs
+                if latitude_sign < 0 : latitude_dir = 'S'
+                latitude_deg = latitude_abs // 1
+                latitude_min = ( latitude_abs - latitude_deg ) * 60
                 
-                                   
-                                            
-                                              
-                                                          
-                                                           
-                                                  
-                                                                      
+                longitude_dir = 'E'
+                longitude = float(values[1])
+                longitude_abs = abs(longitude)
+                longitude_sign = longitude / longitude_abs
+                if longitude_sign < 0 : longitude_dir = 'W'
+                longitude_deg = longitude_abs // 1
+                longitude_min = ( longitude_abs - longitude_deg ) * 60
                 
-                                                                                
-                                                              
-                                               
-                                             
-                                             
-                                                                                      
-                                                                                                                                                                                                                        
+                datetime_origin = datetime.datetime.fromtimestamp(int(times[0]))
+                origin_timestamp = datetime_origin.timetuple()
+                hour = origin_timestamp.tm_hour
+                min = origin_timestamp.tm_min
+                sec = origin_timestamp.tm_sec
+                timestamp_string = "{:.{}f}".format(hour * 10000 + min * 100 + sec, 2)
+                nmea_data += "{:.{}f}".format(latitude_deg * 100 + latitude_min, 7) + ',' + latitude_dir + ',' + "{:.{}f}".format(longitude_deg * 100 + longitude_min, 7) + ',' + longitude_dir + ',' + timestamp_string
 
             except ValueError as e :
-                nmea_data += '9999.0'
-                rt.logging.debug(e)
+                nmea_data += '9999.0,N,9999.0,E'
+                rt.logging.exception(e)
             finally :
                 nmea_data += self.nmea_append
-            rt.logging.debug(nmea_data)
-            
-            nmea_string = '$' + nmea_data + '*' + nmea_checksum(nmea_data) + '\n'
-                                                        
-            self.socket.sendto(nmea_string.encode('utf-8'), (ip, self.port))
-            return nmea_string
 
-        except :
-            pass
+            nmea_string = '$' + nmea_data + '*' + u.nmea_checksum(nmea_data) + '\n'
+            rt.logging.debug('nmea_string', nmea_string)
+            self.socket.sendto(nmea_string.encode('utf-8'), (ip, self.port))
+
+        except Exception as e:
+            rt.logging.exception(e)
