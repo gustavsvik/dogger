@@ -58,7 +58,7 @@ class UdpHttp(Udp):
     def upload_data(self, channel, sample_secs, data_value):
 
         try :
-            http = ul.DirectUpload(channels = [channel], start_delay = self.start_delay)
+            http = ul.DirectUpload(channels = [channel], start_delay = self.start_delay, config_filepath = self.config_filepath, config_filename = self.config_filename)
             for current_ip in self.ip_list :
                 res = http.send_request(start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
                 data_string = str(channel) + ';' + str(sample_secs) + ',' + str(data_value) + ',,,;'
@@ -234,7 +234,9 @@ class Nmea(UdpFile):
                 
                 channel = channels[1]
                 filename = self.file_path + repr(channel) + "_" + repr(current_secs) + '.' + 'npy'
-                latitude = float(line_fields[2])/100
+                latitude_deg = float(line_fields[2]) // 100
+                latitude_min = float(line_fields[2]) - latitude_deg * 100
+                latitude = latitude_deg + latitude_min / 60
                 if line_fields[3] == 'S' : latitude = -latitude
                 latitude_array = numpy.concatenate(([0.0], acquired_microsecs), axis = None)
                 latitude_array[0] = latitude
@@ -245,7 +247,9 @@ class Nmea(UdpFile):
 
                 channel = channels[2]
                 filename = self.file_path + repr(channel) + "_" + repr(current_secs) + '.' + 'npy'
-                longitude = float(line_fields[4])/100
+                longitude_deg = float(line_fields[4]) // 100
+                longitude_min = float(line_fields[4]) - longitude_deg * 100
+                longitude = longitude_deg + longitude_min / 60
                 if line_fields[5] == 'W' : longitude = -longitude
                 longitude_array = numpy.concatenate(([0.0], acquired_microsecs), axis = None)
                 longitude_array[0] = longitude
