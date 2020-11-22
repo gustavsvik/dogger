@@ -10,7 +10,7 @@ class Task:
     def __init__(self):
 
         self.env = self.get_env()
-        if self.channels is None: self.channels = self.env['CHANNELS']
+
         if self.start_delay is None: self.start_delay = self.env['START_DELAY']
 
 
@@ -21,7 +21,7 @@ class Task:
 
         return env
 
-        
+
 
 class AcquireControl(Task):
 
@@ -29,7 +29,7 @@ class AcquireControl(Task):
     def __init__(self):
 
         self.env = self.get_env()
-        
+        if self.channels is None: self.channels = self.env['CHANNELS']
         if self.sample_rate is None: self.sample_rate = self.env['SAMPLE_RATE']
 
         Task.__init__(self)
@@ -40,5 +40,20 @@ class StoreUplink(Task):
 
 
     def __init__(self):
+
+        self.env = self.get_env()
+        if self.channels is None: self.channels = self.env['CHANNELS']
+
+        Task.__init__(self)
+
+
+
+class Maintenance(Task):
+
+
+    def __init__(self):
+
+        self.env = self.get_env()
+        if self.ip_list is None: self.ip_list = self.env['IP_LIST']
 
         Task.__init__(self)
