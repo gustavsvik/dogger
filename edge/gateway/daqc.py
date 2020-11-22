@@ -20,7 +20,7 @@ import gateway.task as t
 import gateway.uplink as ul
 
 
- 
+
 class Udp(t.AcquireControl):
 
 
@@ -53,7 +53,7 @@ class UdpHttp(Udp):
         if self.ip_list is None: self.ip_list = self.env['IP_LIST']
 
         Udp.__init__(self)
-        
+
 
     def upload_data(self, channel, sample_secs, data_value):
 
@@ -63,7 +63,7 @@ class UdpHttp(Udp):
                 res = http.send_request(start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
                 data_string = str(channel) + ';' + str(sample_secs) + ',' + str(data_value) + ',,,;'
                 res = http.set_requested(data_string, ip = current_ip)
-                
+
         except PermissionError as e :
             rt.logging.exception(e)
 
@@ -90,8 +90,8 @@ class File(t.AcquireControl):
 
         t.AcquireControl.__init__(self)
 
-        
-        
+
+
 class NidaqVoltageIn(File):
 
 
@@ -116,8 +116,8 @@ class NidaqVoltageIn(File):
                 self.nidaq.InitAcquire()
             time.sleep(10)
 
-            
-            
+
+
 class NidaqCurrentIn(File):
 
 
@@ -143,7 +143,7 @@ class NidaqCurrentIn(File):
             time.sleep(10)
 
 
-        
+
 class UdpFile(File):
 
 
@@ -158,7 +158,7 @@ class UdpFile(File):
 
 
 
-class Nmea(UdpFile):
+class PosNmeaUdpFile(UdpFile):
 
 
     def __init__(self, channels = None, port = None, start_delay = None, sample_rate = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
@@ -186,7 +186,7 @@ class Nmea(UdpFile):
         divisor = numpy.int64(1/numpy.float64(self.sample_rate))
         current_time = numpy.float64(time.time())
         current_secs = numpy.int64(current_time)
-            
+
         while True :
 
             time.sleep(0.1)
@@ -229,9 +229,9 @@ class Nmea(UdpFile):
                         text_file.write(last_line)
                 except PermissionError as e:
                     rt.logging.exception(e)
-                
+
                 acquired_microsecs = microsecond
-                
+
                 channel = channels[1]
                 filename = self.file_path + repr(channel) + "_" + repr(current_secs) + '.' + 'npy'
                 latitude_deg = float(line_fields[2]) // 100
@@ -261,7 +261,7 @@ class Nmea(UdpFile):
 
 
 class Image(File):
-    
+
 
     def __init__(self):
 
@@ -270,10 +270,10 @@ class Image(File):
         if self.video_quality is None: self.video_quality = self.env['VIDEO_QUALITY']
         (self.channel,) = self.channels
         self.capture_filename = 'image_' + str(self.channel) + '.' + self.file_extension
-        
+
         File.__init__(self)
 
-            
+
     def run(self):
 
         time.sleep(self.start_delay)
@@ -290,13 +290,13 @@ class Image(File):
             if sample_secs > current_secs :
                 time.sleep(0.1)
             else :
-            
-                self.read_samples(sample_secs)
+
+                self.read_samples()
 
                 if self.file_path is not None and os.path.exists(self.file_path):
-
-                    store_filename = self.file_path + str(self.channel) + '_' + str(sample_secs) + '.' + self.file_extension
-                    archive_filename = self.archive_file_path + str(self.channel) + '_' + str(sample_secs) + '.' + self.file_extension
+                    capture_file_timestamp = int(os.path.getmtime(self.capture_filename))
+                    store_filename = self.file_path + str(self.channel) + '_' + str(capture_file_timestamp) + '.' + self.file_extension
+                    archive_filename = self.archive_file_path + str(self.channel) + '_' + str(capture_file_timestamp) + '.' + self.file_extension
                     try:
                         shutil.copy(self.capture_filename, store_filename)
                         if self.archive_file_path is not None and os.path.exists(self.archive_file_path):
@@ -306,7 +306,7 @@ class Image(File):
                         rt.logging.exception(e)
 
 
-                    
+
 class USBCam(Image):
 
 
@@ -332,7 +332,7 @@ class USBCam(Image):
         if self.video_unit is None: self.video_unit = self.env['VIDEO_UNIT']
         if self.video_rate is None: self.video_rate = self.env['VIDEO_RATE']
         if self.video_capture_method is None: self.video_capture_method = self.env['VIDEO_CAPTURE_METHOD']
-        
+
         Image.__init__(self)
 
         if str.lower(self.video_capture_method) == 'opencv' :
@@ -389,10 +389,10 @@ class USBCam(Image):
                 ret, frame = self.cam.read()
                 frame = cv2.resize(frame, tuple(self.video_res), interpolation = cv2.INTER_AREA)
                 cv2.imwrite( self.capture_filename, frame, [cv2.IMWRITE_JPEG_QUALITY, self.video_quality] )
-                
+
             elif str.lower(self.video_capture_method) == 'uvccapture' :
                 os.system('uvccapture -m -x' + str(self.video_res[0]) + ' -y' + str(self.video_res[1]) + ' -q' + str(self.video_quality) + ' -d' + self.video_unit + ' -o' + self.capture_filename)
-                
+
             elif str.lower(self.video_capture_method) == 'ffmpeg' :
                 os.system('ffmpeg -y -f v4l2 -hide_banner -loglevel warning -i ' + self.video_unit + ' -s ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' -vframes 1 ' + self.capture_filename)  # -input_format mjpeg 
 
@@ -414,29 +414,33 @@ class USBCam(Image):
 class ScreenshotUpload(Image):
 
 
-    def __init__(self, channels = None, sample_rate = None, crop = None, video_quality = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, sample_rate = None, host_api_url = None, client_api_url = None, crop = None, video_quality = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
-        self.start_delay = 0
-        self.sample_rate = sample_rate
 
-        self.file_path = None
-        self.archive_file_path = None
-        self.file_extension = 'jpg'
-        self.video_res = None
-        self.ip_list = None
+        self.sample_rate = sample_rate
+        self.host_api_url = host_api_url
+        self.client_api_url = client_api_url
         self.crop = crop
         self.video_quality = video_quality
 
-        
+        self.start_delay = 0
+        self.max_connect_attempts = 50
+        self.file_extension = 'jpg'
+
+        self.file_path = None
+        self.archive_file_path = None
+        self.video_res = None
+        self.ip_list = None
+
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
         self.env = self.get_env()
         if self.ip_list is None: self.ip_list = self.env['IP_LIST']
-        
+
         Image.__init__(self)
-        
+
 
     def read_samples(self, sample_secs = -9999):
 
@@ -446,7 +450,7 @@ class ScreenshotUpload(Image):
             jpeg_image_buffer = io.BytesIO()
             img.save(jpeg_image_buffer, format="JPEG")
             img_str = base64.b64encode(jpeg_image_buffer.getvalue())
-            http = ul.DirectUpload(channels = self.channels, start_delay = self.start_delay)
+            http = ul.DirectUpload(channels = self.channels, start_delay = self.start_delay, host_api_url = self.host_api_url, client_api_url = self.client_api_url, max_connect_attempts = self.max_connect_attempts)
             (channel,) = self.channels
 
             for current_ip in self.ip_list :
@@ -454,7 +458,7 @@ class ScreenshotUpload(Image):
                 data_string = str(channel) + ';' + str(sample_secs) + ',-9999.0,,' + str(img_str.decode('utf-8')) + ',;'
                 rt.logging.debug('data_string', data_string[0:100])
                 res = http.set_requested(data_string, ip = current_ip)
-                
+
         except PermissionError as e :
             rt.logging.exception(e)
 
@@ -475,7 +479,7 @@ class ScreenshotUpload(Image):
             if sample_secs > current_secs :
                 time.sleep(0.1)
             else :
-            
+
                 self.read_samples(sample_secs)
 
 
@@ -483,15 +487,21 @@ class ScreenshotUpload(Image):
 class TempFileUpload(Image):
 
 
-    def __init__(self, channels = None, sample_rate = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, sample_rate = None, host_api_url = None, client_api_url = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
-        self.start_delay = 0
+
         self.sample_rate = sample_rate
+        self.host_api_url = host_api_url
+        self.client_api_url = client_api_url
+
+        self.start_delay = 0
+        self.max_connect_attempts = 50
+        self.file_extension = 'jpg'
 
         self.file_path = None
         self.archive_file_path = None
-        self.file_extension = 'jpg'
+
         self.video_res = None
         self.video_quality = None
         self.ip_list = None
@@ -501,23 +511,25 @@ class TempFileUpload(Image):
 
         self.env = self.get_env()
         if self.ip_list is None: self.ip_list = self.env['IP_LIST']
-        
+
         Image.__init__(self)
-        
+
 
     def upload_file(self, sample_secs = -9999):
 
         try :
+
             with open(self.capture_filename, "rb") as image_file:
                 img_str = base64.b64encode(image_file.read())
-            http = ul.DirectUpload(channels = self.channels, start_delay = self.start_delay)
+            http = ul.DirectUpload(channels = self.channels, start_delay = self.start_delay, host_api_url = self.host_api_url, client_api_url = self.client_api_url, max_connect_attempts = self.max_connect_attempts)
             (channel,) = self.channels
+
             for current_ip in self.ip_list :
                 res = http.send_request(start_time = sample_secs, end_time = sample_secs, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
                 data_string = str(channel) + ';' + str(sample_secs) + ',-9999.0,,' + str(img_str.decode('utf-8')) + ',;'
                 rt.logging.debug('data_string', data_string[0:100])
                 res = http.set_requested(data_string, ip = current_ip)
-                
+
         except PermissionError as e :
             rt.logging.exception(e)
 
@@ -538,16 +550,15 @@ class TempFileUpload(Image):
             if sample_secs > current_secs :
                 time.sleep(0.1)
             else :
-            
                 self.upload_file(sample_secs)
 
-            
+
 
 class AcquireCurrent(File):
 
     """ Adapted from https://scipy-cookbook.readthedocs.io/items/Data_Acquisition_with_NIDAQmx.html."""
 
-    
+
     def __init__(self, channels = None, start_delay = 0, sample_rate = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
@@ -561,7 +572,7 @@ class AcquireCurrent(File):
         self.config_filename = config_filename
 
         File.__init__(self)
-        
+
         self.nidaq = None
         if sys.platform.startswith('win32') : 
             self.nidaq = ctypes.windll.nicaiu
@@ -739,14 +750,14 @@ class AcquireCurrent(File):
             time.sleep(10)
 
 
-            
+
 class AcquireMaster:
 
 
     def __init__(self):
         pass
 
-        
+
 class AcquireVoltage:
 
     def __init__(self):
