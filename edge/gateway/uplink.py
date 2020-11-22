@@ -14,6 +14,8 @@ import gateway.metadata as md
 import gateway.task as t
 import gateway.database as db
 import gateway.utils as u
+import gateway.aislib as a
+
 
 
 
@@ -24,26 +26,66 @@ class Uplink(t.StoreUplink):
 
         self.env = self.get_env()
         if self.ip_list is None: self.ip_list = self.env['IP_LIST']
-        
+
         t.StoreUplink.__init__(self)
 
 
-        
+
 class Http(Uplink):
-    
+
 
     def __init__(self) :
-    
+
         self.env = self.get_env()
-        if self.host_api_url is None: self.host_api_url = self.env['HOST_API_URL']
-        if self.client_api_url is None: self.client_api_url = self.env['CLIENT_API_URL']
         if self.max_connect_attempts is None: self.max_connect_attempts = self.env['MAX_CONNECT_ATTEMPTS']
 
         Uplink.__init__(self)
-        
-        self.channel_range_string = ';;'.join([str(ch) for ch in self.channels]) + ';;'
 
         self.connect_attempts = 0
+
+
+
+class HttpMaint(Http):
+
+
+    def __init__(self) :
+
+        self.env = self.get_env()
+        if self.maint_api_url is None: self.maint_api_url = self.env['MAINT_API_URL']
+
+        Http.__init__(self)
+
+
+    def partition_database(self, ip = '127.0.0.1'):
+
+        self.connect_attempts += 1
+        if self.connect_attempts > 1:
+            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
+        try:
+            print("http://" + ip + self.maint_api_url + "partition_database.php")
+            raw_data = requests.post("http://" + ip + self.maint_api_url + "partition_database.php", timeout = 5, data = {"new_partition_name_date": self.new_partition_name_date, "new_partition_timestamp": self.new_partition_timestamp, "oldest_kept_partition_name_date": self.oldest_kept_partition_name_date})
+            self.connect_attempts = 0
+            print ("raw_data", raw_data)
+            return raw_data
+        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
+            rt.logging.exception(e)
+            time.sleep(10)
+            if self.connect_attempts < self.max_connect_attempts:
+                self.partition_database(ip)
+            else:
+                exit(-1)
+
+
+
+class HttpHost(Http):
+
+
+    def __init__(self) :
+
+        self.env = self.get_env()
+        if self.host_api_url is None: self.host_api_url = self.env['HOST_API_URL']
+
+        Http.__init__(self)
 
 
     def get_requested(self, ip = '127.0.0.1'):
@@ -52,8 +94,7 @@ class Http(Uplink):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            rt.logging.debug("self.channel_range_string", self.channel_range_string)
-            raw_data = requests.post("http://" + ip + self.host_api_url + "get_requested.php", timeout = 5, data = {"channelrange": self.channel_range_string, "duration": 10, "unit": 1})
+            raw_data = requests.post("http://" + ip + self.host_api_url + "get_requested.php", timeout = 5, data = {"channelrange": u.get_channel_range_string(self.channels), "duration": 10, "unit": 1})
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
@@ -83,15 +124,14 @@ class Http(Uplink):
             else:
                 exit(-1)
 
-                
+
     def clear_data_requests(self, ip = '127.0.0.1'):
 
         self.connect_attempts += 1
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            rt.logging.debug("self.channel_range_string", self.channel_range_string)
-            raw_data = requests.post("http://" + ip + self.host_api_url + "clear_data_requests.php", timeout = 5, data = {"channelrange": self.channel_range_string})
+            raw_data = requests.post("http://" + ip + self.host_api_url + "clear_data_requests.php", timeout = 5, data = {"channelrange": u.get_channel_range_string(self.channels)})
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
@@ -102,14 +142,26 @@ class Http(Uplink):
             else:
                 exit(-1)
 
-                
+
+
+class HttpClient(Http):
+
+
+    def __init__(self) :
+
+        self.env = self.get_env()
+        if self.client_api_url is None: self.client_api_url = self.env['CLIENT_API_URL']
+
+        Http.__init__(self)
+
+
     def send_request(self, ip = '127.0.0.1', start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600):
 
         self.connect_attempts += 1
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            d = {"channels": self.channel_range_string, "start_time": start_time, "end_time": end_time, "duration": duration, "unit": unit, "delete_horizon": delete_horizon}
+            d = {"channels": u.get_channel_range_string(self.channels), "start_time": start_time, "end_time": end_time, "duration": duration, "unit": unit, "delete_horizon": delete_horizon}
             raw_data = requests.post("http://" + ip + self.client_api_url + "send_request.php", timeout = 5, data = d)
             self.connect_attempts = 0
             return raw_data
@@ -128,7 +180,7 @@ class Http(Uplink):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            d = {"channels": self.channel_range_string, "start_time": start_time, "end_time": end_time, "duration": duration, "unit": unit, "lowest_status": lowest_status}
+            d = {"channels": u.get_channel_range_string(self.channels), "start_time": start_time, "end_time": end_time, "duration": duration, "unit": unit, "lowest_status": lowest_status}
             raw_data = requests.post("http://" + ip + self.client_api_url + "get_uploaded.php", timeout = 5, data = d)
             self.connect_attempts = 0
             return raw_data
@@ -142,10 +194,32 @@ class Http(Uplink):
 
 
 
-class DirectUpload(Http):
+class CloudDBPartition(HttpMaint):
 
 
-    def __init__(self, channels = None, start_delay = None, ip_list = None, host_api_url = None, client_api_url = None, max_connect_attempts = 50, config_filepath = None, config_filename = None):
+    def __init__(self, start_delay = None, ip_list = None, maint_api_url = None, max_connect_attempts = None, new_partition_name_date = None, new_partition_timestamp = None, oldest_kept_partition_name_date = None, config_filepath = None, config_filename = None):
+
+        self.start_delay = start_delay
+        self.ip_list = ip_list
+        self.maint_api_url = maint_api_url
+        self.max_connect_attempts = max_connect_attempts
+        self.new_partition_name_date = new_partition_name_date
+        self.new_partition_timestamp = new_partition_timestamp
+        self.oldest_kept_partition_name_date = oldest_kept_partition_name_date
+
+        self.channels = []
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        HttpMaint.__init__(self)
+
+
+
+class DirectUpload(HttpHost, HttpClient):
+
+
+    def __init__(self, channels = None, start_delay = None, ip_list = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
@@ -156,13 +230,12 @@ class DirectUpload(Http):
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
-        
-        self.env = self.get_env()
-        Http.__init__(self)
+
+        HttpClient.__init__(self)
 
 
 
-class Replicate(Http):
+class Replicate(HttpHost):
 
 
     def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
@@ -176,15 +249,11 @@ class Replicate(Http):
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
-        
-        self.env = self.get_env()
-        self.client_api_url = None
-        Http.__init__(self)
+
+        HttpHost.__init__(self)
 
         self.sql = db.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
-        self.connect_attempts = 0
-        
         self.clear_channels()
 
 
@@ -202,7 +271,7 @@ class Replicate(Http):
                 except ValueError as e:  # includes simplejson.decoder.JSONDecodeError
                     rt.logging.debug("Decoding JSON has failed", e)
             rt.logging.debug("cleared_channels",cleared_channels)
-            
+
 
     def run(self):
 
@@ -296,7 +365,7 @@ class Replicate(Http):
 
 
 
-class Download(Http):
+class Download(HttpClient):
 
 
     def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
@@ -310,15 +379,11 @@ class Download(Http):
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
-        
-        self.env = self.get_env()
-        self.host_api_url = None
-        Http.__init__(self)
+
+        HttpClient.__init__(self)
 
         self.sql = db.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
-        self.connect_attempts = 0
- 
 
     def run(self):
 
@@ -351,7 +416,7 @@ class Download(Http):
                 try:
 
                     self.sql.connect_db()
- 
+
                     for channel, times, values in zip(channel_list, times_list, values_list) :
 
                         channel= channel[0]
@@ -374,7 +439,7 @@ class Download(Http):
                     rt.logging.exception(e)
 
                 finally:
-                 
+
                     try:
                         self.sql.close_db_connection()
                     except pymysql.err.Error as e:
@@ -398,18 +463,18 @@ class Udp(Uplink):
 
 
     def set_requested(self, channels, times, values, ip = '127.0.0.1'):
- 
+
         for i in range(len(values)) :
 
             try :
-                
+
                 data_bytes = struct.pack('>HIf', int(channels[i]), int(times[i]), float(values[i]))   # short unsigned int, big endian
                 rt.logging.debug(int(channels[i]), int(times[i]), float(values[i]), ip, self.port)
                 try :
                     self.socket.sendto(data_bytes, (ip, self.port))
                 except Exception as e:
                     rt.logging.exception('Exception', e)
- 
+
             except Exception as e:
                 rt.logging.exception('Exception', e)
 
@@ -475,7 +540,7 @@ class Udp(Uplink):
 
 
 class UdpRaw(Udp):
-    
+
 
     def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_connect_attempts = None, max_age = None, config_filepath = None, config_filename = None) :
 
@@ -495,7 +560,7 @@ class UdpRaw(Udp):
 
 
 class UdpNmea(Udp):
-    
+
 
     def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_connect_attempts = None, nmea_prepend = None, nmea_append = None, max_age = None, config_filepath = None, config_filename = None) :
 
@@ -529,7 +594,7 @@ class UdpNmea(Udp):
                 finally :
                     nmea_data += self.nmea_append
                 rt.logging.debug(nmea_data)
-                
+
                 nmea_string = '$' + nmea_data + '*' + u.nmea_checksum(nmea_data) + '\n'
                 self.socket.sendto(nmea_string.encode('utf-8'), (ip, self.port))
 
@@ -558,15 +623,15 @@ class UdpNmeaPos(Udp) :
 
         Udp.__init__(self)
 
-        
+
     def set_requested(self, channels, times, values, ip = '127.0.0.1'):
 
-        try : 
+        try :
 
             nmea_data = self.nmea_prepend
-            
+
             try :
-            
+
                 latitude_dir = 'N'
                 latitude = float(values[0])
                 latitude_abs = abs(latitude)
@@ -574,7 +639,7 @@ class UdpNmeaPos(Udp) :
                 if latitude_sign < 0 : latitude_dir = 'S'
                 latitude_deg = latitude_abs // 1
                 latitude_min = ( latitude_abs - latitude_deg ) * 60
-                
+
                 longitude_dir = 'E'
                 longitude = float(values[1])
                 longitude_abs = abs(longitude)
@@ -582,14 +647,17 @@ class UdpNmeaPos(Udp) :
                 if longitude_sign < 0 : longitude_dir = 'W'
                 longitude_deg = longitude_abs // 1
                 longitude_min = ( longitude_abs - longitude_deg ) * 60
-                
+
                 datetime_origin = datetime.datetime.fromtimestamp(int(times[0]))
                 origin_timestamp = datetime_origin.timetuple()
                 hour = origin_timestamp.tm_hour
                 min = origin_timestamp.tm_min
                 sec = origin_timestamp.tm_sec
+                lead_zero = ''
+                if longitude_deg < 100 :
+                    lead_zero = '0'
                 timestamp_string = "{:.{}f}".format(hour * 10000 + min * 100 + sec, 2)
-                nmea_data += "{:.{}f}".format(latitude_deg * 100 + latitude_min, 7) + ',' + latitude_dir + ',' + "{:.{}f}".format(longitude_deg * 100 + longitude_min, 7) + ',' + longitude_dir + ',' + timestamp_string
+                nmea_data += "{:.{}f}".format(latitude_deg * 100 + latitude_min, 7) + ',' + latitude_dir + ',' + lead_zero + "{:.{}f}".format(longitude_deg * 100 + longitude_min, 7) + ',' + longitude_dir + ',' + timestamp_string
 
             except ValueError as e :
                 nmea_data += '9999.0,N,9999.0,E'
@@ -603,3 +671,38 @@ class UdpNmeaPos(Udp) :
 
         except Exception as e:
             rt.logging.exception(e)
+
+            
+
+class UdpAis(Udp):
+
+
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_connect_attempts = None, max_age = None, config_filepath = None, config_filename = None) :
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.gateway_database_connection = gateway_database_connection
+        self.ip_list = ip_list
+        self.port = port
+        self.max_connect_attempts = max_connect_attempts
+        self.max_age = max_age
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        Udp.__init__(self)
+
+
+
+    def run(self):
+
+        try :
+
+            aivdm_string = aismsg = a.AISPositionReportMessage(mmsi = 237772000, status = 8, sog = 75, pa = 1, lon = (25*60+00)*10000, lat = (35*60+30)*10000, cog = 2800, ts = 40, raim = 1, comm_state = 82419)
+            ais = a.AIS(aismsg)
+            payload = ais.build_payload(False)
+            print('payload', payload)
+            #self.socket.sendto(aivdm_string.encode('utf-8'), (ip, self.port))
+
+        except Exception as e:
+            print(e)
