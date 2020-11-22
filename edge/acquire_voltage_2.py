@@ -16,7 +16,7 @@ nidaq = ctypes.windll.nicaiu # load the DLL
 
 config = md.Configure(filepath = 'Z:\\app\\python\\dogger\\', filename = 'conf_voltage_2.ini')
 env = config.get()
-         
+
 FILE_PATH = ''
 
 if env['FILE_PATH'] is not None and os.path.exists(env['FILE_PATH']):
@@ -191,7 +191,7 @@ def LoopAcquire():
         #        numpy.save(FILE_PATH+filename_valmet, valmet_sec)
         #    except PermissionError as e:
         #        print(e)
-        
+
         for channel_index in range(16, 32):
 
             voltage_array = voltage[SAMPLES_PER_CHAN*(channel_index+0):SAMPLES_PER_CHAN*(channel_index+1)]
@@ -205,7 +205,7 @@ def LoopAcquire():
             try:
                 filename_voltage = repr(1+channel_index) + "_" + repr(acq_finish_secs)
                 numpy.save(FILE_PATH+filename_voltage, voltage_array)
-            except PermissionError as e:
+            except (PermissionError, OSError) as e:
                 print(e)
 
 
