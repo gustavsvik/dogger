@@ -9,3 +9,8 @@ def nmea_checksum(nmea_data) :
             checksum = checksum ^ nmea_bytearray[i]
     checksum_hex = hex(checksum)
     return checksum_hex[2:]
+
+
+def get_channel_range_string(channels) :
+
+    return ';;'.join([str(ch) for ch in channels]) + ';;'
