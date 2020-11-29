@@ -21,12 +21,12 @@ import gateway.uplink as ul
 
 
 
-class Udp(t.AcquireControl):
+class Udp(t.AcquireControlTask):
 
 
     def __init__(self):
 
-        t.AcquireControl.__init__(self)
+        t.AcquireControlTask.__init__(self)
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
 
@@ -38,12 +38,13 @@ class Udp(t.AcquireControl):
 class UdpHttp(Udp):
 
 
-    def __init__(self, port = None, start_delay = None, config_filepath = None, config_filename = None):
+    def __init__(self, port = None, config_filepath = None, config_filename = None):
 
         self.channels = None
         self.ip_list = None
         self.port = port
-        self.start_delay = start_delay
+        self.start_delay = 0
+        self.max_connect_attempts = 50
         self.sample_rate = None
 
         self.config_filepath = config_filepath
@@ -58,7 +59,7 @@ class UdpHttp(Udp):
     def upload_data(self, channel, sample_secs, data_value):
 
         try :
-            http = ul.DirectUpload(channels = [channel], start_delay = self.start_delay, config_filepath = self.config_filepath, config_filename = self.config_filename)
+            http = ul.DirectUpload(channels = [channel], start_delay = self.start_delay, max_connect_attempts = self.max_connect_attempts, config_filepath = self.config_filepath, config_filename = self.config_filename)
             for current_ip in self.ip_list :
                 res = http.send_request(start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
                 data_string = str(channel) + ';' + str(sample_secs) + ',' + str(data_value) + ',,,;'
@@ -79,7 +80,9 @@ class UdpHttp(Udp):
             values = struct.unpack('>HIf', data)
             self.upload_data(int(values[0]), int(values[1]), float(values[2]))
 
-class File(t.AcquireControl):
+
+
+class File(t.AcquireControlTask):
 
 
     def __init__(self):
@@ -88,7 +91,7 @@ class File(t.AcquireControl):
         if self.file_path is None: self.file_path = self.env['FILE_PATH']
         if self.archive_file_path is None: self.archive_file_path = self.env['ARCHIVE_FILE_PATH']
 
-        t.AcquireControl.__init__(self)
+        t.AcquireControlTask.__init__(self)
 
 
 
