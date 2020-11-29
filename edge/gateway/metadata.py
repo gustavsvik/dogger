@@ -71,7 +71,6 @@ class Configure:
         ip_list = strip_string(conf, top_label, 'ip_list', '')
         host_api_url = strip_string(conf, top_label, 'host_api_url', '')
         client_api_url = strip_string(conf, top_label, 'client_api_url', '')
-        max_connect_attempts = strip_string(conf, top_label, 'max_connect_attempts', '')
         video_unit = strip_string(conf, top_label, 'video_unit', '')
         video_res = strip_string(conf, top_label, 'video_res', '')
         video_capture_method = strip_string(conf, top_label, 'video_capture_method', '')
@@ -79,6 +78,7 @@ class Configure:
 
         start_delay = to_float(strip_string(conf, top_label, 'start_delay'), 0.0)
         sample_rate = to_float(strip_string(conf, top_label, 'sample_rate'), 0.0)
+        max_connect_attempts = to_int(strip_string(conf, top_label, 'max_connect_attempts'), 0)
         samples_per_chan = to_float(strip_string(conf, top_label, 'samples_per_chan'), 0.0)
         video_rate = to_float(strip_string(conf, top_label, 'video_rate'), 0.0)
         archive_interval = to_int(strip_string(conf, top_label, 'archive_interval'), 0)
