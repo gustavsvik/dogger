@@ -14,7 +14,7 @@ import gateway.task as t
 
 
 
-class Accumulate(t.StoreUplink) :
+class Accumulate(t.ProcessDataTask) :
 
 
     def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, config_filepath = None, config_filename = None) :
@@ -26,7 +26,7 @@ class Accumulate(t.StoreUplink) :
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        t.StoreUplink.__init__(self)
+        t.ProcessDataTask.__init__(self)
 
         self.sql = db.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
@@ -135,12 +135,12 @@ class Accumulate(t.StoreUplink) :
 
 
 
-class LoadFile(t.StoreUplink):
+class LoadFile(t.ProcessDataTask):
 
 
     def __init__(self):
 
-        t.StoreUplink.__init__(self)
+        t.ProcessDataTask.__init__(self)
 
 
     def get_filenames(self, channel = None):
