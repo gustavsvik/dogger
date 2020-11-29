@@ -705,10 +705,55 @@ class UdpNmeaPos(Udp) :
 
             
 
-class UdpAis(Udp):
+class UdpAivdmStatic(Udp):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, mmsi = None, config_filepath = None, config_filename = None) :
+    def __init__(self) :
+
+        Udp.__init__(self)
+
+
+    def get_aivdm_stat_payload(self) :
+
+        aivdm_payload = ''
+
+        try :
+
+            rt.logging.debug("self.mmsi", self.mmsi, "self.call_sign", self.call_sign, "self.vessel_name", self.vessel_name, "self.ship_type", self.ship_type)
+            aivdm_message = ai.AISStaticAndVoyageReportMessage(mmsi = self.mmsi, callsign = self.call_sign, shipname = self.vessel_name, shiptype = self.ship_type, imo = 0)
+            aivdm_instance = ai.AIS(aivdm_message)
+            aivdm_payload += aivdm_instance.build_payload(False)
+            rt.logging.debug("aivdm_payload", aivdm_payload)
+
+        except ValueError as e :
+
+            aivdm_payload += ''
+            rt.logging.exception(e)
+
+        finally :
+
+            aivdm_payload += ''
+
+        return aivdm_payload
+
+
+    # def set_requested(self, channels, times, values, ip = '127.0.0.1'):
+
+        # try :
+            # rt.logging.debug("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
+            # aivdm_payload = self.get_aivdm_payload()
+            # rt.logging.debug('aivdm_payload', aivdm_payload)
+            # self.socket.sendto(aivdm_payload.encode('utf-8'), (ip, self.port))
+
+        # except Exception as e:
+            # rt.logging.exception(e)
+
+
+
+class UdpAivdmPosition(UdpAivdmStatic):
+
+
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, mmsi = None, vessel_name = None, call_sign = None, ship_type = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -717,45 +762,60 @@ class UdpAis(Udp):
         self.port = port
         self.max_age = max_age
         self.mmsi = mmsi
+        self.vessel_name = vessel_name
+        self.call_sign = call_sign
+        self.ship_type = ship_type
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        Udp.__init__(self)
+        UdpAivdmStatic.__init__(self)
 
 
-    def set_requested(self, channels, times, values, ip = '127.0.0.1'):
+    def get_aivdm_pos_payload(self, timestamp, latitude, longitude) :
+
+        aivdm_payload = ''
 
         try :
-        
-            aivdm_payload = ''
-            
-            try :
 
-                latitude = float(values[0])
-                rt.logging.debug("latitude", latitude)
-                latitude_min_10000_fraction = int(latitude * 60 * 10000)
+            latitude_degs = float(latitude)
+            rt.logging.debug("latitude_degs", latitude_degs)
+            latitude_min_10000_fraction = int(latitude_degs * 60 * 10000)
 
-                longitude = float(values[1])
-                rt.logging.debug("longitude", longitude)
-                longitude_min_10000_fraction = int(longitude * 60 * 10000)
+            longitude_degs = float(longitude)
+            rt.logging.debug("longitude_degs", longitude_degs)
+            longitude_min_10000_fraction = int(longitude_degs * 60 * 10000)
 
-                datetime_origin = datetime.datetime.fromtimestamp(int(times[0]))
-                origin_timestamp = datetime_origin.timetuple()
-                sec = origin_timestamp.tm_sec
+            datetime_origin = datetime.datetime.fromtimestamp(int(timestamp))
+            origin_timestamp = datetime_origin.timetuple()
+            sec = origin_timestamp.tm_sec
 
-                aivdm_message = ai.AISPositionReportMessage(mmsi = self.mmsi, lon = longitude_min_10000_fraction, lat = latitude_min_10000_fraction, ts = sec)
-                aivdm_instance = ai.AIS(aivdm_message)
-                aivdm_payload += aivdm_instance.build_payload(False)
+            aivdm_message = ai.AISPositionReportMessage(mmsi = self.mmsi, lon = longitude_min_10000_fraction, lat = latitude_min_10000_fraction, ts = sec)
+            aivdm_instance = ai.AIS(aivdm_message)
+            aivdm_payload += aivdm_instance.build_payload(False)
+            rt.logging.debug("aivdm_payload", aivdm_payload)
 
-            except ValueError as e :
-                aivdm_payload += ''
-                rt.logging.exception(e)
-            finally :
-                aivdm_payload += ''
+        except ValueError as e :
 
-            rt.logging.debug('aivdm_payload', aivdm_payload)
-            self.socket.sendto(aivdm_payload.encode('utf-8'), (ip, self.port))
+            aivdm_payload += ''
+            rt.logging.exception(e)
 
+        finally :
+
+            aivdm_payload += ''
+
+        return aivdm_payload
+
+
+    def set_requested(self, channels, times, values, ip = '127.0.0.1') :
+
+        try :
+            aivdm_stat_payload = self.get_aivdm_stat_payload()
+            rt.logging.debug('aivdm_stat_payload', aivdm_stat_payload)
+            self.socket.sendto(aivdm_stat_payload.encode('utf-8'), (ip, self.port))
+            rt.logging.debug("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
+            aivdm_pos_payload = self.get_aivdm_pos_payload(times[0], values[0], values[1])
+            rt.logging.debug('aivdm_pos_payload', aivdm_pos_payload)
+            self.socket.sendto(aivdm_pos_payload.encode('utf-8'), (ip, self.port))
         except Exception as e:
             rt.logging.exception(e)
