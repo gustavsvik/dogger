@@ -14,12 +14,12 @@ import gateway.metadata as md
 import gateway.task as t
 import gateway.database as db
 import gateway.utils as u
-import gateway.aislib as a
+import gateway.aislib as ai
 
 
 
 
-class Uplink(t.StoreUplink):
+class Uplink(t.ProcessDataTask):
 
 
     def __init__(self):
@@ -27,7 +27,7 @@ class Uplink(t.StoreUplink):
         self.env = self.get_env()
         if self.ip_list is None: self.ip_list = self.env['IP_LIST']
 
-        t.StoreUplink.__init__(self)
+        t.ProcessDataTask.__init__(self)
 
 
 
@@ -62,16 +62,32 @@ class HttpMaint(Http):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            print("http://" + ip + self.maint_api_url + "partition_database.php")
             raw_data = requests.post("http://" + ip + self.maint_api_url + "partition_database.php", timeout = 5, data = {"new_partition_name_date": self.new_partition_name_date, "new_partition_timestamp": self.new_partition_timestamp, "oldest_kept_partition_name_date": self.oldest_kept_partition_name_date})
             self.connect_attempts = 0
-            print ("raw_data", raw_data)
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
             rt.logging.exception(e)
             time.sleep(10)
             if self.connect_attempts < self.max_connect_attempts:
                 self.partition_database(ip)
+            else:
+                exit(-1)
+
+
+    def get_db_rows(self, ip = '127.0.0.1'):
+
+        self.connect_attempts += 1
+        if self.connect_attempts > 1:
+            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
+        try:
+            raw_data = requests.post("http://" + ip + self.maint_api_url + "get_db_rows.php", timeout = 5, data = {"table_label": self.table_label, "id_range": self.id_range})
+            self.connect_attempts = 0
+            return raw_data
+        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
+            rt.logging.exception(e)
+            time.sleep(10)
+            if self.connect_attempts < self.max_connect_attempts:
+                self.get_db_rows(ip)
             else:
                 exit(-1)
 
@@ -207,7 +223,24 @@ class CloudDBPartition(HttpMaint):
         self.new_partition_timestamp = new_partition_timestamp
         self.oldest_kept_partition_name_date = oldest_kept_partition_name_date
 
-        self.channels = []
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        HttpMaint.__init__(self)
+
+
+
+class GetDBDataJson(HttpMaint):
+
+
+    def __init__(self, start_delay = None, ip_list = None, maint_api_url = None, max_connect_attempts = None, table_label = None, id_range = None, config_filepath = None, config_filename = None):
+
+        self.start_delay = start_delay
+        self.ip_list = ip_list
+        self.maint_api_url = maint_api_url
+        self.max_connect_attempts = max_connect_attempts
+        self.table_label = table_label
+        self.id_range = id_range
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
@@ -232,6 +265,7 @@ class DirectUpload(HttpHost, HttpClient):
         self.config_filename = config_filename
 
         HttpClient.__init__(self)
+        HttpHost.__init__(self)
 
 
 
@@ -542,14 +576,13 @@ class Udp(Uplink):
 class UdpRaw(Udp):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_connect_attempts = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.port = port
-        self.max_connect_attempts = max_connect_attempts
         self.max_age = max_age
 
         self.config_filepath = config_filepath
@@ -562,14 +595,13 @@ class UdpRaw(Udp):
 class UdpNmea(Udp):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_connect_attempts = None, nmea_prepend = None, nmea_append = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, nmea_prepend = None, nmea_append = None, max_age = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.port = port
-        self.max_connect_attempts = max_connect_attempts
         self.nmea_prepend = nmea_prepend
         self.nmea_append = nmea_append
         self.max_age = max_age
@@ -606,14 +638,13 @@ class UdpNmea(Udp):
 class UdpNmeaPos(Udp) :
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_connect_attempts = None, nmea_prepend = None, nmea_append = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, nmea_prepend = None, nmea_append = None, max_age = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.port = port
-        self.max_connect_attempts = max_connect_attempts
         self.nmea_prepend = nmea_prepend
         self.nmea_append = nmea_append
         self.max_age = max_age
@@ -677,15 +708,15 @@ class UdpNmeaPos(Udp) :
 class UdpAis(Udp):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_connect_attempts = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, mmsi = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.port = port
-        self.max_connect_attempts = max_connect_attempts
         self.max_age = max_age
+        self.mmsi = mmsi
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
@@ -693,16 +724,38 @@ class UdpAis(Udp):
         Udp.__init__(self)
 
 
-
-    def run(self):
+    def set_requested(self, channels, times, values, ip = '127.0.0.1'):
 
         try :
+        
+            aivdm_payload = ''
+            
+            try :
 
-            aivdm_string = aismsg = a.AISPositionReportMessage(mmsi = 237772000, status = 8, sog = 75, pa = 1, lon = (25*60+00)*10000, lat = (35*60+30)*10000, cog = 2800, ts = 40, raim = 1, comm_state = 82419)
-            ais = a.AIS(aismsg)
-            payload = ais.build_payload(False)
-            print('payload', payload)
-            #self.socket.sendto(aivdm_string.encode('utf-8'), (ip, self.port))
+                latitude = float(values[0])
+                rt.logging.debug("latitude", latitude)
+                latitude_min_10000_fraction = int(latitude * 60 * 10000)
+
+                longitude = float(values[1])
+                rt.logging.debug("longitude", longitude)
+                longitude_min_10000_fraction = int(longitude * 60 * 10000)
+
+                datetime_origin = datetime.datetime.fromtimestamp(int(times[0]))
+                origin_timestamp = datetime_origin.timetuple()
+                sec = origin_timestamp.tm_sec
+
+                aivdm_message = ai.AISPositionReportMessage(mmsi = self.mmsi, lon = longitude_min_10000_fraction, lat = latitude_min_10000_fraction, ts = sec)
+                aivdm_instance = ai.AIS(aivdm_message)
+                aivdm_payload += aivdm_instance.build_payload(False)
+
+            except ValueError as e :
+                aivdm_payload += ''
+                rt.logging.exception(e)
+            finally :
+                aivdm_payload += ''
+
+            rt.logging.debug('aivdm_payload', aivdm_payload)
+            self.socket.sendto(aivdm_payload.encode('utf-8'), (ip, self.port))
 
         except Exception as e:
-            print(e)
+            rt.logging.exception(e)
