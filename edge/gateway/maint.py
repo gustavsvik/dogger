@@ -16,14 +16,14 @@ import gateway.runtime as rt
 
 
 
-class PartitionDatabase(t.Maintenance) :
+class PartitionDatabase(t.MaintenanceTask) :
 
 
     def __init__(self) :
 
         self.max_connect_attempts = 50
 
-        t.Maintenance.__init__(self)
+        t.MaintenanceTask.__init__(self)
 
 
     def run(self) :
@@ -152,7 +152,7 @@ class PartitionCloudDatabase(PartitionDatabase) :
 
 
 
-class NetworkTime(t.Maintenance) :
+class NetworkTime(t.MaintenanceTask) :
 
 
     def __init__(self, start_delay = None, ntp_url = None, ntp_port = None, adjust_interval = None, config_filepath = None, config_filename = None) :
@@ -165,7 +165,7 @@ class NetworkTime(t.Maintenance) :
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        t.Maintenance.__init__(self)
+        t.MaintenanceTask.__init__(self)
 
 
     def get_network_time(self) :
