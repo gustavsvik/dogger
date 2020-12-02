@@ -19,7 +19,7 @@ import gateway.aislib as ai
 
 
 
-class Uplink(t.ProcessDataTask):
+class Uplink(t.Task):
 
 
     def __init__(self):
@@ -27,7 +27,7 @@ class Uplink(t.ProcessDataTask):
         self.env = self.get_env()
         if self.ip_list is None: self.ip_list = self.env['IP_LIST']
 
-        t.ProcessDataTask.__init__(self)
+        t.Task.__init__(self)
 
 
 
@@ -62,6 +62,7 @@ class HttpMaint(Http):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
+            print("http://" + ip + self.maint_api_url + "partition_database.php")
             raw_data = requests.post("http://" + ip + self.maint_api_url + "partition_database.php", timeout = 5, data = {"new_partition_name_date": self.new_partition_name_date, "new_partition_timestamp": self.new_partition_timestamp, "oldest_kept_partition_name_date": self.oldest_kept_partition_name_date})
             self.connect_attempts = 0
             return raw_data
