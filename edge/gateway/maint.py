@@ -139,16 +139,21 @@ class PartitionCloudDatabase(PartitionDatabase) :
 
         PartitionDatabase.__init__(self)
 
+        self.http = ul.CloudDBPartition(start_delay = self.start_delay, ip_list = self.ip_list, maint_api_url = self.maint_api_url, max_connect_attempts = self.max_connect_attempts)
+
 
     def partition_database(self, new_partition_name_date = None, new_partition_timestamp = None, oldest_kept_partition_name_date = None) :
 
         print(self.start_delay, self.ip_list, self.maint_api_url, new_partition_name_date, new_partition_timestamp, oldest_kept_partition_name_date)
-        http = ul.CloudDBPartition(start_delay = self.start_delay, ip_list = self.ip_list, maint_api_url = self.maint_api_url, max_connect_attempts = self.max_connect_attempts, new_partition_name_date = new_partition_name_date, new_partition_timestamp = new_partition_timestamp, oldest_kept_partition_name_date = oldest_kept_partition_name_date)
+
+        self.new_partition_name_date = new_partition_name_date
+        self.new_partition_timestamp = new_partition_timestamp
+        self.oldest_kept_partition_name_date = oldest_kept_partition_name_date
 
         if self.ip_list is not None :
             for current_ip in self.ip_list :
                 print("current_ip", current_ip)
-                res = http.partition_database(current_ip)
+                res = self.http.partition_database(current_ip)
 
 
 
