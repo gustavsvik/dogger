@@ -8,6 +8,7 @@ import pymysql
 import socket
 import struct
 import http
+import math
 
 import gateway.runtime as rt
 import gateway.metadata as md
@@ -754,7 +755,7 @@ class UdpAivdmStatic(Udp):
 class UdpAivdmPosition(UdpAivdmStatic):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, mmsi = None, vessel_name = None, call_sign = None, ship_type = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, mmsi = None, vessel_name = None, call_sign = None, ship_type = None, nav_status = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -762,10 +763,12 @@ class UdpAivdmPosition(UdpAivdmStatic):
         self.ip_list = ip_list
         self.port = port
         self.max_age = max_age
+
         self.mmsi = mmsi
         self.vessel_name = vessel_name
         self.call_sign = call_sign
         self.ship_type = ship_type
+        self.nav_status = nav_status
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
@@ -781,17 +784,20 @@ class UdpAivdmPosition(UdpAivdmStatic):
 
             latitude_degs = float(latitude)
             rt.logging.debug("latitude_degs", latitude_degs)
-            latitude_min_10000_fraction = int(latitude_degs * 60 * 10000)
+            latitude_min_fraction = int(latitude_degs * 60 * 10000)
 
             longitude_degs = float(longitude)
             rt.logging.debug("longitude_degs", longitude_degs)
-            longitude_min_10000_fraction = int(longitude_degs * 60 * 10000)
+            longitude_min_fraction = int(longitude_degs * 60 * 10000)
 
             datetime_origin = datetime.datetime.fromtimestamp(int(timestamp))
             origin_timestamp = datetime_origin.timetuple()
             sec = origin_timestamp.tm_sec
+            
+            nav_status = 15
+            if self.nav_status is not None : nav_status = self.nav_status
 
-            aivdm_message = ai.AISPositionReportMessage(mmsi = self.mmsi, lon = longitude_min_10000_fraction, lat = latitude_min_10000_fraction, ts = sec)
+            aivdm_message = ai.AISPositionReportMessage(mmsi = self.mmsi, lon = longitude_min_fraction, lat = latitude_min_fraction, ts = sec, status = nav_status)
             aivdm_instance = ai.AIS(aivdm_message)
             aivdm_payload += aivdm_instance.build_payload(False)
             rt.logging.debug("aivdm_payload", aivdm_payload)
@@ -820,3 +826,161 @@ class UdpAivdmPosition(UdpAivdmStatic):
             self.socket.sendto(aivdm_pos_payload.encode('utf-8'), (ip, self.port))
         except Exception as e:
             rt.logging.exception(e)
+
+
+
+class BinaryBroadcastMessageAreaNoticeCircle(Udp):
+
+
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, mmsi = None, config_filepath = None, config_filename = None) :
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.gateway_database_connection = gateway_database_connection
+        self.ip_list = ip_list
+        self.port = port
+        self.max_age = max_age
+
+        self.mmsi = mmsi
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        Udp.__init__(self)
+
+
+    def get_aivdm_area_notice_circle_payload(self, timestamp, latitude, longitude) :
+
+        aivdm_payload = ''
+
+        try :
+
+            latitude_degs = float(latitude)
+            latitude_min_fraction = int(latitude_degs * 60 * 1000)
+            print("latitude_degs", latitude_degs, "latitude_min_fraction", latitude_min_fraction)
+
+            longitude_degs = float(longitude)
+            longitude_min_fraction = int(longitude_degs * 60 * 1000)
+            print("longitude_degs", longitude_degs, "longitude_min_fraction", longitude_min_fraction)
+
+            #datetime_origin = datetime.datetime.fromtimestamp(int(timestamp))
+            #origin_timestamp = datetime_origin.timetuple()
+            #sec = origin_timestamp.tm_sec
+
+            print("self.mmsi", self.mmsi)
+            aivdm_message = ai.AISBinaryBroadcastMessageAreaNoticeCircle(mmsi = self.mmsi, lon_1 = longitude_min_fraction, lat_1 = latitude_min_fraction, radius_1 = 100)
+            aivdm_instance = ai.AIS(aivdm_message)
+            aivdm_payload += aivdm_instance.build_payload(False)
+            print("aivdm_payload", aivdm_payload)
+
+        except ValueError as e :
+
+            aivdm_payload += ''
+            rt.logging.exception(e)
+
+        finally :
+
+            aivdm_payload += ''
+
+        return aivdm_payload
+
+
+    def set_requested(self, channels, times, values, ip = '127.0.0.1') :
+
+        try :
+            print("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
+            aivdm_area_notice_circle_payload = self.get_aivdm_area_notice_circle_payload(times[0], values[0], values[1])
+            print('aivdm_area_notice_circle_payload', aivdm_area_notice_circle_payload)
+            self.socket.sendto(aivdm_area_notice_circle_payload.encode('utf-8'), (ip, self.port))
+        except Exception as e:
+            rt.logging.exception(e)
+
+
+
+class AtonReport(Udp):
+
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, length_offset = None, width_offset = None, mmsi = None, aid_type = None, name = None, virtual_aid = None, config_filepath = None, config_filename = None) :
+        #repeat = 0, mmsi = 0, aid_type = 0, name = 0, accuracy = 0, lon = 181000, lat = 91000, to_bow = 0, to_stern = 0, to_port = 0, to_starboard = 0, epfd = 0, ts = 60, off_position = 0, raim = 0, virtual_aid = 0, assigned = 0)
+        self.channels = channels
+        self.start_delay = start_delay
+        self.gateway_database_connection = gateway_database_connection
+        self.ip_list = ip_list
+        self.port = port
+        self.max_age = max_age
+
+        self.length_offset = length_offset
+        self.width_offset = width_offset
+
+        self.mmsi = mmsi
+        self.aid_type = aid_type
+        self.name = name
+        self.virtual_aid = virtual_aid
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        Udp.__init__(self)
+
+
+    def get_aivdm_aton_payload(self, timestamp, latitude, longitude) :
+
+        aivdm_payloads = []
+
+        try :
+
+            latitude_degs = float(latitude)
+
+            latitude_factor = math.cos(latitude_degs/180 * math.pi)
+            print("self.mmsi", self.mmsi, "self.length_offset", self.length_offset, "self.width_offset", self.width_offset)
+
+            #for i in range(0,len(self.mmsi)) :
+            for mmsi, aid_type, name, virtual_aid, length_offset, width_offset in zip(self.mmsi, self.aid_type, self.name, self.virtual_aid, self.length_offset, self.width_offset) :
+
+                latitude_degs = float(latitude)
+                longitude_degs = float(longitude)
+
+                latitude_degs += float ( length_offset / ( 1 * 1852 ) * 1/60 )
+                latitude_min_fraction = int(latitude_degs * 60 * 10000)
+                print("latitude_degs", latitude_degs, "latitude_min_fraction", latitude_min_fraction)
+
+                longitude_degs += float ( width_offset / ( latitude_factor * 1852 ) * 1/60 )
+                longitude_min_fraction = int(longitude_degs * 60 * 10000)
+                print("longitude_degs", longitude_degs, "longitude_min_fraction", longitude_min_fraction)
+
+                #datetime_origin = datetime.datetime.fromtimestamp(int(timestamp))
+                #origin_timestamp = datetime_origin.timetuple()
+                #sec = origin_timestamp.tm_sec
+
+                print("mmsi", mmsi, "aid_type", aid_type, "name", name, "longitude_min_fraction", longitude_min_fraction, "latitude_min_fraction", latitude_min_fraction, "virtual_aid", virtual_aid)
+                aivdm_message = ai.AISAtonReport(mmsi = mmsi, aid_type = aid_type, name = name, lon = longitude_min_fraction, lat = latitude_min_fraction, virtual_aid = virtual_aid)
+                aivdm_instance = ai.AIS(aivdm_message)
+                aivdm_payload = aivdm_instance.build_payload(False)
+                print("aivdm_payload", aivdm_payload)
+
+                aivdm_payloads.append(aivdm_payload)
+
+        except ValueError as e :
+
+            print(e)
+
+        finally :
+
+            pass
+
+        return aivdm_payloads
+
+
+    def set_requested(self, channels, times, values, ip = '127.0.0.1') :
+
+        try :
+
+            print("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
+            aivdm_aton_payloads = self.get_aivdm_aton_payload(times[0], values[0], values[1])
+            print('aivdm_aton_payloads', aivdm_aton_payloads)
+
+            for aivdm_aton_payload in aivdm_aton_payloads :
+                self.socket.sendto(aivdm_aton_payload.encode('utf-8'), (ip, self.port))
+
+        except Exception as e :
+
+            print(e)
