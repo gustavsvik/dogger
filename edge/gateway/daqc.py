@@ -55,18 +55,15 @@ class UdpHttp(Udp):
 
         Udp.__init__(self)
 
-        self.http = ul.DirectUpload(channels = self.channels, start_delay = self.start_delay, max_connect_attempts = self.max_connect_attempts, config_filepath = self.config_filepath, config_filename = self.config_filename)
-
 
     def upload_data(self, channel, sample_secs, data_value):
 
-        self.channels = [channel]
-
         try :
+            http = ul.DirectUpload(channels = [channel], start_delay = self.start_delay, max_connect_attempts = self.max_connect_attempts, config_filepath = self.config_filepath, config_filename = self.config_filename)
             for current_ip in self.ip_list :
-                res = self.http.send_request(start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
+                res = http.send_request(start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
                 data_string = str(channel) + ';' + str(sample_secs) + ',' + str(data_value) + ',,,;'
-                res = self.http.set_requested(data_string, ip = current_ip)
+                res = http.set_requested(data_string, ip = current_ip)
 
         except PermissionError as e :
             rt.logging.exception(e)
