@@ -42,5 +42,4 @@ def instance_from_json_string(cls, json_string) :
 def instance_from_yaml_string(cls, yaml_string) :
 
     yaml_object = yaml.safe_load(yaml_string)
-    print(dict(yaml_object))
     return instance_from_dict(cls, dict(yaml_object))
