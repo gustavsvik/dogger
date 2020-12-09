@@ -8,7 +8,8 @@ This library supports creating and decoding NMEA formatted AIS type 1,5,24 messa
 https://github.com/doodleincode/aislib
 This program is licensed under the GNU GENERAL PUBLIC LICENSE Version 2. 
 A LICENSE file should have accompanied this program.
- 
+
+AtoN message (21) encoding capability added by Daniel Nilsson (https://gitlab.com/dannil10) 12/08/20
 """
 
 from __future__ import division
@@ -561,7 +562,8 @@ class AISAtonReport(AISMessage):
                     'raim'            : ["uint", 1, raim], 
                     'virtual_aid'     : ["uint", 1, virtual_aid], 
                     'assigned'        : ["uint", 1, assigned], 
-                    'spare'           : ["uint", 1, 0]
+                    'spare'           : ["uint", 1, 0],
+                    'pad'             : ["uint", 4, 0]
                 })
 
 
@@ -586,7 +588,8 @@ class AISAtonReport(AISMessage):
             self.raim,
             self.virtual_aid,
             self.assigned,
-            self.spare
+            self.spare,
+            self.pad
         ])
 
 
@@ -612,6 +615,7 @@ class AISAtonReport(AISMessage):
         self._attrs["virtual_aid"]  = bitstring.Bits(bin=bitstream[269:270])
         self._attrs["assigned"]     = bitstring.Bits(bin=bitstream[270:271])
         self._attrs["spare"]        = bitstring.Bits(bin=bitstream[271:272])
+        self._attrs["pad"]          = bitstring.Bits(bin=bitstream[272:276])
 
 
 
@@ -700,9 +704,10 @@ class AIS(object):
 
 
     def decode(self, msg):
+
         """
-        Decodes an AIS NMEA formatted message. Currently supports the 
-        Position Report Message, ... types. On success, returns an instance of 
+        Decodes an AIS NMEA formatted message. Currently supports message 
+        types 1, 5, 21 and 24. On success, returns an instance of 
         AISPositionReportMessage. A CRC check is performed. If the CRC does not 
         match, a CRCInvalidError exception is thrown
         
