@@ -63,7 +63,7 @@ class HttpMaint(Http):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            print("http://" + ip + self.maint_api_url + "partition_database.php")
+            rt.logging.debug("http://" + ip + self.maint_api_url + "partition_database.php")
             raw_data = requests.post("http://" + ip + self.maint_api_url + "partition_database.php", timeout = 5, data = {"new_partition_name_date": self.new_partition_name_date, "new_partition_timestamp": self.new_partition_timestamp, "oldest_kept_partition_name_date": self.oldest_kept_partition_name_date})
             self.connect_attempts = 0
             return raw_data
@@ -857,21 +857,21 @@ class BinaryBroadcastMessageAreaNoticeCircle(Udp):
 
             latitude_degs = float(latitude)
             latitude_min_fraction = int(latitude_degs * 60 * 1000)
-            print("latitude_degs", latitude_degs, "latitude_min_fraction", latitude_min_fraction)
+            rt.logging.debug("latitude_degs", latitude_degs, "latitude_min_fraction", latitude_min_fraction)
 
             longitude_degs = float(longitude)
             longitude_min_fraction = int(longitude_degs * 60 * 1000)
-            print("longitude_degs", longitude_degs, "longitude_min_fraction", longitude_min_fraction)
+            rt.logging.debug("longitude_degs", longitude_degs, "longitude_min_fraction", longitude_min_fraction)
 
             #datetime_origin = datetime.datetime.fromtimestamp(int(timestamp))
             #origin_timestamp = datetime_origin.timetuple()
             #sec = origin_timestamp.tm_sec
 
-            print("self.mmsi", self.mmsi)
+            rt.logging.debug("self.mmsi", self.mmsi)
             aivdm_message = ai.AISBinaryBroadcastMessageAreaNoticeCircle(mmsi = self.mmsi, lon_1 = longitude_min_fraction, lat_1 = latitude_min_fraction, radius_1 = 100)
             aivdm_instance = ai.AIS(aivdm_message)
             aivdm_payload += aivdm_instance.build_payload(False)
-            print("aivdm_payload", aivdm_payload)
+            rt.logging.debug("aivdm_payload", aivdm_payload)
 
         except ValueError as e :
 
@@ -888,9 +888,9 @@ class BinaryBroadcastMessageAreaNoticeCircle(Udp):
     def set_requested(self, channels, times, values, ip = '127.0.0.1') :
 
         try :
-            print("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
+            rt.logging.debug("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
             aivdm_area_notice_circle_payload = self.get_aivdm_area_notice_circle_payload(times[0], values[0], values[1])
-            print('aivdm_area_notice_circle_payload', aivdm_area_notice_circle_payload)
+            rt.logging.debug('aivdm_area_notice_circle_payload', aivdm_area_notice_circle_payload)
             self.socket.sendto(aivdm_area_notice_circle_payload.encode('utf-8'), (ip, self.port))
         except Exception as e:
             rt.logging.exception(e)
@@ -931,7 +931,7 @@ class AtonReport(Udp):
             latitude_degs = float(latitude)
 
             latitude_factor = math.cos(latitude_degs/180 * math.pi)
-            print("self.mmsi", self.mmsi, "self.length_offset", self.length_offset, "self.width_offset", self.width_offset)
+            rt.logging.debug("self.mmsi", self.mmsi, "self.length_offset", self.length_offset, "self.width_offset", self.width_offset)
 
             #for i in range(0,len(self.mmsi)) :
             for mmsi, aid_type, name, virtual_aid, length_offset, width_offset in zip(self.mmsi, self.aid_type, self.name, self.virtual_aid, self.length_offset, self.width_offset) :
@@ -941,27 +941,27 @@ class AtonReport(Udp):
 
                 latitude_degs += float ( length_offset / ( 1 * 1852 ) * 1/60 )
                 latitude_min_fraction = int(latitude_degs * 60 * 10000)
-                print("latitude_degs", latitude_degs, "latitude_min_fraction", latitude_min_fraction)
+                rt.logging.debug("latitude_degs", latitude_degs, "latitude_min_fraction", latitude_min_fraction)
 
                 longitude_degs += float ( width_offset / ( latitude_factor * 1852 ) * 1/60 )
                 longitude_min_fraction = int(longitude_degs * 60 * 10000)
-                print("longitude_degs", longitude_degs, "longitude_min_fraction", longitude_min_fraction)
+                rt.logging.debug("longitude_degs", longitude_degs, "longitude_min_fraction", longitude_min_fraction)
 
                 #datetime_origin = datetime.datetime.fromtimestamp(int(timestamp))
                 #origin_timestamp = datetime_origin.timetuple()
                 #sec = origin_timestamp.tm_sec
 
-                print("mmsi", mmsi, "aid_type", aid_type, "name", name, "longitude_min_fraction", longitude_min_fraction, "latitude_min_fraction", latitude_min_fraction, "virtual_aid", virtual_aid)
+                rt.logging.debug("mmsi", mmsi, "aid_type", aid_type, "name", name, "longitude_min_fraction", longitude_min_fraction, "latitude_min_fraction", latitude_min_fraction, "virtual_aid", virtual_aid)
                 aivdm_message = ai.AISAtonReport(mmsi = mmsi, aid_type = aid_type, name = name, lon = longitude_min_fraction, lat = latitude_min_fraction, virtual_aid = virtual_aid)
                 aivdm_instance = ai.AIS(aivdm_message)
                 aivdm_payload = aivdm_instance.build_payload(False)
-                print("aivdm_payload", aivdm_payload)
+                rt.logging.debug("aivdm_payload", aivdm_payload)
 
                 aivdm_payloads.append(aivdm_payload)
 
         except ValueError as e :
 
-            print(e)
+            rt.logging.exception(e)
 
         finally :
 
@@ -974,13 +974,13 @@ class AtonReport(Udp):
 
         try :
 
-            print("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
+            rt.logging.debug("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
             aivdm_aton_payloads = self.get_aivdm_aton_payload(times[0], values[0], values[1])
-            print('aivdm_aton_payloads', aivdm_aton_payloads)
+            rt.logging.debug('aivdm_aton_payloads', aivdm_aton_payloads)
 
             for aivdm_aton_payload in aivdm_aton_payloads :
                 self.socket.sendto(aivdm_aton_payload.encode('utf-8'), (ip, self.port))
 
         except Exception as e :
 
-            print(e)
+            rt.logging.exception(e)
