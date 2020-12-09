@@ -83,21 +83,21 @@ class PartitionEdgeDatabase(PartitionDatabase) :
             db_name = self.sql.gateway_database_connection['db']
 
             sql_reorganize_partitions = "ALTER TABLE " + db_name + ".t_acquired_data REORGANIZE PARTITION acquired_time_max INTO ( PARTITION acquired_time_" + new_partition_name_date + " VALUES LESS THAN (" + new_partition_timestamp + "), PARTITION acquired_time_max VALUES LESS THAN (MAXVALUE) )"
-            print(sql_reorganize_partitions)
+            rt.logging.debug(sql_reorganize_partitions)
             with self.sql.conn.cursor() as cursor :
                 try:
                     cursor.execute(sql_reorganize_partitions)
                 except pymysql.err.InternalError as e:
-                    print(e)
+                    rt.logging.exception(e)
 
             sql_get_all_date_partition_strings = "SELECT PARTITION_NAME FROM INFORMATION_SCHEMA.PARTITIONS WHERE TABLE_SCHEMA='" + db_name + "' AND PARTITION_NAME IS NOT NULL AND LOWER(PARTITION_NAME)<>'acquired_time_max' ORDER BY PARTITION_NAME"
-            print(sql_get_all_date_partition_strings)
+            rt.logging.debug(sql_get_all_date_partition_strings)
             all_partition_date_strings = []
             with self.sql.conn.cursor() as cursor :
                 try:
                     cursor.execute(sql_get_all_date_partition_strings)
                 except pymysql.err.InternalError as e:
-                    print(e)
+                    rt.logging.exception(e)
                 results = cursor.fetchall()
                 for row in results:
                     date_partition_string = row[0]
@@ -106,21 +106,21 @@ class PartitionEdgeDatabase(PartitionDatabase) :
             for partition_date_string in all_partition_date_strings :
                 if partition_date_string < oldest_kept_partition_name_date :
                     sql_drop_old_partition = "ALTER TABLE " + db_name + ".t_acquired_data DROP PARTITION acquired_time_" + partition_date_string
-                    print(sql_drop_old_partition)
+                    rt.logging.debug(sql_drop_old_partition)
                     with self.sql.conn.cursor() as cursor :
                         try:
                             cursor.execute(sql_drop_old_partition)
                         except pymysql.err.InternalError as e:
-                            print(e)
+                            rt.logging.exception(e)
 
         except (pymysql.err.OperationalError, pymysql.err.Error) as e:
-            print(e)
+            rt.logging.exception(e)
 
         finally:
             try:
                 self.sql.close_db_connection()
             except pymysql.err.Error as e:
-                print(e)
+                rt.logging.exception(e)
 
 
 
@@ -142,12 +142,12 @@ class PartitionCloudDatabase(PartitionDatabase) :
 
     def partition_database(self, new_partition_name_date = None, new_partition_timestamp = None, oldest_kept_partition_name_date = None) :
 
-        print(self.start_delay, self.ip_list, self.maint_api_url, new_partition_name_date, new_partition_timestamp, oldest_kept_partition_name_date)
+        rt.logging.debug(self.start_delay, self.ip_list, self.maint_api_url, new_partition_name_date, new_partition_timestamp, oldest_kept_partition_name_date)
         http = ul.CloudDBPartition(start_delay = self.start_delay, ip_list = self.ip_list, maint_api_url = self.maint_api_url, max_connect_attempts = self.max_connect_attempts, new_partition_name_date = new_partition_name_date, new_partition_timestamp = new_partition_timestamp, oldest_kept_partition_name_date = oldest_kept_partition_name_date)
 
         if self.ip_list is not None :
             for current_ip in self.ip_list :
-                print("current_ip", current_ip)
+                rt.logging.debug("current_ip", current_ip)
                 res = http.partition_database(current_ip)
 
 
@@ -197,13 +197,13 @@ class NetworkTime(t.MaintenanceTask) :
                 self.current_system_time_offset = offset
 
         except gaierror as e :
-            print(e)
+            rt.logging.exception(e)
 
         dt = None
         try :
             dt = datetime.datetime.utcfromtimestamp(self.current_system_time + self.current_system_time_offset)
         except OSError as e :
-            print(e)
+            rt.logging.exception(e)
 
         return dt
 
