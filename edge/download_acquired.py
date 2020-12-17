@@ -1,8 +1,8 @@
-import gateway.uplink
+import gateway.link
 
 
-http_download = gateway.uplink.Download(
-    channels = {61011,61012}, 
+http_download = gateway.link.HttpSql(
+    channels = {61011,61012,142,98}, 
     start_delay = 0, 
     client_api_url = '/client/', 
     max_connect_attempts = 50, 
