@@ -1,16 +1,14 @@
+#
+
 import json
 import yaml
 
 
-def nmea_checksum(nmea_data) :
+def downsample(y, size) :
 
-    nmea_bytearray = bytes(nmea_data, encoding='utf8')
-    checksum = 0
-    for i in range(0, len(nmea_bytearray)) :
-        if nmea_bytearray[i] != 44 :
-            checksum = checksum ^ nmea_bytearray[i]
-    checksum_hex = hex(checksum)
-    return checksum_hex[2:]
+    y_reshape = y.reshape(size, int(len(y)/size))
+    y_downsamp = y_reshape.mean(axis=1)
+    return y_downsamp
 
 
 def get_channel_range_string(channels) :
