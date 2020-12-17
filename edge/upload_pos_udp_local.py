@@ -1,7 +1,7 @@
-import gateway.uplink
+import gateway.link
 
 
-udp_upload_pos_local = gateway.uplink.UdpNmeaPos(
+udp_upload_pos_local = gateway.link.SqlUdpNmeaPos(
     channels = {61011,61012}, 
     start_delay = 0,
     port = 4444,
