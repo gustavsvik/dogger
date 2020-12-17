@@ -1,7 +1,7 @@
-import gateway.uplink
+import gateway.link
 
 
-udp_upload_ais = gateway.uplink.UdpAivdmPosition(
+udp_upload_ais = gateway.link.SqlUdpAivdmPosition(
     channels = {61011,61012}, 
     start_delay = 0,
     port = 4444,
