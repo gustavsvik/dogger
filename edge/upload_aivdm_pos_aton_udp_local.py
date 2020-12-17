@@ -1,7 +1,7 @@
-import gateway.uplink
+import gateway.link
 
 
-udp_upload_ais = gateway.uplink.AtonReport(
+udp_upload_ais = gateway.link.SqlUdpAtonReport(
     channels = {61011,61012}, 
     start_delay = 0,
     port = 4444,
