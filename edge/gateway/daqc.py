@@ -9,24 +9,26 @@ import sys
 import io
 import ctypes
 import base64
+import serial
+import serial.tools.list_ports
 import socket
 import struct
 import pyscreenshot as ImageGrab
 
+import gateway.utils as ut
 import gateway.device as dv
 import gateway.runtime as rt
-import gateway.metadata as md
-import gateway.task as t
-import gateway.uplink as ul
+import gateway.task as ta
+import gateway.link as li
 
 
 
-class Udp(t.AcquireControlTask):
+class Udp(ta.AcquireControlTask):
 
 
     def __init__(self):
 
-        t.AcquireControlTask.__init__(self)
+        ta.AcquireControlTask.__init__(self)
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
 
@@ -59,7 +61,7 @@ class UdpHttp(Udp):
     def upload_data(self, channel, sample_secs, data_value):
 
         try :
-            http = ul.DirectUpload(channels = [channel], start_delay = self.start_delay, max_connect_attempts = self.max_connect_attempts, config_filepath = self.config_filepath, config_filename = self.config_filename)
+            http = li.DirectUpload(channels = [channel], start_delay = self.start_delay, max_connect_attempts = self.max_connect_attempts, config_filepath = self.config_filepath, config_filename = self.config_filename)
             for current_ip in self.ip_list :
                 res = http.send_request(start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
                 data_string = str(channel) + ';' + str(sample_secs) + ',' + str(data_value) + ',,,;'
@@ -82,7 +84,7 @@ class UdpHttp(Udp):
 
 
 
-class File(t.AcquireControlTask):
+class File(ta.AcquireControlTask):
 
 
     def __init__(self):
@@ -91,7 +93,7 @@ class File(t.AcquireControlTask):
         if self.file_path is None: self.file_path = self.env['FILE_PATH']
         if self.archive_file_path is None: self.archive_file_path = self.env['ARCHIVE_FILE_PATH']
 
-        t.AcquireControlTask.__init__(self)
+        ta.AcquireControlTask.__init__(self)
 
 
 
@@ -145,6 +147,119 @@ class NidaqCurrentIn(File):
                 self.nidaq.InitAcquire()
             time.sleep(10)
 
+
+
+class SerialNmeaFile(File) :
+
+
+    def __init__(self, channels = None, port = None, start_delay = None, sample_rate = None, location = None, baudrate = None, timeout = None, parity = None, stopbits = None, bytesize = None, delay_waiting_check = None, file_path = None, archive_file_path = None, start_pos = None, config_filepath = None, config_filename = None):
+
+        self.channels = channels
+        self.port = port
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+        self.location = location
+        self.baudrate = baudrate
+        self.timeout = timeout
+        self.parity = parity
+        self.stopbits = stopbits
+        self.bytesize = bytesize
+        self.delay_waiting_check = delay_waiting_check
+        self.file_path = file_path
+        self.archive_file_path = archive_file_path
+        self.start_pos = start_pos
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        File.__init__(self)
+
+
+    def run(self) :
+
+        while True:
+
+            comport_list = serial.tools.list_ports.comports()
+            for comport in comport_list:
+                port_string = str(comport.device) + ';' + str(comport.name) + ';' + str(comport.description) + ';' + str(comport.hwid) + ';' + str(comport.vid) + ';' + str(comport.pid) + ';' + str(comport.serial_number) + ';' + str(comport.location) + ';' + str(comport.manufacturer) + ';' + str(comport.product) + ';' + str(comport.interface)
+                print("port_string", port_string)
+
+            if self.port is None :
+
+                if (port_string.find(self.location))>=0:
+                    self.port = comport.device
+                    print("self.port", self.port)
+
+            try :
+                ser = serial.Serial(port = self.port, baudrate = self.baudrate, timeout = self.timeout, parity = serial.PARITY_EVEN, stopbits = serial.STOPBITS_ONE, bytesize = serial.SEVENBITS) #, write_timeout=1, , , , xonxoff=False, rtscts=False, dsrdtr=False)
+                time.sleep(0.1)
+                if (ser.isOpen()):
+                    print("connected to : " + ser.portstr)
+            except serial.serialutil.SerialException as e:
+                runtime.logging.exception(e)
+
+            data_string = ''
+
+            while ser.isOpen():
+
+                response = ''
+                #if ser.in_waiting : time.sleep(1)
+                while ser.in_waiting:
+
+                    response = ser.read()
+                    response_string = ''
+                    try:
+                        response_string = response.decode()
+                    except UnicodeDecodeError as e:
+                        print(e)
+                    data_string += response_string
+
+                    time.sleep(self.delay_waiting_check)
+
+                if data_string != '' :
+
+                    print("data_string", data_string)
+                    try :
+                        float_array = [ float(data_string[self.start_pos:]) ]
+                    except ValueError as e :
+                        float_array = [-9999.0]
+
+                    print("float_array", float_array)
+                    data_string = ''
+
+                    acq_finish_time = numpy.float64(time.time())
+                    acq_finish_secs = numpy.int64(acq_finish_time)
+                    acq_finish_microsecs = numpy.int64(acq_finish_time * 1e6)
+                    acq_microsec_part = acq_finish_microsecs - numpy.int64(acq_finish_secs)*1e6
+
+                    float_avg = ut.downsample(numpy.float64(float_array), 1)
+                    float_array = numpy.concatenate(([0.0], acq_microsec_part, float_array), axis = None)
+                    float_array[0] = float_avg
+
+                    channel = list(self.channels)[0]
+                    file_extension = 'npy'
+                    
+                    if self.file_path is not None and os.path.exists(self.file_path):
+                        capture_file_timestamp = acq_finish_secs 
+                        store_filename = self.file_path + str(channel) + '_' + str(capture_file_timestamp) + '.' + file_extension
+                        archive_filename = self.archive_file_path + str(channel) + '_' + str(capture_file_timestamp) + '.' + file_extension
+                        try:
+                            if self.archive_file_path is not None and os.path.exists(self.archive_file_path):
+                                pass
+                                #shutil.copy(store_filename, archive_filename)
+                        except (FileNotFoundError, PermissionError) as e:
+                            rt.logging.exception(e)
+
+                    try:
+                        numpy.save(store_filename, float_array)
+                    except PermissionError as e:
+                        rt.logging.exception(e)
+
+                time.sleep(self.sample_rate)
+
+            ser.close()
+
+            time.sleep(5)
 
 
 class UdpFile(File):
@@ -453,7 +568,7 @@ class ScreenshotUpload(Image):
             jpeg_image_buffer = io.BytesIO()
             img.save(jpeg_image_buffer, format="JPEG")
             img_str = base64.b64encode(jpeg_image_buffer.getvalue())
-            http = ul.DirectUpload(channels = self.channels, start_delay = self.start_delay, host_api_url = self.host_api_url, client_api_url = self.client_api_url, max_connect_attempts = self.max_connect_attempts)
+            http = li.DirectUpload(channels = self.channels, start_delay = self.start_delay, host_api_url = self.host_api_url, client_api_url = self.client_api_url, max_connect_attempts = self.max_connect_attempts)
             (channel,) = self.channels
 
             for current_ip in self.ip_list :
@@ -524,7 +639,7 @@ class TempFileUpload(Image):
 
             with open(self.capture_filename, "rb") as image_file:
                 img_str = base64.b64encode(image_file.read())
-            http = ul.DirectUpload(channels = self.channels, start_delay = self.start_delay, host_api_url = self.host_api_url, client_api_url = self.client_api_url, max_connect_attempts = self.max_connect_attempts)
+            http = li.DirectUpload(channels = self.channels, start_delay = self.start_delay, host_api_url = self.host_api_url, client_api_url = self.client_api_url, max_connect_attempts = self.max_connect_attempts)
             (channel,) = self.channels
 
             for current_ip in self.ip_list :
