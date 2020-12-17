@@ -1,7 +1,7 @@
-import gateway.uplink
+import gateway.link
 
 
-http_upload_binary_local = gateway.uplink.Replicate(
+http_upload_binary_local = gateway.link.Replicate(
     channels = {140,160,180,600,10002}, 
     start_delay = 0, 
     host_api_url = '/host/', 
