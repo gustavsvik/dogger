@@ -1,29 +1,48 @@
 #
 
-import sys
 import time
 import datetime
 import calendar
 import struct
 from contextlib import closing
-from socket import gaierror, socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
+from socket import gaierror, socket, AF_INET, SOCK_DGRAM
 import pymysql
 
-import gateway.task as t
-import gateway.uplink as ul
+import gateway.task as ta
+import gateway.link as li
 import gateway.database as db
 import gateway.runtime as rt
 
 
 
-class PartitionDatabase(t.MaintenanceTask) :
+class CloudDBPartition(li.HttpMaint):
+
+
+    def __init__(self, start_delay = None, ip_list = None, maint_api_url = None, max_connect_attempts = None, new_partition_name_date = None, new_partition_timestamp = None, oldest_kept_partition_name_date = None, config_filepath = None, config_filename = None):
+
+        self.start_delay = start_delay
+        self.ip_list = ip_list
+        self.maint_api_url = maint_api_url
+        self.max_connect_attempts = max_connect_attempts
+        self.new_partition_name_date = new_partition_name_date
+        self.new_partition_timestamp = new_partition_timestamp
+        self.oldest_kept_partition_name_date = oldest_kept_partition_name_date
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        li.HttpMaint.__init__(self)
+
+
+
+class PartitionDatabase(ta.MaintenanceTask) :
 
 
     def __init__(self) :
 
         self.max_connect_attempts = 50
 
-        t.MaintenanceTask.__init__(self)
+        ta.MaintenanceTask.__init__(self)
 
 
     def run(self) :
@@ -143,7 +162,7 @@ class PartitionCloudDatabase(PartitionDatabase) :
     def partition_database(self, new_partition_name_date = None, new_partition_timestamp = None, oldest_kept_partition_name_date = None) :
 
         rt.logging.debug(self.start_delay, self.ip_list, self.maint_api_url, new_partition_name_date, new_partition_timestamp, oldest_kept_partition_name_date)
-        http = ul.CloudDBPartition(start_delay = self.start_delay, ip_list = self.ip_list, maint_api_url = self.maint_api_url, max_connect_attempts = self.max_connect_attempts, new_partition_name_date = new_partition_name_date, new_partition_timestamp = new_partition_timestamp, oldest_kept_partition_name_date = oldest_kept_partition_name_date)
+        http = li.CloudDBPartition(start_delay = self.start_delay, ip_list = self.ip_list, maint_api_url = self.maint_api_url, max_connect_attempts = self.max_connect_attempts, new_partition_name_date = new_partition_name_date, new_partition_timestamp = new_partition_timestamp, oldest_kept_partition_name_date = oldest_kept_partition_name_date)
 
         if self.ip_list is not None :
             for current_ip in self.ip_list :
@@ -152,7 +171,7 @@ class PartitionCloudDatabase(PartitionDatabase) :
 
 
 
-class NetworkTime(t.MaintenanceTask) :
+class NetworkTime(ta.MaintenanceTask) :
 
 
     def __init__(self, start_delay = None, ntp_url = None, ntp_port = None, adjust_interval = None, config_filepath = None, config_filename = None) :
@@ -165,7 +184,7 @@ class NetworkTime(t.MaintenanceTask) :
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        t.MaintenanceTask.__init__(self)
+        ta.MaintenanceTask.__init__(self)
 
 
     def get_network_time(self) :
