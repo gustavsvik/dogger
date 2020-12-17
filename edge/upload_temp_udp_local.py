@@ -1,10 +1,12 @@
-import gateway.uplink
+import gateway.link
 
 
-udp_upload_local = gateway.uplink.UdpNmea(
+udp_upload_local = gateway.link.SqlUdpNmea(
     channels = {98}, 
     start_delay = 0,
     port = 4444,
+    multiplier = 1.0,
+    decimals = 2,
     nmea_prepend = 'IIXDR,C,',
     nmea_append = ',C,ENV_WATER_T',
     max_age = 10,
