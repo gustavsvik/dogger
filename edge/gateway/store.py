@@ -10,137 +10,16 @@ import base64
 import gateway.timefiles as tf
 import gateway.runtime as rt
 import gateway.database as db
-import gateway.task as t
+import gateway.task as ta
 
 
 
-class Accumulate(t.ProcessDataTask) :
-
-
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, config_filepath = None, config_filename = None) :
-
-        self.channels = channels
-        self.start_delay = start_delay
-        self.gateway_database_connection = gateway_database_connection
-
-        self.config_filepath = config_filepath
-        self.config_filename = config_filename
-
-        t.ProcessDataTask.__init__(self)
-
-        self.sql = db.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
-
-        self.previous_minute = -1
-        self.previous_timestamp = int(time.mktime(time.localtime()))
-
-
-    def run(self) :
-
-        time.sleep(self.start_delay)
-
-        while (True) :
-
-            time.sleep(0.1)
-
-            current_localtime = time.localtime()
-            current_hour =  current_localtime.tm_hour
-            current_minute = current_localtime.tm_min
-            current_second = current_localtime.tm_sec
-            current_timestamp = int(time.mktime(time.localtime()))
-
-            if current_timestamp - self.previous_timestamp > 60 :
-                current_timestamp = self.previous_timestamp + 60
-                current_minute = self.previous_minute + 1
-            
-            if current_second == 0 and current_minute != self.previous_minute :
-
-                for channel_index in self.channels: 
-
-                    accumulated_min_samples = 0
-                    accumulated_min_value = 0.0
-                    accumulated_hour_samples = 0
-                    accumulated_hour_value = 0.0
-                    accumulated_text = ''
-                    accumulated_binary = b''
-                    
-                    try :
-
-                        self.sql.connect_db()
-
-                        accumulated_bin_size = 60
-                        accumulated_bin_end_time = current_timestamp - accumulated_bin_size
-
-                        sql_get_minute_data = "SELECT ACQUIRED_TIME,ACQUIRED_VALUE FROM t_acquired_data WHERE CHANNEL_INDEX=%s AND ACQUIRED_TIME<%s AND ACQUIRED_TIME>=%s ORDER BY ACQUIRED_TIME DESC"
-
-                        with self.sql.conn.cursor() as cursor :
-                            cursor.execute(sql_get_minute_data, [channel_index, accumulated_bin_end_time, accumulated_bin_end_time - 60] )
-                            results = cursor.fetchall()
-                            for row in results:
-                                acquired_time = row[0]
-                                acquired_value = row[1]
-                                if not -9999.01 < acquired_value < -9998.99 :
-                                    accumulated_min_value += acquired_value
-                                    accumulated_min_samples += 1
-
-                        accumulated_min_mean = 0.0
-                        if accumulated_min_samples > 0 :
-                            accumulated_min_mean = accumulated_min_value / accumulated_min_samples
-
-                        sql_insert_accumulated_60 = "INSERT INTO t_accumulated_data (CHANNEL_INDEX,ACCUMULATED_BIN_END_TIME,ACCUMULATED_BIN_SIZE,ACCUMULATED_NO_OF_SAMPLES,ACCUMULATED_VALUE,ACCUMULATED_TEXT,ACCUMULATED_BINARY) VALUES (%s,%s,%s,%s,%s,%s,%s)"
-                        with self.sql.conn.cursor() as cursor :
-                            try:
-                                cursor.execute(sql_insert_accumulated_60, [channel_index, accumulated_bin_end_time, accumulated_bin_size, accumulated_min_samples, accumulated_min_mean, accumulated_text, accumulated_binary] )
-                            except pymysql.err.IntegrityError as e:
-                                rt.logging.exception(e)
-
-                        accumulated_min_samples = 0
-                        accumulated_min_value = 0.0
-
-                        if current_minute == 1 :
-
-                            accumulated_bin_size = 3600
-
-                            sql_get_hour_data = 'SELECT ACQUIRED_TIME,ACQUIRED_VALUE FROM t_acquired_data WHERE CHANNEL_INDEX=%s AND ACQUIRED_TIME<%s AND ACQUIRED_TIME>=%s ORDER BY ACQUIRED_TIME DESC'
-                            with self.sql.conn.cursor() as cursor :
-                                cursor.execute(sql_get_hour_data, [channel_index, accumulated_bin_end_time, accumulated_bin_end_time - 3600] )
-                                results = cursor.fetchall()
-                                for row in results:
-                                    acquired_time = row[0]
-                                    acquired_value = row[1]
-                                    if not -9999.01 < acquired_value < -9998.99 :
-                                        accumulated_hour_value += acquired_value
-                                        accumulated_hour_samples += 1
-
-                            accumulated_hour_mean = 0.0
-                            if accumulated_hour_samples > 0 :
-                                accumulated_hour_mean = accumulated_hour_value / accumulated_hour_samples
-                                
-                            sql_insert_accumulated_3600 = "INSERT INTO t_accumulated_data (CHANNEL_INDEX,ACCUMULATED_BIN_END_TIME,ACCUMULATED_BIN_SIZE,ACCUMULATED_NO_OF_SAMPLES,ACCUMULATED_VALUE,ACCUMULATED_TEXT,ACCUMULATED_BINARY) VALUES (%s,%s,%s,%s,%s,%s,%s)"
-                            with self.sql.conn.cursor() as cursor :
-                                try:
-                                    cursor.execute(sql_insert_accumulated_3600, [channel_index, accumulated_bin_end_time,accumulated_bin_size, accumulated_hour_samples, accumulated_hour_mean, accumulated_text, accumulated_binary] )
-                                except pymysql.err.IntegrityError as e:
-                                    rt.logging.exception(e)
-
-                            accumulated_hour_samples = 0
-                            accumulated_hour_value = 0.0
-
-                    finally:
-                    
-                        self.sql.close_db_connection()
-
-                        
-                self.previous_minute = current_minute
-                self.previous_timestamp = current_timestamp
-
-
-
-class LoadFile(t.ProcessDataTask):
+class LoadFile(ta.ProcessDataTask):
 
 
     def __init__(self):
 
-        t.ProcessDataTask.__init__(self)
+        ta.ProcessDataTask.__init__(self)
 
 
     def get_filenames(self, channel = None):
@@ -159,6 +38,8 @@ class FileToSQL(LoadFile):
         LoadFile.__init__(self)
 
         self.sql = db.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
+        
+        if self.files_to_keep is None : self.files_to_keep = 2
 
 
     def retrieve_file_data(self, current_file = None):
@@ -223,20 +104,20 @@ class FileToSQL(LoadFile):
 
             time.sleep(0.5)
 
-            for channel_index in self.channels:
+            for channel_index in self.channels :
 
                 insert_failure = False
 
                 files = self.get_filenames(channel = channel_index)
                 rt.logging.debug('channel_index' + str(channel_index) + 'len(files)' + str(len(files)))
 
-                if len(files) > 2 :
+                if len(files) > self.files_to_keep :
 
                     if self.sql.connect_db() :
 
-                        for current_file in files:
+                        for current_file in files :
 
-                            if len(files) > 2:
+                            if len(files) > self.files_to_keep :
 
                                 self.retrieve_file_data(current_file)
                                 store_result = self.store_file_data()
@@ -249,13 +130,14 @@ class FileToSQL(LoadFile):
 class ImageFile(FileToSQL):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['jpg', 'png'], config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['jpg', 'png'], files_to_keep = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.gateway_database_connection = gateway_database_connection
         self.file_path = file_path
         self.file_extensions = file_extensions
+        self.files_to_keep = files_to_keep
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
@@ -287,18 +169,19 @@ class ImageFile(FileToSQL):
 class ScreenshotFile(ImageFile):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['jpeg'], config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['jpeg'], files_to_keep = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.gateway_database_connection = gateway_database_connection
         self.file_path = file_path
         self.file_extensions = file_extensions
+        self.files_to_keep = files_to_keep
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        ImageFile.__init__(self, channels, start_delay, gateway_database_connection, file_path, file_extensions, config_filepath, config_filename)
+        ImageFile.__init__(self, channels, start_delay, gateway_database_connection, file_path, file_extensions, files_to_keep, config_filepath, config_filename)
 
 
     def retrieve_file_data(self, current_file = None):
@@ -318,13 +201,14 @@ class ScreenshotFile(ImageFile):
 class NumpyFile(FileToSQL):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['npy'], config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['npy'], files_to_keep = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.gateway_database_connection = gateway_database_connection
         self.file_path = file_path
         self.file_extensions = file_extensions
+        self.files_to_keep = files_to_keep
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
@@ -360,13 +244,14 @@ class NumpyFile(FileToSQL):
 class TextFile(FileToSQL):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['csv', 'txt'], config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['csv', 'txt'], files_to_keep = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.gateway_database_connection = gateway_database_connection
         self.file_path = file_path
         self.file_extensions = file_extensions
+        self.files_to_keep = files_to_keep
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
@@ -401,13 +286,14 @@ class TextFile(FileToSQL):
 class TextStringFile(FileToSQL):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['csv', 'txt'], config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['csv', 'txt'], files_to_keep = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.gateway_database_connection = gateway_database_connection
         self.file_path = file_path
         self.file_extensions = file_extensions
+        self.files_to_keep = files_to_keep
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
