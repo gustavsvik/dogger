@@ -12,7 +12,7 @@ import http
 import gateway.runtime as rt
 import gateway.metadata as md
 import gateway.task as ta
-import gateway.database as db
+import gateway.persist as ps
 import gateway.utils as ut
 import gateway.transform as tr
 
@@ -266,7 +266,7 @@ class Replicate(HttpHost):
 
         HttpHost.__init__(self)
 
-        self.sql = db.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
+        self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
         self.clear_channels()
 
@@ -396,7 +396,7 @@ class HttpSql(HttpClient):
 
         HttpClient.__init__(self)
 
-        self.sql = db.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
+        self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
 
     def run(self):
@@ -498,7 +498,7 @@ class SqlUdp(Udp):
 
         Udp.__init__(self)
 
-        self.sql = db.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
+        self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
 
     def get_requested(self, channels) :
@@ -646,7 +646,7 @@ class SqlUdpNmeaPos(SqlUdp) :
 
         try :
 
-            nmea_string = self.nmea.from_pos(nmea_prepend = self.nmea_prepend, timestamp = times[0], latitude = values[0], longitude = values[1], nmea_append = self.nmea_append)
+            nmea_string = self.nmea.from_time_pos(nmea_prepend = self.nmea_prepend, timestamp = times[0], latitude = values[0], longitude = values[1], nmea_append = self.nmea_append)
             self.socket.sendto(nmea_string.encode('utf-8'), (ip, self.port))
 
         except Exception as e:
