@@ -4,13 +4,6 @@ import json
 import yaml
 
 
-def downsample(y, size) :
-
-    y_reshape = y.reshape(size, int(len(y)/size))
-    y_downsamp = y_reshape.mean(axis=1)
-    return y_downsamp
-
-
 def get_channel_range_string(channels) :
 
     return ';;'.join([str(ch) for ch in channels]) + ';;'
