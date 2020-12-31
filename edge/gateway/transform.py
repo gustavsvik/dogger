@@ -1,12 +1,43 @@
 #
 
 import time
+import datetime
 import math
+import numpy
 
-import gateway.database as db
-import gateway.task as ta
 import gateway.runtime as rt
 import gateway.aislib as ai
+
+
+
+def downsample(y, size) :
+
+    y_reshape = y.reshape(size, int(len(y)/size))
+    y_downsamp = y_reshape.mean(axis=1)
+    return y_downsamp
+
+
+def timestamp_to_date_times(timestamp = None, sample_rate = None) :
+
+    if timestamp is None : timestamp = time.time()
+    if sample_rate is None : sample_rate = 1.0
+    
+    divisor = numpy.int64(1/numpy.float64(sample_rate))
+
+    current_time = numpy.float64(timestamp)
+    current_secs = numpy.int64(current_time)
+    current_microsecs = numpy.int64(current_time * 1e6)
+    current_microsec_part = current_microsecs - numpy.int64(current_secs)*1e6
+
+    next_sample_secs = current_secs + numpy.int64( divisor - current_secs % divisor )
+
+    datetime_current = datetime.datetime.fromtimestamp(current_secs)
+    current_timetuple = datetime_current.timetuple()
+    #year = current_timestamp.tm_year
+    #month = current_timestamp.tm_mon
+    #monthday = current_timestamp.tm_mday
+
+    return current_secs, current_timetuple, current_microsec_part, next_sample_secs
 
 
 
@@ -29,6 +60,19 @@ class Nmea :
         checksum_hex = hex(checksum)
         return checksum_hex[2:]
 
+
+    def to_float(self, nmea_string, index) :
+
+        nmea_fields = nmea_string.split(',')
+        print("nmea_fields", nmea_fields)
+
+        try :
+            value = float(nmea_fields[index])
+        except ValueError as e :
+            value = -9999.0
+
+        print("value", value)
+        return value
 
     def from_float(self, multiplier, decimals, value) :
 
@@ -58,7 +102,7 @@ class Nmea :
             return nmea_string
 
 
-    def from_pos(self, timestamp, latitude, longitude) :
+    def from_time_pos(self, timestamp, latitude, longitude) :
 
         nmea_data = self.prepend
 
@@ -86,6 +130,8 @@ class Nmea :
             lead_zero = ''
             if longitude_deg < 100 :
                 lead_zero = '0'
+                if longitude_deg < 10 :
+                    lead_zero = '00'
             timestamp_string = "{:.{}f}".format(hour * 10000 + min * 100 + sec, 2)
             nmea_data += "{:.{}f}".format(latitude_deg * 100 + latitude_min, 7) + ',' + latitude_dir + ',' + lead_zero + "{:.{}f}".format(longitude_deg * 100 + longitude_min, 7) + ',' + longitude_dir + ',' + timestamp_string
 
@@ -99,6 +145,31 @@ class Nmea :
         print('nmea_string', nmea_string)
 
         return nmea_string
+
+
+    def gga_to_time_pos(self, nmea_string, year, month, monthday) :
+
+        #print("nmea_string", nmea_string)
+        nmea_fields = nmea_string.split(',')
+        print("nmea_fields", nmea_fields)
+        orig_hour = int(float(nmea_fields[1])) // 10000
+        orig_minute = ( int(float(nmea_fields[1])) - orig_hour * 10000 ) // 100
+        orig_second = int(float(nmea_fields[1])) - orig_hour * 10000 - orig_minute * 100
+        orig_microsec = int ( ( float(nmea_fields[1]) - orig_hour * 10000 - orig_minute * 100 - orig_second ) * 1000000 )
+        datetime_origin = datetime.datetime(year, month, monthday, orig_hour, orig_minute, orig_second, orig_microsec)
+        orig_secs = int(datetime_origin.timestamp())
+
+        latitude_deg = float(nmea_fields[2]) // 100
+        latitude_min = float(nmea_fields[2]) - latitude_deg * 100
+        latitude = latitude_deg + latitude_min / 60
+        if nmea_fields[3] == 'S' : latitude = -latitude
+
+        longitude_deg = float(nmea_fields[4]) // 100
+        longitude_min = float(nmea_fields[4]) - longitude_deg * 100
+        longitude = longitude_deg + longitude_min / 60
+        if nmea_fields[5] == 'W' : longitude = -longitude
+
+        return orig_secs, orig_microsec, latitude, longitude
 
 
     def aivdm_from_static(self, mmsi, call_sign, vessel_name, ship_type) :
@@ -228,124 +299,3 @@ class Nmea :
             pass
 
         return aivdm_payloads
-
-
-
-class Accumulate(ta.ProcessDataTask) :
-
-
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, config_filepath = None, config_filename = None) :
-
-        self.channels = channels
-        self.start_delay = start_delay
-        self.gateway_database_connection = gateway_database_connection
-
-        self.config_filepath = config_filepath
-        self.config_filename = config_filename
-
-        ta.ProcessDataTask.__init__(self)
-
-        self.sql = db.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
-
-        self.previous_minute = -1
-        self.previous_timestamp = int(time.mktime(time.localtime()))
-
-
-    def run(self) :
-
-        time.sleep(self.start_delay)
-
-        while (True) :
-
-            time.sleep(0.1)
-
-            current_localtime = time.localtime()
-            current_hour =  current_localtime.tm_hour
-            current_minute = current_localtime.tm_min
-            current_second = current_localtime.tm_sec
-            current_timestamp = int(time.mktime(time.localtime()))
-
-            if current_timestamp - self.previous_timestamp > 60 :
-                current_timestamp = self.previous_timestamp + 60
-                current_minute = self.previous_minute + 1
-            
-            if current_second == 0 and current_minute != self.previous_minute :
-
-                for channel_index in self.channels: 
-
-                    accumulated_min_samples = 0
-                    accumulated_min_value = 0.0
-                    accumulated_hour_samples = 0
-                    accumulated_hour_value = 0.0
-                    accumulated_text = ''
-                    accumulated_binary = b''
-                    
-                    try :
-
-                        self.sql.connect_db()
-
-                        accumulated_bin_size = 60
-                        accumulated_bin_end_time = current_timestamp - accumulated_bin_size
-
-                        sql_get_minute_data = "SELECT ACQUIRED_TIME,ACQUIRED_VALUE FROM t_acquired_data WHERE CHANNEL_INDEX=%s AND ACQUIRED_TIME<%s AND ACQUIRED_TIME>=%s ORDER BY ACQUIRED_TIME DESC"
-
-                        with self.sql.conn.cursor() as cursor :
-                            cursor.execute(sql_get_minute_data, [channel_index, accumulated_bin_end_time, accumulated_bin_end_time - 60] )
-                            results = cursor.fetchall()
-                            for row in results:
-                                acquired_time = row[0]
-                                acquired_value = row[1]
-                                if not -9999.01 < acquired_value < -9998.99 :
-                                    accumulated_min_value += acquired_value
-                                    accumulated_min_samples += 1
-
-                        accumulated_min_mean = 0.0
-                        if accumulated_min_samples > 0 :
-                            accumulated_min_mean = accumulated_min_value / accumulated_min_samples
-
-                        sql_insert_accumulated_60 = "INSERT INTO t_accumulated_data (CHANNEL_INDEX,ACCUMULATED_BIN_END_TIME,ACCUMULATED_BIN_SIZE,ACCUMULATED_NO_OF_SAMPLES,ACCUMULATED_VALUE,ACCUMULATED_TEXT,ACCUMULATED_BINARY) VALUES (%s,%s,%s,%s,%s,%s,%s)"
-                        with self.sql.conn.cursor() as cursor :
-                            try:
-                                cursor.execute(sql_insert_accumulated_60, [channel_index, accumulated_bin_end_time, accumulated_bin_size, accumulated_min_samples, accumulated_min_mean, accumulated_text, accumulated_binary] )
-                            except pymysql.err.IntegrityError as e:
-                                rt.logging.exception(e)
-
-                        accumulated_min_samples = 0
-                        accumulated_min_value = 0.0
-
-                        if current_minute == 1 :
-
-                            accumulated_bin_size = 3600
-
-                            sql_get_hour_data = 'SELECT ACQUIRED_TIME,ACQUIRED_VALUE FROM t_acquired_data WHERE CHANNEL_INDEX=%s AND ACQUIRED_TIME<%s AND ACQUIRED_TIME>=%s ORDER BY ACQUIRED_TIME DESC'
-                            with self.sql.conn.cursor() as cursor :
-                                cursor.execute(sql_get_hour_data, [channel_index, accumulated_bin_end_time, accumulated_bin_end_time - 3600] )
-                                results = cursor.fetchall()
-                                for row in results:
-                                    acquired_time = row[0]
-                                    acquired_value = row[1]
-                                    if not -9999.01 < acquired_value < -9998.99 :
-                                        accumulated_hour_value += acquired_value
-                                        accumulated_hour_samples += 1
-
-                            accumulated_hour_mean = 0.0
-                            if accumulated_hour_samples > 0 :
-                                accumulated_hour_mean = accumulated_hour_value / accumulated_hour_samples
-                                
-                            sql_insert_accumulated_3600 = "INSERT INTO t_accumulated_data (CHANNEL_INDEX,ACCUMULATED_BIN_END_TIME,ACCUMULATED_BIN_SIZE,ACCUMULATED_NO_OF_SAMPLES,ACCUMULATED_VALUE,ACCUMULATED_TEXT,ACCUMULATED_BINARY) VALUES (%s,%s,%s,%s,%s,%s,%s)"
-                            with self.sql.conn.cursor() as cursor :
-                                try:
-                                    cursor.execute(sql_insert_accumulated_3600, [channel_index, accumulated_bin_end_time,accumulated_bin_size, accumulated_hour_samples, accumulated_hour_mean, accumulated_text, accumulated_binary] )
-                                except pymysql.err.IntegrityError as e:
-                                    rt.logging.exception(e)
-
-                            accumulated_hour_samples = 0
-                            accumulated_hour_value = 0.0
-
-                    finally:
-                    
-                        self.sql.close_db_connection()
-
-                        
-                self.previous_minute = current_minute
-                self.previous_timestamp = current_timestamp
