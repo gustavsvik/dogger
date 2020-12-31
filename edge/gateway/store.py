@@ -7,9 +7,8 @@ import os
 import math
 import base64
 
-import gateway.timefiles as tf
 import gateway.runtime as rt
-import gateway.database as db
+import gateway.persist as ps
 import gateway.task as ta
 
 
@@ -24,7 +23,7 @@ class LoadFile(ta.ProcessDataTask):
 
     def get_filenames(self, channel = None):
     
-        files = tf.get_all_files(path = self.file_path, extensions = self.file_extensions, channel = channel)
+        files = ps.get_all_files(path = self.file_path, extensions = self.file_extensions, channel = channel)
 
         return files
 
@@ -37,15 +36,15 @@ class FileToSQL(LoadFile):
 
         LoadFile.__init__(self)
 
-        self.sql = db.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
+        self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
         
         if self.files_to_keep is None : self.files_to_keep = 2
 
 
     def retrieve_file_data(self, current_file = None):
 
-        current_channel = tf.get_file_channel(current_file)
-        acquired_time = tf.get_file_timestamp(current_file)
+        current_channel = ps.get_file_channel(current_file)
+        acquired_time = ps.get_file_timestamp(current_file)
         acquired_time_string = repr(acquired_time)
 
         self.current_channel = current_channel
@@ -186,8 +185,8 @@ class ScreenshotFile(ImageFile):
 
     def retrieve_file_data(self, current_file = None):
 
-        current_channel = tf.get_file_channel(current_file)
-        acquired_time = tf.get_file_local_datetime(current_file, datetime_pattern = '%Y%m%d%H%M%S')
+        current_channel = ps.get_file_channel(current_file)
+        acquired_time = ps.get_file_local_datetime(current_file, datetime_pattern = '%Y%m%d%H%M%S')
         acquired_time_string = repr(acquired_time)
 
         self.current_channel = current_channel
