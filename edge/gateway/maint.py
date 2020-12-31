@@ -10,7 +10,7 @@ import pymysql
 
 import gateway.task as ta
 import gateway.link as li
-import gateway.database as db
+import gateway.persist as ps
 import gateway.runtime as rt
 
 
@@ -91,7 +91,7 @@ class PartitionEdgeDatabase(PartitionDatabase) :
 
         PartitionDatabase.__init__(self)
 
-        self.sql = db.SQL(config_filepath = self.config_filepath, config_filename = self.config_filename)
+        self.sql = ps.SQL(config_filepath = self.config_filepath, config_filename = self.config_filename)
 
 
     def partition_database(self, new_partition_name_date = None, new_partition_timestamp = None, oldest_kept_partition_name_date = None) :
