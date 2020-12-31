@@ -15,7 +15,7 @@ import socket
 import struct
 import pyscreenshot as ImageGrab
 
-import gateway.utils as ut
+import gateway.transform as tr
 import gateway.device as dv
 import gateway.runtime as rt
 import gateway.task as ta
@@ -79,32 +79,88 @@ class UdpHttp(Udp):
 
             time.sleep(0.1)
             data, address = self.socket.recvfrom(4096)
+            print("data", data, "len(data)", len(data))
             values = struct.unpack('>HIf', data)
+            print("values", values)
             self.upload_data(int(values[0]), int(values[1]), float(values[2]))
 
 
 
-class File(ta.AcquireControlTask):
+class ProcessFile(ta.AcquireControlTask) :
 
 
-    def __init__(self):
+    def __init__(self) :
 
         self.env = self.get_env()
         if self.file_path is None: self.file_path = self.env['FILE_PATH']
+
+
+
+class IngestFile(ProcessFile) :
+
+
+    def __init__(self) :
+
+        self.env = self.get_env()
         if self.archive_file_path is None: self.archive_file_path = self.env['ARCHIVE_FILE_PATH']
 
-        ta.AcquireControlTask.__init__(self)
+        ProcessFile.__init__(self)
+
+
+    def write(self, data_array = None, selected_tag = None, timestamp_secs = None, timestamp_microsecs = None) :
+
+        print("data_array", data_array)
+
+        #current_secs, current_timetuple, current_microsec_part, next_sample_secs = tr.timestamp_to_date_times(timestamp, self.sample_rate)
+        #print("current_timetuple[5]", current_timetuple[5])
+        selected_channel_array = [ tag_channels for channel_tag, tag_channels in self.channels.items() if channel_tag == selected_tag ]
+        print("selected_channel_array", selected_channel_array)
+        #selected_channels = [ channel for channel, file_type in selected_channel_array[0].items() ]
+        #print("selected_channels", selected_channels)
+
+        for channel, file_type in selected_channel_array[0].items() :
+            print ("channel, file_type", channel, file_type) 
+            print("selected_channel_array[0][channel]", selected_channel_array[0][channel])
+            if self.file_path is not None and os.path.exists(self.file_path) :
+
+                capture_file_timestamp = timestamp_secs 
+                store_filename = self.file_path + str(channel) + '_' + str(capture_file_timestamp) + '.' + file_type
+
+                if file_type == 'npy' :
+                    float_array = data_array[0][channel]
+                    float_avg = tr.downsample(numpy.float64(float_array), 1)
+                    float_array = numpy.concatenate(([0.0], timestamp_microsecs, float_array), axis = None)
+                    float_array[0] = float_avg
+                    try:
+                        numpy.save(store_filename, float_array)
+                    except PermissionError as e:
+                        rt.logging.exception(e)
+
+                if file_type == 'txt' :
+                    try:
+                        with open(store_filename, 'w') as text_file :
+                            text_file.write(data_array[0][channel])
+                    except PermissionError as e:
+                        print(e)
+
+                # if self.file_path is not None and os.path.exists(self.file_path):
+                    # try:
+                        # if self.archive_file_path is not None and os.path.exists(self.archive_file_path) :
+                            # archive_filename = self.archive_file_path + str(channel) + '_' + str(capture_file_timestamp) + '.' + file_type
+                            # #shutil.copy(store_filename, archive_filename)
+                    # except (FileNotFoundError, PermissionError) as e:
+                        # rt.logging.exception(e)
 
 
 
-class NidaqVoltageIn(File):
+class NidaqVoltageIn(IngestFile):
 
 
     def __init__(self, sample_rate = 1, samplesPerChan = 1, subSamplesPerChan = 1, minValue = 0, maxValue = 10, IPNumber = "", moduleSlotNumber = 1, moduleChanRange = [0], uniqueChanIndexRange = [0]):
 
         self.nidaq = dv.NidaqVoltageIn(sample_rate, samplesPerChan, subSamplesPerChan, minValue, maxValue, IPNumber, moduleSlotNumber, moduleChanRange, uniqueChanIndexRange)
 
-        File.__init__(self)
+        IngestFile.__init__(self)
 
 
     def run(self):
@@ -123,14 +179,14 @@ class NidaqVoltageIn(File):
 
 
 
-class NidaqCurrentIn(File):
+class NidaqCurrentIn(IngestFile):
 
 
     def __init__(self, sample_rate = 1, samplesPerChan = 1, subSamplesPerChan = 1, minValue = 0, maxValue = 10, IPNumber = "", moduleSlotNumber = 1, moduleChanRange = [0], uniqueChanIndexRange = [0]):
 
         self.nidaq = daqc.device.NidaqVoltageIn(sample_rate, samplesPerChan, subSamplesPerChan, minValue, maxValue, IPNumber, moduleSlotNumber, moduleChanRange, uniqueChanIndexRange)
 
-        File.__init__(self)
+        IngestFile.__init__(self)
 
 
     def run(self):
@@ -149,7 +205,7 @@ class NidaqCurrentIn(File):
 
 
 
-class SerialNmeaFile(File) :
+class SerialNmeaFile(IngestFile) :
 
 
     def __init__(self, channels = None, port = None, start_delay = None, sample_rate = None, location = None, baudrate = None, timeout = None, parity = None, stopbits = None, bytesize = None, delay_waiting_check = None, file_path = None, archive_file_path = None, start_pos = None, config_filepath = None, config_filename = None):
@@ -172,7 +228,9 @@ class SerialNmeaFile(File) :
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        File.__init__(self)
+        IngestFile.__init__(self)
+
+        self.nmea = tr.Nmea(prepend = '', append = '')
 
 
     def run(self) :
@@ -219,12 +277,9 @@ class SerialNmeaFile(File) :
                 if data_string != '' :
 
                     print("data_string", data_string)
-                    try :
-                        float_array = [ float(data_string[self.start_pos:]) ]
-                    except ValueError as e :
-                        float_array = [-9999.0]
-
+                    float_array = [ self.nmea.to_float(data_string, self.start_pos) ]
                     print("float_array", float_array)
+
                     data_string = ''
 
                     acq_finish_time = numpy.float64(time.time())
@@ -232,7 +287,7 @@ class SerialNmeaFile(File) :
                     acq_finish_microsecs = numpy.int64(acq_finish_time * 1e6)
                     acq_microsec_part = acq_finish_microsecs - numpy.int64(acq_finish_secs)*1e6
 
-                    float_avg = ut.downsample(numpy.float64(float_array), 1)
+                    float_avg = tr.downsample(numpy.float64(float_array), 1)
                     float_array = numpy.concatenate(([0.0], acq_microsec_part, float_array), axis = None)
                     float_array[0] = float_avg
 
@@ -262,12 +317,12 @@ class SerialNmeaFile(File) :
             time.sleep(5)
 
 
-class UdpFile(File):
+class UdpFile(IngestFile):
 
 
     def __init__(self):
 
-        File.__init__(self)
+        IngestFile.__init__(self)
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
 
@@ -276,10 +331,10 @@ class UdpFile(File):
 
 
 
-class PosNmeaUdpFile(UdpFile):
+class NmeaUdpFile(UdpFile):
 
 
-    def __init__(self, channels = None, port = None, start_delay = None, sample_rate = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, port = None, start_delay = None, sample_rate = None, file_path = None, archive_file_path = None, line_identifier = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.port = port
@@ -287,98 +342,104 @@ class PosNmeaUdpFile(UdpFile):
         self.sample_rate = sample_rate
         self.file_path = file_path
         self.archive_file_path = archive_file_path
+        self.line_identifier = line_identifier
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
         UdpFile.__init__(self)
-
-        self.field_separator = ','
-        self.line_identifier = 'GGA'
+        
+        self.nmea = tr.Nmea(prepend = '', append = '')
 
 
     def run(self):
 
         time.sleep(self.start_delay)
 
-        divisor = numpy.int64(1/numpy.float64(self.sample_rate))
-        current_time = numpy.float64(time.time())
-        current_secs = numpy.int64(current_time)
+        #divisor = numpy.int64(1/numpy.float64(self.sample_rate))
+        #current_time = numpy.float64(time.time())
+        #current_secs = numpy.int64(current_time)
 
         while True :
 
             time.sleep(0.1)
-            sample_secs = current_secs + numpy.int64( divisor - current_secs % divisor )
-            current_time = numpy.float64(time.time())
-            current_secs = numpy.int64(current_time)
+
+            current_secs, current_timetuple, current_microsec_part, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+            print("current_timetuple[5]", current_timetuple[5])
+
+            #next_sample_secs = current_secs + numpy.int64( divisor - current_secs % divisor )
+            #current_time = numpy.float64(time.time())
+            #current_secs = numpy.int64(current_time)
+
+            #datetime_current = datetime.datetime.fromtimestamp(current_secs)
+            #current_timestamp = datetime_current.timetuple()
+            year = current_timetuple[0]
+            month = current_timetuple[1]
+            monthday = current_timetuple[2]
 
             data = None
-            last_line = None
+            address = None
 
             data, address = self.socket.recvfrom(4096)
+            print("address", address)
             rt.logging.debug(data)
             data_lines = data.decode("utf-8").splitlines()
-            selected_lines = [line for line in data_lines if (self.line_identifier in line)]
-            if len(selected_lines) > 0 :
-                last_line = selected_lines[-1]
+            print("data_lines", data_lines)
+            #selected_lines = [line for line in data_lines if (self.line_identifier in line or self.line_identifier == '*')]
+            #print("selected_lines", selected_lines)
+            #selected_line = None
 
-            channels = list(self.channels)
+            for selected_line in [line for line in data_lines if (self.line_identifier in line or self.line_identifier == '*')] : # if len(selected_lines) > 0 :
 
-            if last_line :
+                # selected_line = selected_lines[-1]
+                print("selected_line", selected_line)
 
-                line_fields = last_line.split(self.field_separator)
-                rt.logging.debug(line_fields)
-                hour = int(float(line_fields[1])) // 10000
-                minute = ( int(float(line_fields[1])) - hour * 10000 ) // 100
-                second = int(float(line_fields[1])) - hour * 10000 - minute * 100
-                microsecond = int ( ( float(line_fields[1]) - hour * 10000 - minute * 100 - second ) * 1000000 )
-                datetime_current = datetime.datetime.fromtimestamp(current_secs)
-                current_timestamp = datetime_current.timetuple()
-                year = current_timestamp.tm_year
-                month = current_timestamp.tm_mon
-                monthday = current_timestamp.tm_mday
-                datetime_origin = datetime.datetime(year, month, monthday, hour, minute, second, microsecond)
-                orig_secs = int(datetime_origin.timestamp())
+                try : 
 
-                channel = channels[0]
-                filename = self.file_path + repr(channel) + "_" + repr(current_secs) + '.' + 'txt'
-                try:
-                    with open(filename, 'w') as text_file:
-                        text_file.write(last_line)
-                except PermissionError as e:
-                    rt.logging.exception(e)
+                    if 'GGA' in selected_line :
+                    
+                        print("self.channels['GGA']", self.channels['GGA'])
+                        channels = list(self.channels['GGA'])
+                        print("channels", channels)
+                        #channel = channels[0]
+                        #
+                        #filename = self.file_path + repr(channel) + "_" + repr(current_secs) + '.' + 'txt'
+                        #try:
+                        #    with open(filename, 'w') as text_file:
+                        #        text_file.write(selected_line)
+                        #except PermissionError as e:
+                        #    print(e)
 
-                acquired_microsecs = microsecond
+                        orig_secs, orig_microsec, latitude, longitude = self.nmea.gga_to_time_pos(selected_line, year, month, monthday)
+                        gga_data = [ dict( [ (channels[0], selected_line) , (channels[1], [latitude]) , (channels[2], [longitude]) ] ) ]
+                        print("gga_data", gga_data)
+                        self.write(data_array = gga_data, selected_tag = 'GGA', timestamp_secs = current_secs, timestamp_microsecs = orig_microsec)      #float_numpy_file(latitude, channel, orig_secs, orig_microsec, self.file_path)
 
-                channel = channels[1]
-                filename = self.file_path + repr(channel) + "_" + repr(current_secs) + '.' + 'npy'
-                latitude_deg = float(line_fields[2]) // 100
-                latitude_min = float(line_fields[2]) - latitude_deg * 100
-                latitude = latitude_deg + latitude_min / 60
-                if line_fields[3] == 'S' : latitude = -latitude
-                latitude_array = numpy.concatenate(([0.0], acquired_microsecs), axis = None)
-                latitude_array[0] = latitude
-                try:
-                    numpy.save(filename, latitude_array)
-                except PermissionError as e:
-                    rt.logging.exception(e)
+                        #latitude_array = numpy.concatenate(([0.0], orig_microsec), axis = None)
+                        #latitude_array[0] = latitude
+                        #try:
+                        #    channel = channels[1]
+                        #    filename = self.file_path + repr(channel) + "_" + repr(current_secs) + '.' + 'npy'
+                        #    numpy.save(filename, latitude_array)
+                        #except PermissionError as e:
+                        #    rt.logging.exception(e)
+                        #
+                        #longitude_array = numpy.concatenate(([0.0], orig_microsec), axis = None)
+                        #longitude_array[0] = longitude
+                        #try:
+                        #    channel = channels[2]
+                        #    filename = self.file_path + repr(channel) + "_" + repr(current_secs) + '.' + 'npy'
+                        #    numpy.save(filename, longitude_array)
+                        #except PermissionError as e:
+                        #    rt.logging.exception(e)
 
-                channel = channels[2]
-                filename = self.file_path + repr(channel) + "_" + repr(current_secs) + '.' + 'npy'
-                longitude_deg = float(line_fields[4]) // 100
-                longitude_min = float(line_fields[4]) - longitude_deg * 100
-                longitude = longitude_deg + longitude_min / 60
-                if line_fields[5] == 'W' : longitude = -longitude
-                longitude_array = numpy.concatenate(([0.0], acquired_microsecs), axis = None)
-                longitude_array[0] = longitude
-                try:
-                    numpy.save(filename, longitude_array)
-                except PermissionError as e:
-                    rt.logging.exception(e)
+                except ValueError as e :
+
+                    print(e)
 
 
 
-class Image(File):
+class Image(IngestFile):
 
 
     def __init__(self):
@@ -389,7 +450,7 @@ class Image(File):
         (self.channel,) = self.channels
         self.capture_filename = 'image_' + str(self.channel) + '.' + self.file_extension
 
-        File.__init__(self)
+        IngestFile.__init__(self)
 
 
     def run(self):
@@ -402,10 +463,10 @@ class Image(File):
 
         while True :
 
-            sample_secs = current_secs + numpy.int64( divisor - current_secs % divisor )
+            next_sample_secs = current_secs + numpy.int64( divisor - current_secs % divisor )
             current_time = numpy.float64(time.time())
             current_secs = numpy.int64(current_time)
-            if sample_secs > current_secs :
+            if next_sample_secs > current_secs :
                 time.sleep(0.1)
             else :
 
@@ -591,21 +652,20 @@ class ScreenshotUpload(Image):
 
         while True :
 
-            sample_secs = current_secs + numpy.int64( divisor - current_secs % divisor )
+            next_sample_secs = current_secs + numpy.int64( divisor - current_secs % divisor )
             current_time = numpy.float64(time.time())
             current_secs = numpy.int64(current_time)
-            if sample_secs > current_secs :
+            if next_sample_secs > current_secs :
                 time.sleep(0.1)
             else :
-
-                self.read_samples(sample_secs)
+                self.read_samples(next_sample_secs)
 
 
 
 class TempFileUpload(Image):
 
 
-    def __init__(self, channels = None, sample_rate = None, host_api_url = None, client_api_url = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, sample_rate = None, host_api_url = None, client_api_url = None, file_extension = 'jpg', config_filepath = None, config_filename = None):
 
         self.channels = channels
 
@@ -615,7 +675,7 @@ class TempFileUpload(Image):
 
         self.start_delay = 0
         self.max_connect_attempts = 50
-        self.file_extension = 'jpg'
+        self.file_extension = file_extension
 
         self.file_path = None
         self.archive_file_path = None
@@ -636,7 +696,7 @@ class TempFileUpload(Image):
     def upload_file(self, sample_secs = -9999):
 
         try :
-
+            print("self.capture_filename", self.capture_filename)
             with open(self.capture_filename, "rb") as image_file:
                 img_str = base64.b64encode(image_file.read())
             http = li.DirectUpload(channels = self.channels, start_delay = self.start_delay, host_api_url = self.host_api_url, client_api_url = self.client_api_url, max_connect_attempts = self.max_connect_attempts)
@@ -662,17 +722,17 @@ class TempFileUpload(Image):
 
         while True :
 
-            sample_secs = current_secs + numpy.int64( divisor - current_secs % divisor )
+            next_sample_secs = current_secs + numpy.int64( divisor - current_secs % divisor )
             current_time = numpy.float64(time.time())
             current_secs = numpy.int64(current_time)
-            if sample_secs > current_secs :
+            if next_sample_secs > current_secs :
                 time.sleep(0.1)
             else :
-                self.upload_file(sample_secs)
+                self.upload_file(next_sample_secs)
 
 
 
-class AcquireCurrent(File):
+class AcquireCurrent(IngestFile):
 
     """ Adapted from https://scipy-cookbook.readthedocs.io/items/Data_Acquisition_with_NIDAQmx.html."""
 
@@ -689,7 +749,7 @@ class AcquireCurrent(File):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        File.__init__(self)
+        IngestFile.__init__(self)
 
         self.nidaq = None
         if sys.platform.startswith('win32') : 
@@ -775,10 +835,10 @@ class AcquireCurrent(File):
     def scale_Opto_22_AD3_SATT_ETT45_0101(self, I_temp):
         return ( I_temp * 1000.0 - 4.0 ) / 16.0 * 50.0
 
-    def downsample(self, y, size):
-        y_reshape = y.reshape(size, int(len(y)/size))
-        y_downsamp = y_reshape.mean(axis=1)
-        return y_downsamp
+    #def downsample(self, y, size):
+    #    y_reshape = y.reshape(size, int(len(y)/size))
+    #    y_downsamp = y_reshape.mean(axis=1)
+    #    return y_downsamp
 
     # Create Task and Voltage Channel and Configure Sample Clock
     def SetupTasks(self):
@@ -843,7 +903,7 @@ class AcquireCurrent(File):
                     current_array = current[self.SAMPLES_PER_CHAN*(channel_index+0):self.SAMPLES_PER_CHAN*(channel_index+1)]
                     if channel_index == 0 : current_array = self.scale_cond_transmitter(current_array)
                     if channel_index == 1 : current_array = self.scale_Opto_22_AD3_SATT_ETT45_0101(current_array)
-                    current_avg = self.downsample(current_array, 1)
+                    current_avg = tr.downsample(current_array, 1)
                     current_array = numpy.concatenate(([0.0], acq_microsec_part, current_array), axis = None)
                     current_array[0] = current_avg
                     try:
