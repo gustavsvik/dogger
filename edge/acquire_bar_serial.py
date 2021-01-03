@@ -2,7 +2,7 @@ import gateway.daqc
 
 
 usb_serial = gateway.daqc.SerialNmeaFile(
-    channels = {142}, 
+    channels = { 'MMB':{142:'txt',143:'npy'} }, 
     start_delay = 10, 
     sample_rate = 1,
     location = '1-2',
