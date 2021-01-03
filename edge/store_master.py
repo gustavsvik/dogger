@@ -2,7 +2,7 @@ import gateway.store
 
 
 numpy_sql = gateway.store.NumpyFile(
-    channels = {142}, 
+    channels = {143}, 
     start_delay = 0, 
     file_path = '/home/heta/Z/data/files/',
     files_to_keep = 0,
