@@ -37,20 +37,16 @@ class Udp(ta.AcquireControlTask):
 
 
 
-class UdpHttp(Udp):
+class UdpHttp(Udp) :
 
 
-    def __init__(self, port = None, config_filepath = None, config_filename = None):
+    def __init__(self):
 
         self.channels = None
         self.ip_list = None
-        self.port = port
         self.start_delay = 0
         self.max_connect_attempts = 50
         self.sample_rate = None
-
-        self.config_filepath = config_filepath
-        self.config_filename = config_filename
 
         self.env = self.get_env()
         if self.ip_list is None: self.ip_list = self.env['IP_LIST']
@@ -58,17 +54,58 @@ class UdpHttp(Udp):
         Udp.__init__(self)
 
 
-    def upload_data(self, channel, sample_secs, data_value):
+    def upload_data(self, channel, sample_secs, data_value, byte_string) :
 
         try :
             http = li.DirectUpload(channels = [channel], start_delay = self.start_delay, max_connect_attempts = self.max_connect_attempts, config_filepath = self.config_filepath, config_filename = self.config_filename)
             for current_ip in self.ip_list :
                 res = http.send_request(start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
-                data_string = str(channel) + ';' + str(sample_secs) + ',' + str(data_value) + ',,,;'
+                data_string = str(channel) + ';' + str(sample_secs) + ',' + str(data_value) + ',,' + byte_string.decode() + ',;'
                 res = http.set_requested(data_string, ip = current_ip)
-
         except PermissionError as e :
             rt.logging.exception(e)
+
+
+
+class UdpValueHttp(UdpHttp) :
+
+
+    def __init__(self, port = None, config_filepath = None, config_filename = None):
+
+        self.port = port
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        UdpHttp.__init__(self)
+
+
+    def run(self):
+
+        time.sleep(self.start_delay)
+
+        while True :
+
+            time.sleep(0.1)
+            data, address = self.socket.recvfrom(4096)
+            rt.logging.debug("data", data, "len(data)", len(data))
+            values = struct.unpack('>HIf', data)
+            rt.logging.debug("values", values)
+            self.upload_data(int(values[0]), int(values[1]), float(values[2]), b'')
+
+
+
+class UdpBytesHttp(UdpHttp) :
+
+
+    def __init__(self, port = None, config_filepath = None, config_filename = None):
+
+        self.port = port
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        UdpHttp.__init__(self)
 
 
     def run(self):
@@ -80,9 +117,12 @@ class UdpHttp(Udp):
             time.sleep(0.1)
             data, address = self.socket.recvfrom(4096)
             print("data", data, "len(data)", len(data))
-            values = struct.unpack('>HIf', data)
+            values = struct.unpack_from('>HI', data, offset = 0)
             print("values", values)
-            self.upload_data(int(values[0]), int(values[1]), float(values[2]))
+            byte_string = struct.unpack_from( '{}s'.format(len(data) - 6), data[6:len(data)], offset = 0)
+            replaced_byte_string = byte_string[0].replace(b',', b'|').replace(b';', b'~')
+            print("replaced_byte_string", replaced_byte_string)
+            self.upload_data(int(values[0]), int(values[1]), -9999.0, replaced_byte_string)
 
 
 
@@ -110,13 +150,8 @@ class IngestFile(ProcessFile) :
     def write(self, data_array = None, selected_tag = None, timestamp_secs = None, timestamp_microsecs = None) :
 
         print("data_array", data_array)
-
-        #current_secs, current_timetuple, current_microsec_part, next_sample_secs = tr.timestamp_to_date_times(timestamp, self.sample_rate)
-        #print("current_timetuple[5]", current_timetuple[5])
         selected_channel_array = [ tag_channels for channel_tag, tag_channels in self.channels.items() if channel_tag == selected_tag ]
         print("selected_channel_array", selected_channel_array)
-        #selected_channels = [ channel for channel, file_type in selected_channel_array[0].items() ]
-        #print("selected_channels", selected_channels)
 
         for channel, file_type in selected_channel_array[0].items() :
             print ("channel, file_type", channel, file_type) 
@@ -136,20 +171,119 @@ class IngestFile(ProcessFile) :
                     except PermissionError as e:
                         rt.logging.exception(e)
 
-                if file_type == 'txt' :
+                if file_type == 'txt' and data_array[0][channel] != '' :
                     try:
                         with open(store_filename, 'w') as text_file :
                             text_file.write(data_array[0][channel])
                     except PermissionError as e:
-                        print(e)
+                        rt.logging.exception(e)
 
-                # if self.file_path is not None and os.path.exists(self.file_path):
-                    # try:
-                        # if self.archive_file_path is not None and os.path.exists(self.archive_file_path) :
-                            # archive_filename = self.archive_file_path + str(channel) + '_' + str(capture_file_timestamp) + '.' + file_type
-                            # #shutil.copy(store_filename, archive_filename)
-                    # except (FileNotFoundError, PermissionError) as e:
-                        # rt.logging.exception(e)
+                if self.file_path is not None and os.path.exists(self.file_path):
+                    try:
+                        if self.archive_file_path is not None and os.path.exists(self.archive_file_path) :
+                            archive_filename = self.archive_file_path + str(channel) + '_' + str(capture_file_timestamp) + '.' + file_type
+                            #shutil.copy(store_filename, archive_filename)
+                    except (FileNotFoundError, PermissionError) as e:
+                        rt.logging.exception(e)
+
+
+
+class StaticFileNmeaFile(IngestFile) :
+
+
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, static_file_path_name = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+        self.static_file_path_name = static_file_path_name
+        self.file_path = file_path
+        self.archive_file_path = archive_file_path
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        IngestFile.__init__(self)
+
+        self.nmea = tr.Nmea(prepend = '', append = '')
+
+
+    def run(self) :
+
+        text_strings = []
+
+        try :
+            text_file = open(self.static_file_path_name, "r")
+            text_strings = text_file.read().splitlines()
+            print("text_strings", text_strings)
+        except OSError as e :
+            rt.logging.exception(e)
+
+        while True :
+
+            string_dict = {}
+
+            for text_string in text_strings :
+
+                print("text_string", text_string)
+                #acquired_base64 = text_string.encode("utf-8") # base64.b64encode(
+                #print("acquired_base64", acquired_base64)
+
+                timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+
+                for selected_tag, channels in self.channels.items() :
+                    print("channels", channels)
+                    channels_list = list(channels)
+
+                    if selected_tag in text_string : 
+                        print("selected_tag", selected_tag, "channels_list", channels_list)
+                        current_string_value = ''
+                        try :
+                            current_string_value = string_dict[selected_tag]
+                        except KeyError as e :
+                            pass
+                        string_dict[selected_tag] = current_string_value + text_string
+
+            print("string_dict", string_dict)
+
+            for selected_tag, channels in self.channels.items() :
+
+                channels_list = list(channels)
+
+                dict_string = ''
+                try :
+                    dict_string = string_dict[selected_tag] + '\r\n'
+                except KeyError as e :
+                    pass
+
+                data_array = None
+
+                if selected_tag == 'MMB' :
+                    value = self.nmea.to_float(dict_string, self.start_pos)
+                    data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [value]) ] ) ]
+
+                if selected_tag == 'VDM' :
+                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                if selected_tag == 'VDO' :
+                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                if selected_tag == 'ALV' :
+                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                if selected_tag == 'ALR' :
+                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                if selected_tag == 'TTM' :
+                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                print("data_array", data_array)
+                print("timestamp_secs", timestamp_secs)
+                if data_array is not None :
+                    self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+
+            time.sleep(1/self.sample_rate)
+
 
 
 
@@ -205,7 +339,40 @@ class NidaqCurrentIn(IngestFile):
 
 
 
-class SerialNmeaFile(IngestFile) :
+class SerialFile(IngestFile) :
+
+
+    def __init__(self):
+
+        IngestFile.__init__(self)
+
+
+    def init_acquire(self) :
+
+        comport_list = serial.tools.list_ports.comports()
+        for comport in comport_list:
+            port_string = str(comport.device) + ';' + str(comport.name) + ';' + str(comport.description) + ';' + str(comport.hwid) + ';' + str(comport.vid) + ';' + str(comport.pid) + ';' + str(comport.serial_number) + ';' + str(comport.location) + ';' + str(comport.manufacturer) + ';' + str(comport.product) + ';' + str(comport.interface)
+            print("port_string", port_string)
+
+            if self.port is None :
+                print("self.location", self.location)
+                if (port_string.find(self.location)) >= 0:
+                    self.port = comport.device
+                    print("self.port", self.port)
+
+        self.serial_conn = None 
+
+        try :
+            self.serial_conn = serial.Serial(port = self.port, baudrate = self.baudrate, timeout = self.timeout, parity = serial.PARITY_EVEN, stopbits = serial.STOPBITS_ONE, bytesize = serial.SEVENBITS) #, write_timeout=1, , , , xonxoff=False, rtscts=False, dsrdtr=False)
+            time.sleep(0.1)
+            if (self.serial_conn.isOpen()):
+                print("connected to : " + self.serial_conn.portstr)
+        except serial.serialutil.SerialException as e:
+            rt.logging.exception(e)
+
+
+
+class SerialNmeaFile(SerialFile) :
 
 
     def __init__(self, channels = None, port = None, start_delay = None, sample_rate = None, location = None, baudrate = None, timeout = None, parity = None, stopbits = None, bytesize = None, delay_waiting_check = None, file_path = None, archive_file_path = None, start_pos = None, config_filepath = None, config_filename = None):
@@ -228,48 +395,36 @@ class SerialNmeaFile(IngestFile) :
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        IngestFile.__init__(self)
+        SerialFile.__init__(self)
 
         self.nmea = tr.Nmea(prepend = '', append = '')
 
 
     def run(self) :
 
+
         while True:
 
-            comport_list = serial.tools.list_ports.comports()
-            for comport in comport_list:
-                port_string = str(comport.device) + ';' + str(comport.name) + ';' + str(comport.description) + ';' + str(comport.hwid) + ';' + str(comport.vid) + ';' + str(comport.pid) + ';' + str(comport.serial_number) + ';' + str(comport.location) + ';' + str(comport.manufacturer) + ';' + str(comport.product) + ';' + str(comport.interface)
-                print("port_string", port_string)
-
-            if self.port is None :
-
-                if (port_string.find(self.location))>=0:
-                    self.port = comport.device
-                    print("self.port", self.port)
-
-            try :
-                ser = serial.Serial(port = self.port, baudrate = self.baudrate, timeout = self.timeout, parity = serial.PARITY_EVEN, stopbits = serial.STOPBITS_ONE, bytesize = serial.SEVENBITS) #, write_timeout=1, , , , xonxoff=False, rtscts=False, dsrdtr=False)
-                time.sleep(0.1)
-                if (ser.isOpen()):
-                    print("connected to : " + ser.portstr)
-            except serial.serialutil.SerialException as e:
-                runtime.logging.exception(e)
-
+            self.init_acquire()
+        
             data_string = ''
 
-            while ser.isOpen():
+            while self.serial_conn.isOpen():
 
                 response = ''
-                #if ser.in_waiting : time.sleep(1)
-                while ser.in_waiting:
 
-                    response = ser.read()
+                #timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+                #prev_timestamp_secs = timestamp_secs
+
+                while self.serial_conn.in_waiting:
+
+                    response = self.serial_conn.read()
+
                     response_string = ''
                     try:
                         response_string = response.decode()
                     except UnicodeDecodeError as e:
-                        print(e)
+                        rt.logging.exception(e)
                     data_string += response_string
 
                     time.sleep(self.delay_waiting_check)
@@ -277,44 +432,80 @@ class SerialNmeaFile(IngestFile) :
                 if data_string != '' :
 
                     print("data_string", data_string)
-                    float_array = [ self.nmea.to_float(data_string, self.start_pos) ]
-                    print("float_array", float_array)
 
-                    data_string = ''
+                    data_lines = data_string.splitlines()
+                    print("data_lines", data_lines)
 
-                    acq_finish_time = numpy.float64(time.time())
-                    acq_finish_secs = numpy.int64(acq_finish_time)
-                    acq_finish_microsecs = numpy.int64(acq_finish_time * 1e6)
-                    acq_microsec_part = acq_finish_microsecs - numpy.int64(acq_finish_secs)*1e6
+                    timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
 
-                    float_avg = tr.downsample(numpy.float64(float_array), 1)
-                    float_array = numpy.concatenate(([0.0], acq_microsec_part, float_array), axis = None)
-                    float_array[0] = float_avg
+                    string_dict = {}
 
-                    channel = list(self.channels)[0]
-                    file_extension = 'npy'
-                    
-                    if self.file_path is not None and os.path.exists(self.file_path):
-                        capture_file_timestamp = acq_finish_secs 
-                        store_filename = self.file_path + str(channel) + '_' + str(capture_file_timestamp) + '.' + file_extension
-                        archive_filename = self.archive_file_path + str(channel) + '_' + str(capture_file_timestamp) + '.' + file_extension
-                        try:
-                            if self.archive_file_path is not None and os.path.exists(self.archive_file_path):
-                                pass
-                                #shutil.copy(store_filename, archive_filename)
-                        except (FileNotFoundError, PermissionError) as e:
-                            rt.logging.exception(e)
+                    for selected_line in data_lines :
 
-                    try:
-                        numpy.save(store_filename, float_array)
-                    except PermissionError as e:
-                        rt.logging.exception(e)
+                        print("selected_line", selected_line)
+                        for selected_tag, channels in self.channels.items() :
+                            print("channels", channels)
+                            channels_list = list(channels)
 
-                time.sleep(self.sample_rate)
+                            if selected_tag in selected_line : 
+                                print("selected_tag", selected_tag, "channels_list", channels_list)
+                                current_string_value = ''
+                                try :
+                                    current_string_value = string_dict[selected_tag]
+                                except KeyError as e :
+                                    pass
+                                string_dict[selected_tag] = current_string_value + selected_line
+                                #if timestamp_secs == prev_timestamp_secs ;
+                                #    string_dict[selected_tag] = string_dict[selected_tag] + selected_line
+                                #else :
+                                #    string_dict[selected_tag] = ''
+                                #    prev_timestamp_secs = timestamp_secs
+                    print("string_dict", string_dict)
 
-            ser.close()
+                    for selected_tag, channels in self.channels.items() :
+
+                        channels_list = list(channels)
+
+                        dict_string = ''
+                        try :
+                            dict_string = string_dict[selected_tag] + '\r\n'
+                        except KeyError as e :
+                            pass
+
+                        data_array = None
+
+                        if selected_tag == 'MMB' :
+                            value = self.nmea.to_float(dict_string, self.start_pos)
+                            data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [value]) ] ) ]
+
+                        if selected_tag == 'VDM' :
+                            data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                        if selected_tag == 'VDO' :
+                            data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                        if selected_tag == 'ALV' :
+                            data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                        if selected_tag == 'ALR' :
+                            data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                        if selected_tag == 'TTM' :
+                            data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                        print("data_array", data_array)
+                        print("timestamp_secs", timestamp_secs)
+                        if data_array is not None :
+                            self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+
+                data_string = ''
+
+                time.sleep(1/self.sample_rate)
+
+            self.serial_conn.close()
 
             time.sleep(5)
+
 
 
 class UdpFile(IngestFile):
@@ -334,7 +525,7 @@ class UdpFile(IngestFile):
 class NmeaUdpFile(UdpFile):
 
 
-    def __init__(self, channels = None, port = None, start_delay = None, sample_rate = None, file_path = None, archive_file_path = None, line_identifier = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, port = None, start_delay = None, sample_rate = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.port = port
@@ -342,7 +533,6 @@ class NmeaUdpFile(UdpFile):
         self.sample_rate = sample_rate
         self.file_path = file_path
         self.archive_file_path = archive_file_path
-        self.line_identifier = line_identifier
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
@@ -356,86 +546,48 @@ class NmeaUdpFile(UdpFile):
 
         time.sleep(self.start_delay)
 
-        #divisor = numpy.int64(1/numpy.float64(self.sample_rate))
-        #current_time = numpy.float64(time.time())
-        #current_secs = numpy.int64(current_time)
-
         while True :
 
             time.sleep(0.1)
-
-            current_secs, current_timetuple, current_microsec_part, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
-            print("current_timetuple[5]", current_timetuple[5])
-
-            #next_sample_secs = current_secs + numpy.int64( divisor - current_secs % divisor )
-            #current_time = numpy.float64(time.time())
-            #current_secs = numpy.int64(current_time)
-
-            #datetime_current = datetime.datetime.fromtimestamp(current_secs)
-            #current_timestamp = datetime_current.timetuple()
-            year = current_timetuple[0]
-            month = current_timetuple[1]
-            monthday = current_timetuple[2]
 
             data = None
             address = None
 
             data, address = self.socket.recvfrom(4096)
-            print("address", address)
-            rt.logging.debug(data)
-            data_lines = data.decode("utf-8").splitlines()
-            print("data_lines", data_lines)
-            #selected_lines = [line for line in data_lines if (self.line_identifier in line or self.line_identifier == '*')]
-            #print("selected_lines", selected_lines)
-            #selected_line = None
+            print("address", address, "data", data)
 
-            for selected_line in [line for line in data_lines if (self.line_identifier in line or self.line_identifier == '*')] : # if len(selected_lines) > 0 :
+            timestamp_secs, current_timetuple, current_microsec_part, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+            print("current_timetuple", current_timetuple)
 
-                # selected_line = selected_lines[-1]
+            data_lines = []
+            if data is not None :
+                data_lines = data.decode("utf-8").splitlines()
+                print("data_lines", data_lines)
+
+            for selected_line in data_lines :
+
                 print("selected_line", selected_line)
+                for selected_tag, channels in self.channels.items() :
+                    channels_list = list(channels)
 
-                try : 
+                    if selected_tag in selected_line : 
 
-                    if 'GGA' in selected_line :
-                    
-                        print("self.channels['GGA']", self.channels['GGA'])
-                        channels = list(self.channels['GGA'])
-                        print("channels", channels)
-                        #channel = channels[0]
-                        #
-                        #filename = self.file_path + repr(channel) + "_" + repr(current_secs) + '.' + 'txt'
-                        #try:
-                        #    with open(filename, 'w') as text_file:
-                        #        text_file.write(selected_line)
-                        #except PermissionError as e:
-                        #    print(e)
+                        print("selected_tag", selected_tag, "channels_list", channels_list)
+                        data_array = None
 
-                        orig_secs, orig_microsec, latitude, longitude = self.nmea.gga_to_time_pos(selected_line, year, month, monthday)
-                        gga_data = [ dict( [ (channels[0], selected_line) , (channels[1], [latitude]) , (channels[2], [longitude]) ] ) ]
-                        print("gga_data", gga_data)
-                        self.write(data_array = gga_data, selected_tag = 'GGA', timestamp_secs = current_secs, timestamp_microsecs = orig_microsec)      #float_numpy_file(latitude, channel, orig_secs, orig_microsec, self.file_path)
+                        if selected_tag == 'GGA' :
+                            year = current_timetuple[0]
+                            month = current_timetuple[1]
+                            monthday = current_timetuple[2]
+                            orig_secs, timestamp_microsecs, latitude, longitude = self.nmea.gga_to_time_pos(selected_line, year, month, monthday)
+                            data_array = [ dict( [ (channels_list[0], selected_line) , (channels_list[1], [latitude]) , (channels_list[2], [longitude]) ] ) ]
+                            
+                        if selected_tag == 'VTG' :
+                            data_array = [ dict( [ (channels_list[0], selected_line) ] ) ]
 
-                        #latitude_array = numpy.concatenate(([0.0], orig_microsec), axis = None)
-                        #latitude_array[0] = latitude
-                        #try:
-                        #    channel = channels[1]
-                        #    filename = self.file_path + repr(channel) + "_" + repr(current_secs) + '.' + 'npy'
-                        #    numpy.save(filename, latitude_array)
-                        #except PermissionError as e:
-                        #    rt.logging.exception(e)
-                        #
-                        #longitude_array = numpy.concatenate(([0.0], orig_microsec), axis = None)
-                        #longitude_array[0] = longitude
-                        #try:
-                        #    channel = channels[2]
-                        #    filename = self.file_path + repr(channel) + "_" + repr(current_secs) + '.' + 'npy'
-                        #    numpy.save(filename, longitude_array)
-                        #except PermissionError as e:
-                        #    rt.logging.exception(e)
-
-                except ValueError as e :
-
-                    print(e)
+                        print("data_array", data_array)
+                        if data_array is not None :
+                            self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
 
 
 
@@ -696,7 +848,7 @@ class TempFileUpload(Image):
     def upload_file(self, sample_secs = -9999):
 
         try :
-            print("self.capture_filename", self.capture_filename)
+            rt.logging.debug("self.capture_filename", self.capture_filename)
             with open(self.capture_filename, "rb") as image_file:
                 img_str = base64.b64encode(image_file.read())
             http = li.DirectUpload(channels = self.channels, start_delay = self.start_delay, host_api_url = self.host_api_url, client_api_url = self.client_api_url, max_connect_attempts = self.max_connect_attempts)
