@@ -79,6 +79,27 @@ def get_file_channel(current_file = None):
     return channel
 
 
+def load_text_string_file(current_file = None):
+
+    acquired_microsecs = 9999
+    acquired_value = -9999.0
+    acquired_subsamples = ''
+    acquired_base64 = b''
+
+    try :
+        with open(current_file, "r") as text_file :
+            text_string = text_file.read()
+            acquired_base64 = text_string.encode("utf-8") # base64.b64encode(
+    except OSError as e :
+        rt.logging.exception(e)
+        try:
+            os.remove(current_file)
+        except (PermissionError, FileNotFoundError, OSError) as e:
+            rt.logging.exception(e)
+
+    return acquired_microsecs, acquired_value, acquired_subsamples, acquired_base64
+
+
 
 class SQL:
 
