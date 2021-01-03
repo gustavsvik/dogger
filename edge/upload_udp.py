@@ -1,8 +1,8 @@
 import gateway.link
 
 
-mob_upload_sql_udp = gateway.link.SqlUdpRaw(
-    channels = {142,98}, 
+mob_upload_sql_udp = gateway.link.SqlUdpRawValue(
+    channels = {143,98}, 
     start_delay = 0,
     port = 61010,
     max_age = 10,
