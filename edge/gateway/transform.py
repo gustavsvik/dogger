@@ -64,15 +64,16 @@ class Nmea :
     def to_float(self, nmea_string, index) :
 
         nmea_fields = nmea_string.split(',')
-        print("nmea_fields", nmea_fields)
+        rt.logging.debug("nmea_fields", nmea_fields)
 
         try :
             value = float(nmea_fields[index])
         except ValueError as e :
             value = -9999.0
 
-        print("value", value)
+        rt.logging.debug("value", value)
         return value
+
 
     def from_float(self, multiplier, decimals, value) :
 
@@ -91,11 +92,11 @@ class Nmea :
             rt.logging.debug(nmea_data)
 
             nmea_string = '$' + nmea_data + '*' + self.get_checksum(nmea_data) + '\n'
-            print("nmea_string", nmea_string)
+            rt.logging.debug("nmea_string", nmea_string)
 
         except Exception as e :
 
-            print(e)
+            rt.logging.exception(e)
 
         finally :
 
@@ -142,16 +143,16 @@ class Nmea :
             nmea_data += self.append
 
         nmea_string = '$' + nmea_data + '*' + self.get_checksum(nmea_data) + '\n'
-        print('nmea_string', nmea_string)
+        rt.logging.debug('nmea_string', nmea_string)
 
         return nmea_string
 
 
     def gga_to_time_pos(self, nmea_string, year, month, monthday) :
 
-        #print("nmea_string", nmea_string)
+        #rt.logging.debug("nmea_string", nmea_string)
         nmea_fields = nmea_string.split(',')
-        print("nmea_fields", nmea_fields)
+        rt.logging.debug("nmea_fields", nmea_fields)
         orig_hour = int(float(nmea_fields[1])) // 10000
         orig_minute = ( int(float(nmea_fields[1])) - orig_hour * 10000 ) // 100
         orig_second = int(float(nmea_fields[1])) - orig_hour * 10000 - orig_minute * 100
@@ -177,23 +178,25 @@ class Nmea :
         aivdm_payload = self.prepend
 
         try :
-
+            print(mmsi, call_sign, vessel_name, ship_type)
             aivdm_message = ai.AISStaticAndVoyageReportMessage(mmsi = mmsi, callsign = call_sign, shipname = vessel_name, shiptype = ship_type, imo = 0)
             aivdm_instance = ai.AIS(aivdm_message)
             aivdm_payload += aivdm_instance.build_payload(False)
-            rt.logging.debug("aivdm_payload", aivdm_payload)
+            print("aivdm_payload", aivdm_payload)
 
         except ValueError as e :
 
             aivdm_payload += ''
-            rt.logging.exception(e)
+            print(e)
 
         finally :
 
             aivdm_payload += self.append
 
+        return aivdm_payload
 
-    def aivdm_from_pos(self, mmsi, timestamp, latitude, longitude) :
+
+    def aivdm_from_pos(self, mmsi, timestamp, latitude, longitude, status) :
 
         aivdm_payload = self.prepend
 
@@ -211,7 +214,7 @@ class Nmea :
             origin_timestamp = datetime_origin.timetuple()
             sec = origin_timestamp.tm_sec
             
-            aivdm_message = ai.AISPositionReportMessage(mmsi = mmsi, lon = longitude_min_fraction, lat = latitude_min_fraction, ts = sec, status = 15)
+            aivdm_message = ai.AISPositionReportMessage(mmsi = mmsi, lon = longitude_min_fraction, lat = latitude_min_fraction, ts = sec, status = status)
             aivdm_instance = ai.AIS(aivdm_message)
             aivdm_payload += aivdm_instance.build_payload(False)
             rt.logging.debug("aivdm_payload", aivdm_payload)
@@ -282,7 +285,7 @@ class Nmea :
                 longitude_min_fraction = int(longitude_degs * 60 * 10000)
                 rt.logging.debug("longitude_degs", longitude_degs, "longitude_min_fraction", longitude_min_fraction)
 
-                print("mmsi", mmsi, "aid_type", aid_type, "name", name, "longitude_min_fraction", longitude_min_fraction, "latitude_min_fraction", latitude_min_fraction, "virtual_aid", virtual_aid)
+                rt.logging.debug("mmsi", mmsi, "aid_type", aid_type, "name", name, "longitude_min_fraction", longitude_min_fraction, "latitude_min_fraction", latitude_min_fraction, "virtual_aid", virtual_aid)
                 aivdm_message = ai.AISAtonReport(mmsi = mmsi, aid_type = aid_type, name = name, lon = longitude_min_fraction, lat = latitude_min_fraction, virtual_aid = virtual_aid)
                 aivdm_instance = ai.AIS(aivdm_message)
                 aivdm_payload = aivdm_instance.build_payload(False)
