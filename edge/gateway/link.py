@@ -418,28 +418,33 @@ class HttpSql(HttpClient):
                         data_string = requested_data['returnstring']
                     except ValueError as e:  # includes simplejson.decoder.JSONDecodeError
                         rt.logging.debug("Decoding JSON has failed", e)
-
-                print("data_string",data_string)
+                rt.logging.debug("data_string", data_string)
 
                 channel_data = [channel_string.split(',') for channel_string in data_string.split(';')]
                 channel_list = channel_data[0::4][:-1]
+                rt.logging.debug("channel_list", channel_list)
                 data_list = channel_data[1::4]
+                rt.logging.debug("data_list", data_list)
                 times_list = [data[0::4][:-1] for data in data_list]
                 values_list = [data[1::4] for data in data_list]
+                rt.logging.debug("values_list", values_list)
+                byte_string_list = [data[3::4] for data in data_list]
+                rt.logging.debug("byte_string_list", byte_string_list)
 
                 try:
 
                     self.sql.connect_db()
 
-                    for channel, times, values in zip(channel_list, times_list, values_list) :
+                    for channel, times, values, byte_strings in zip(channel_list, times_list, values_list, byte_string_list) :
 
                         channel= channel[0]
 
-                        for timestamp, value in zip(times, values) :
-
+                        for timestamp, value, byte_string in zip(times, values, byte_strings) :
+                            replaced_byte_string = byte_string.replace('|', ',').replace('~', ';')
+                            rt.logging.debug("replaced_byte_string", replaced_byte_string)
                             with self.sql.conn.cursor() as cursor :
                                 # TODO: precede by SELECT to avoid INSERT attempts causing primary key violations
-                                sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,CHANNEL_INDEX,ACQUIRED_VALUE,STATUS) VALUES (" + str(timestamp) + "," + str(channel) + "," + str(value) + ",0)"
+                                sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,CHANNEL_INDEX,ACQUIRED_VALUE,ACQUIRED_BASE64,STATUS) VALUES (" + str(timestamp) + "," + str(channel) + "," + str(value) + ",'" + replaced_byte_string + "',0)"
                                 rt.logging.debug("sql", sql)
                                 try:
                                     cursor.execute(sql)
@@ -473,23 +478,6 @@ class Udp(Link):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
 
 
-    def set_requested(self, channels, times, values, ip = '127.0.0.1') :
-
-        for i in range(len(values)) :
-
-            try :
-
-                data_bytes = struct.pack('>HIf', int(channels[i]), int(times[i]), float(values[i]))   # short unsigned int, big endian
-                print("len(data_bytes)", len(data_bytes), "int(channels[i])", int(channels[i]), "int(times[i])", int(times[i]), "float(values[i])", float(values[i]), "ip", ip, "self.port", self.port)
-                try :
-                    self.socket.sendto(data_bytes, (ip, self.port))
-                except Exception as e :
-                    rt.logging.exception('Exception', e)
-
-            except Exception as e :
-                rt.logging.exception('Exception', e)
-
-
 
 class SqlUdp(Udp):
 
@@ -507,8 +495,9 @@ class SqlUdp(Udp):
 
         conn = self.sql.connect_db()
 
-        values = []
         times = []
+        values = []
+        byte_strings = []
 
         for channel in channels :
 
@@ -534,11 +523,12 @@ class SqlUdp(Udp):
                     base64_string = ''
                     if acquired_base64 is not None :
                         base64_string = acquired_base64.decode('utf-8')
-                    print("Channel: ", str(channel), ", Value: ", acquired_value, ", Timestamp: ", acquired_time, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
+                    rt.logging.debug("Channel: ", str(channel), ", Value: ", acquired_value, ", Timestamp: ", acquired_time, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
                     times.append(acquired_time)
                     values.append(acquired_value)
+                    byte_strings.append(acquired_base64)
 
-        return list(channels), times, values
+        return list(channels), times, values, byte_strings
 
 
     def run(self) :
@@ -551,9 +541,9 @@ class SqlUdp(Udp):
 
                 try:
 
-                    channels, times, values = self.get_requested(self.channels)
+                    channels, times, values, byte_strings = self.get_requested(self.channels)
                     rt.logging.debug(channels, times, values, ip)
-                    self.set_requested(channels, times, values, ip)
+                    self.set_requested(channels, times, values, byte_strings, ip)
 
                 except (pymysql.err.OperationalError, pymysql.err.Error) as e :
                     rt.logging.exception(e)
@@ -567,7 +557,7 @@ class SqlUdp(Udp):
 
 
 
-class SqlUdpRaw(SqlUdp) :
+class SqlUdpRawValue(SqlUdp) :
 
 
     def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
@@ -585,8 +575,61 @@ class SqlUdpRaw(SqlUdp) :
         SqlUdp.__init__(self)
 
 
+    def set_requested(self, channels, times, values, strings, ip = '127.0.0.1') :
 
-class SqlUdpNmea(SqlUdp) :
+        for i in range(len(values)) :
+
+            try :
+
+                data_bytes = struct.pack('>HIf', int(channels[i]), int(times[i]), float(values[i]))   # short unsigned int, big endian
+                print("len(data_bytes)", len(data_bytes), "int(channels[i])", int(channels[i]), "int(times[i])", int(times[i]), "float(values[i])", float(values[i]), "ip", ip, "self.port", self.port)
+                try :
+                    self.socket.sendto(data_bytes, (ip, self.port))
+                except Exception as e :
+                    rt.logging.exception('Exception', e)
+
+            except Exception as e :
+                rt.logging.exception('Exception', e)
+
+
+
+class SqlUdpRawBytes(SqlUdp) :
+
+
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.gateway_database_connection = gateway_database_connection
+        self.ip_list = ip_list
+        self.port = port
+        self.max_age = max_age
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        SqlUdp.__init__(self)
+
+
+    def set_requested(self, channels, times, values, strings, ip = '127.0.0.1') :
+
+        for i in range(len(values)) :
+
+            try :
+
+                data_bytes = struct.pack('>HI{}s'.format(len(strings[i])), int(channels[i]), int(times[i]), strings[i])
+                print("len(data_bytes)", len(data_bytes), "int(channels[i])", int(channels[i]), "int(times[i])", int(times[i]), "strings[i]", strings[i], "ip", ip, "self.port", self.port)
+                try :
+                    self.socket.sendto(data_bytes, (ip, self.port))
+                except Exception as e :
+                    rt.logging.exception('Exception', e)
+
+            except Exception as e :
+                rt.logging.exception('Exception', e)
+
+
+
+class SqlUdpNmeaValue(SqlUdp) :
 
 
     def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, multiplier = None, decimals = None, nmea_prepend = None, nmea_append = None, max_age = None, config_filepath = None, config_filename = None) :
@@ -610,13 +653,40 @@ class SqlUdpNmea(SqlUdp) :
         self.nmea = tr.Nmea(prepend = self.nmea_prepend, append = self.nmea_append)
 
 
-    def set_requested(self, channels, times, values, ip = '127.0.0.1') :
+    def set_requested(self, channels, times, values, strings, ip = '127.0.0.1') :
 
         for value in values :
 
             nmea_string = self.nmea.from_float(multiplier = self.multiplier, decimals = self.decimals, value = value)
             print("nmea_string", nmea_string)
             self.socket.sendto(nmea_string.encode('utf-8'), (ip, self.port))
+
+
+
+class SqlUdpBytes(SqlUdp) :
+
+
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.gateway_database_connection = gateway_database_connection
+        self.ip_list = ip_list
+        self.port = port
+        self.max_age = max_age
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        SqlUdp.__init__(self)
+
+
+    def set_requested(self, channels, times, values, strings, ip = '127.0.0.1') :
+
+        for byte_string in strings :
+
+            print("byte_string", byte_string)
+            self.socket.sendto(byte_string, (ip, self.port))
 
 
 
@@ -642,7 +712,7 @@ class SqlUdpNmeaPos(SqlUdp) :
         self.nmea = tr.Nmea(prepend = self.nmea_prepend, append = self.nmea_append)
 
 
-    def set_requested(self, channels, times, values, ip = '127.0.0.1'):
+    def set_requested(self, channels, times, values, strings, ip = '127.0.0.1'):
 
         try :
 
@@ -723,18 +793,18 @@ class SqlUdpAivdmPosition(SqlUdpAivdmStatic):
         SqlUdpAivdmStatic.__init__(self)
 
 
-    def set_requested(self, channels, times, values, ip = '127.0.0.1') :
+    def set_requested(self, channels, times, values, strings, ip = '127.0.0.1') :
 
         try :
-            aivdm_stat_payload = self.nmea.aivdm_from_static()
-            rt.logging.debug('aivdm_stat_payload', aivdm_stat_payload)
+            aivdm_stat_payload = self.nmea.aivdm_from_static(mmsi = self.mmsi, vessel_name = self.vessel_name, call_sign = self.call_sign, ship_type = self.ship_type)
+            print('aivdm_stat_payload', aivdm_stat_payload)
             self.socket.sendto(aivdm_stat_payload.encode('utf-8'), (ip, self.port))
-            rt.logging.debug("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
-            aivdm_pos_payload = self.nmea.aivdm_from_pos(mmsi = self.mmsi, timestamp = times[0], latitude = values[0], longitude = values[1])
-            rt.logging.debug('aivdm_pos_payload', aivdm_pos_payload)
+            print("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
+            aivdm_pos_payload = self.nmea.aivdm_from_pos(mmsi = self.mmsi, timestamp = times[0], latitude = values[0], longitude = values[1], status = self.nav_status)
+            print('aivdm_pos_payload', aivdm_pos_payload)
             self.socket.sendto(aivdm_pos_payload.encode('utf-8'), (ip, self.port))
         except Exception as e:
-            rt.logging.exception(e)
+            print(e)
 
 
 
@@ -760,7 +830,7 @@ class SqlUdpBinaryBroadcastMessageAreaNoticeCircle(SqlUdp):
         self.nmea = tr.Nmea(prepend = '', append = '')
 
 
-    def set_requested(self, channels, times, values, ip = '127.0.0.1') :
+    def set_requested(self, channels, times, values, strings, ip = '127.0.0.1') :
 
         try :
             rt.logging.debug("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
@@ -799,7 +869,7 @@ class SqlUdpAtonReport(SqlUdp):
         self.nmea = tr.Nmea(prepend = '', append = '')
 
 
-    def set_requested(self, channels, times, values, ip = '127.0.0.1') :
+    def set_requested(self, channels, times, values, strings, ip = '127.0.0.1') :
 
         try :
 
