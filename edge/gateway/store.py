@@ -78,7 +78,7 @@ class FileToSQL(LoadFile):
                     try:
                         rt.logging.debug(acquired_time_string + channel_string + acquired_value_string + str(self.acquired_subsamples) + str(self.acquired_base64))
                         insert_sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,ACQUIRED_MICROSECS,CHANNEL_INDEX,ACQUIRED_VALUE,ACQUIRED_SUBSAMPLES,ACQUIRED_BASE64) VALUES (%s,%s,%s,%s,%s,%s)"
-                        cursor.execute(insert_sql, (acquired_time_string, acquired_microsecs_string, channel_string, acquired_value_string, self.acquired_subsamples[1:-1], self.acquired_base64))
+                        cursor.execute(insert_sql, (acquired_time_string, acquired_microsecs_string, channel_string, acquired_value_string, self.acquired_subsamples, self.acquired_base64))
                     except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
                         rt.logging.exception(e)
                     insert_result = cursor.rowcount
@@ -225,8 +225,10 @@ class NumpyFile(FileToSQL):
         try:
             acquired_values = numpy.load(current_file)
             if len(acquired_values) > 1:
-                # acquired_subsamples = base64.b64encode( (acquired_values[2:]).astype('float32', casting = 'same_kind') )
-                acquired_subsamples = numpy.array2string(acquired_values[2:], separator=' ', max_line_width = numpy.inf, formatter = {'float': lambda x: format(x, '6.5E')})
+                # acquired_base64 = base64.b64encode( (acquired_values[2:]).astype('float32', casting = 'same_kind') )
+                # acquired_subsamples = numpy.array2string(acquired_values[2:], separator=' ', max_line_width = numpy.inf, formatter = {'float': lambda x: format(x, '6.5E')})
+                subsample_string = numpy.array2string(acquired_values[2:], separator=' ', max_line_width = numpy.inf, formatter = {'float': lambda x: format(x, '6.5E')})
+                acquired_base64 = subsample_string[1:-1]
             acquired_value = acquired_values[0]
             acquired_microsecs = acquired_values[1]
         except (OSError, ValueError, IndexError) as e:
@@ -302,20 +304,4 @@ class TextStringFile(FileToSQL):
 
     def load_file(self, current_file = None):
 
-        acquired_microsecs = 9999
-        acquired_value = -9999.0
-        acquired_subsamples = ''
-        acquired_base64 = b''
-
-        try :
-            with open(current_file, "r") as text_file :
-                text_string = text_file.read()
-                acquired_base64 = text_string.encode("utf-8") # base64.b64encode(
-        except OSError as e :
-            rt.logging.exception(e)
-            try:
-                os.remove(current_file)
-            except (PermissionError, FileNotFoundError, OSError) as e:
-                rt.logging.exception(e)
-
-        return acquired_microsecs, acquired_value, acquired_subsamples, acquired_base64
+        return ps.load_text_string_file(current_file)
