@@ -2,7 +2,7 @@ import gateway.link
 
 
 http_download = gateway.link.HttpSql(
-    channels = {61011,61012,142,98}, 
+    channels = {61011,61012,143,98,144,145,162}, 
     start_delay = 0, 
     client_api_url = '/client/', 
     max_connect_attempts = 50, 
