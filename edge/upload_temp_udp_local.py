@@ -1,7 +1,7 @@
 import gateway.link
 
 
-udp_upload_local = gateway.link.SqlUdpNmea(
+udp_upload_local = gateway.link.SqlUdpNmeaValue(
     channels = {98}, 
     start_delay = 0,
     port = 4444,
