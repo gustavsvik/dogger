@@ -78,6 +78,7 @@ class Configure:
 
         start_delay = to_float(strip_string(conf, top_label, 'start_delay'), 0.0)
         sample_rate = to_float(strip_string(conf, top_label, 'sample_rate'), 0.0)
+        transmit_rate = to_float(strip_string(conf, top_label, 'transmit_rate'), 0.0)
         max_connect_attempts = to_int(strip_string(conf, top_label, 'max_connect_attempts'), 0)
         samples_per_chan = to_float(strip_string(conf, top_label, 'samples_per_chan'), 0.0)
         video_rate = to_float(strip_string(conf, top_label, 'video_rate'), 0.0)
@@ -92,6 +93,7 @@ class Configure:
 
         if start_delay < 0.0 : start_delay = 0.0
         if sample_rate < 1.0 : sample_rate = 1.0
+        if transmit_rate < 1.0 : transmit_rate = 1.0
         if samples_per_chan < 1.0 : samples_per_chan = 1.0
         if video_rate < 0.0 : video_rate = 0.0
         if archive_interval < 1 : archive_interval = 1
@@ -111,6 +113,7 @@ class Configure:
         if os.path.isdir(net_archive_file_path) : archive_file_path = net_archive_file_path
         if sys.platform.startswith('win32') : archive_file_path = windows_archive_file_path
         env['SAMPLE_RATE'] = sample_rate
+        env['TRANSMIT_RATE'] = transmit_rate
         env['SAMPLES_PER_CHAN'] = samples_per_chan
         env['FILE_PATH'] = file_path
         env['WINDOWS_FILE_PATH'] = windows_file_path
