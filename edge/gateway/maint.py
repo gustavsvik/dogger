@@ -174,9 +174,10 @@ class PartitionCloudDatabase(PartitionDatabase) :
 class NetworkTime(ta.MaintenanceTask) :
 
 
-    def __init__(self, start_delay = None, ntp_url = None, ntp_port = None, adjust_interval = None, config_filepath = None, config_filename = None) :
+    def __init__(self, start_delay = None, ip_list = None, ntp_url = None, ntp_port = None, adjust_interval = None, config_filepath = None, config_filename = None) :
 
         self.start_delay = start_delay
+        self.ip_list = ip_list
         self.ntp_url = ntp_url
         self.ntp_port = ntp_port
         self.adjust_interval = adjust_interval
