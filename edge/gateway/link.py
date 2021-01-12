@@ -18,7 +18,7 @@ import gateway.transform as tr
 
 
 
-class Link(ta.Task):
+class Link(ta.LinkTask):
 
 
     def __init__(self):
@@ -213,9 +213,10 @@ class HttpClient(Http):
 class GetDBDataJson(HttpMaint):
 
 
-    def __init__(self, start_delay = None, ip_list = None, maint_api_url = None, max_connect_attempts = None, table_label = None, id_range = None, config_filepath = None, config_filename = None):
+    def __init__(self, start_delay = None, transmit_rate = None, ip_list = None, maint_api_url = None, max_connect_attempts = None, table_label = None, id_range = None, config_filepath = None, config_filename = None):
 
         self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
         self.ip_list = ip_list
         self.maint_api_url = maint_api_url
         self.max_connect_attempts = max_connect_attempts
@@ -232,10 +233,11 @@ class GetDBDataJson(HttpMaint):
 class DirectUpload(HttpHost, HttpClient):
 
 
-    def __init__(self, channels = None, start_delay = None, ip_list = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
         self.ip_list = ip_list
         self.host_api_url = host_api_url
         self.client_api_url = client_api_url
@@ -252,10 +254,11 @@ class DirectUpload(HttpHost, HttpClient):
 class Replicate(HttpHost):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.host_api_url = host_api_url
@@ -374,18 +377,18 @@ class Replicate(HttpHost):
                     if return_string is not None :
                         r_post = self.set_requested(return_string, ip)
 
-
-            time.sleep(1.0)
+            time.sleep(1/self.transmit_rate)
 
 
 
 class HttpSql(HttpClient):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.client_api_url = client_api_url
@@ -422,12 +425,12 @@ class HttpSql(HttpClient):
 
                 channel_data = [channel_string.split(',') for channel_string in data_string.split(';')]
                 channel_list = channel_data[0::4][:-1]
-                rt.logging.debug("channel_list", channel_list)
+                #print("channel_list", channel_list)
                 data_list = channel_data[1::4]
                 rt.logging.debug("data_list", data_list)
                 times_list = [data[0::4][:-1] for data in data_list]
                 values_list = [data[1::4] for data in data_list]
-                rt.logging.debug("values_list", values_list)
+                #print("values_list", values_list)
                 byte_string_list = [data[3::4] for data in data_list]
                 rt.logging.debug("byte_string_list", byte_string_list)
 
@@ -440,6 +443,7 @@ class HttpSql(HttpClient):
                         channel= channel[0]
 
                         for timestamp, value, byte_string in zip(times, values, byte_strings) :
+                            print("channel", channel, "timestamp", timestamp, "value", value)
                             replaced_byte_string = byte_string.replace('|', ',').replace('~', ';')
                             rt.logging.debug("replaced_byte_string", replaced_byte_string)
                             with self.sql.conn.cursor() as cursor :
@@ -464,7 +468,7 @@ class HttpSql(HttpClient):
                     except pymysql.err.Error as e:
                         rt.logging.exception(e)
 
-            time.sleep(1.0)
+            time.sleep(1/self.transmit_rate)
 
 
 
@@ -505,7 +509,7 @@ class SqlUdp(Udp):
             back_timestamp = current_timestamp - self.max_age
 
             sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + str(channel) + " AND AD.ACQUIRED_TIME BETWEEN " + str(back_timestamp) + " AND " + str(current_timestamp) + " ORDER BY AD.ACQUIRED_TIME DESC" 
-            rt.logging.debug("sql_get_values",sql_get_values)
+            print("sql_get_values",sql_get_values)
 
             with conn.cursor() as cursor :
                 try:
@@ -523,7 +527,7 @@ class SqlUdp(Udp):
                     base64_string = ''
                     if acquired_base64 is not None :
                         base64_string = acquired_base64.decode('utf-8')
-                    rt.logging.debug("Channel: ", str(channel), ", Value: ", acquired_value, ", Timestamp: ", acquired_time, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
+                    print("Channel: ", str(channel), ", Value: ", acquired_value, ", Timestamp: ", acquired_time) #, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
                     times.append(acquired_time)
                     values.append(acquired_value)
                     byte_strings.append(acquired_base64)
@@ -553,17 +557,18 @@ class SqlUdp(Udp):
                     self.sql.close_db_connection()
 
 
-            time.sleep(1.0)
+            time.sleep(1/self.transmit_rate)
 
 
 
 class SqlUdpRawValue(SqlUdp) :
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.port = port
@@ -596,10 +601,11 @@ class SqlUdpRawValue(SqlUdp) :
 class SqlUdpRawBytes(SqlUdp) :
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.port = port
@@ -632,10 +638,11 @@ class SqlUdpRawBytes(SqlUdp) :
 class SqlUdpNmeaValue(SqlUdp) :
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, multiplier = None, decimals = None, nmea_prepend = None, nmea_append = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, multiplier = None, decimals = None, nmea_prepend = None, nmea_append = None, max_age = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.port = port
@@ -666,10 +673,11 @@ class SqlUdpNmeaValue(SqlUdp) :
 class SqlUdpBytes(SqlUdp) :
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.port = port
@@ -684,19 +692,65 @@ class SqlUdpBytes(SqlUdp) :
     def set_requested(self, channels, times, values, strings, ip = '127.0.0.1') :
 
         for byte_string in strings :
-
             print("byte_string", byte_string)
             self.socket.sendto(byte_string, (ip, self.port))
+
+
+
+class SqlUdpNmeaLines(SqlUdp) :
+
+
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
+        self.gateway_database_connection = gateway_database_connection
+        self.ip_list = ip_list
+        self.port = port
+        self.max_age = max_age
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        SqlUdp.__init__(self)
+
+
+    def set_requested(self, channels, times, values, strings, ip = '127.0.0.1') :
+
+        for byte_string in strings :
+            nmea_sentence_array =  byte_string.split(b' ')
+            print("nmea_sentence_array", nmea_sentence_array)
+
+            for nmea_sentence in nmea_sentence_array :
+                if nmea_sentence.find(b'\n') and nmea_sentence.find(b'\r') :
+                    nmea_sentence += b'\r\n'
+                    print("nmea_sentence", nmea_sentence)
+                    self.socket.sendto(nmea_sentence, (ip, self.port))
+
+        # for byte_string in strings :
+            # nmea_string_array =  [b'$' + e for e in byte_string.split(b'$') if e]
+            # for nmea_sentence_string in nmea_string_array :
+                # if nmea_sentence_string != b'' :
+                    # if nmea_sentence_string[1:2] == b'!' :
+                        # nmea_sentence_array = [b'!' + e for e in nmea_sentence_string[1:].split(b'!') if e]
+                    # else :
+                        # nmea_sentence_array = [nmea_sentence_string]
+                    # for nmea_sentence in nmea_sentence_array :
+                        # if nmea_sentence[-1:] == b'\n' : nmea_sentence = nmea_sentence[:-1]
+                        # print("nmea_sentence + rn", nmea_sentence + b'\r\n')
+                        # self.socket.sendto(nmea_sentence, (ip, self.port))
 
 
 
 class SqlUdpNmeaPos(SqlUdp) :
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, nmea_prepend = None, nmea_append = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, nmea_prepend = None, nmea_append = None, max_age = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.port = port
@@ -772,10 +826,11 @@ class SqlUdpAivdmStatic(SqlUdp):
 class SqlUdpAivdmPosition(SqlUdpAivdmStatic):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, mmsi = None, vessel_name = None, call_sign = None, ship_type = None, nav_status = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, mmsi = None, vessel_name = None, call_sign = None, ship_type = None, nav_status = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.port = port
@@ -811,10 +866,11 @@ class SqlUdpAivdmPosition(SqlUdpAivdmStatic):
 class SqlUdpBinaryBroadcastMessageAreaNoticeCircle(SqlUdp):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, mmsi = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, mmsi = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.port = port
@@ -844,10 +900,11 @@ class SqlUdpBinaryBroadcastMessageAreaNoticeCircle(SqlUdp):
 
 class SqlUdpAtonReport(SqlUdp):
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, length_offset = None, width_offset = None, mmsi = None, aid_type = None, name = None, virtual_aid = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, length_offset = None, width_offset = None, mmsi = None, aid_type = None, name = None, virtual_aid = None, config_filepath = None, config_filename = None) :
         #repeat = 0, mmsi = 0, aid_type = 0, name = 0, accuracy = 0, lon = 181000, lat = 91000, to_bow = 0, to_stern = 0, to_port = 0, to_starboard = 0, epfd = 0, ts = 60, off_position = 0, raim = 0, virtual_aid = 0, assigned = 0)
         self.channels = channels
         self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.port = port
