@@ -242,7 +242,7 @@ class StaticFileNmeaFile(IngestFile) :
                             current_string_value = string_dict[selected_tag]
                         except KeyError as e :
                             pass
-                        string_dict[selected_tag] = current_string_value + text_string
+                        string_dict[selected_tag] = current_string_value + text_string #+ ' '
 
             print("string_dict", string_dict)
 
@@ -454,7 +454,7 @@ class SerialNmeaFile(SerialFile) :
                                     current_string_value = string_dict[selected_tag]
                                 except KeyError as e :
                                     pass
-                                string_dict[selected_tag] = current_string_value + selected_line
+                                string_dict[selected_tag] = current_string_value + selected_line + ' '
                                 #if timestamp_secs == prev_timestamp_secs ;
                                 #    string_dict[selected_tag] = string_dict[selected_tag] + selected_line
                                 #else :
