@@ -74,6 +74,18 @@ class AcquireControlTask(ProcessDataTask):
 
 
 
+class LinkTask(ProcessDataTask):
+
+
+    def __init__(self):
+
+        self.env = self.get_env()
+        if self.transmit_rate is None: self.transmit_rate = self.env['TRANSMIT_RATE']
+
+        ProcessDataTask.__init__(self)
+
+
+
 class MaintenanceTask(Task):
 
 
