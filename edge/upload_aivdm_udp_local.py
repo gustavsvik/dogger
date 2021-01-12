@@ -4,6 +4,7 @@ import gateway.link
 udp_upload_ais = gateway.link.SqlUdpAivdmPosition(
     channels = {61011,61012}, 
     start_delay = 0,
+    transmit_rate = 1, 
     port = 4444,
     max_age = 10,
     mmsi = 123456789,
