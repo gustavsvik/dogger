@@ -2,7 +2,7 @@ import gateway.store
 
 
 mob_store_numpy_sql = gateway.store.NumpyFile(
-    channels = {61011,61012}, 
+    channels = {61011, 61012, 168, 169}, 
     start_delay = 0, 
     file_path = '/srv/dogger/files/',
     files_to_keep = 0,
