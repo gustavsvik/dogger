@@ -258,3 +258,5 @@ class NetworkTime(ta.MaintenanceTask) :
                 if adj_time is not None :
                     self.adjust_win_system_time(adj_time)
                     diff_time = 0
+
+            time.sleep(0.2)
