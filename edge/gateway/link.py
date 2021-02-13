@@ -340,7 +340,7 @@ class Replicate(HttpHost):
                         else :
                             sql_timestamps = '(' + ','.join([str(ts) for ts in requested_timestamps]) + ')'
 
-                            sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + channel_string + " AND AD.ACQUIRED_TIME IN " + sql_timestamps
+                            sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + channel_string + " AND AD.ACQUIRED_TIME IN " + sql_timestamps + " AND AD.STATUS>=0"
                             rt.logging.debug("sql_get_values",sql_get_values)
 
                             return_string += channel_string + ';'
@@ -483,12 +483,33 @@ class Udp(Link):
 
 
 
-class SqlUdp(Udp):
+class UdpReceive(Udp):
+
+
+    def __init__(self):
+
+        Udp.__init__(self)
+
+        server_address = ('', self.port)
+        self.socket.bind(server_address)
+
+
+
+class UdpSend(Udp):
+
+
+    def __init__(self):
+
+        Udp.__init__(self)
+
+
+
+class SqlUdp(UdpSend):
 
 
     def __init__(self) :
 
-        Udp.__init__(self)
+        UdpSend.__init__(self)
 
         self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
@@ -508,7 +529,7 @@ class SqlUdp(Udp):
             current_timestamp = int(time.time())
             back_timestamp = current_timestamp - self.max_age
 
-            sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + str(channel) + " AND AD.ACQUIRED_TIME BETWEEN " + str(back_timestamp) + " AND " + str(current_timestamp) + " ORDER BY AD.ACQUIRED_TIME DESC" 
+            sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + str(channel) + " AND AD.ACQUIRED_TIME BETWEEN " + str(back_timestamp) + " AND " + str(current_timestamp) + " AND AD.STATUS>=0 ORDER BY AD.ACQUIRED_TIME DESC" 
             print("sql_get_values",sql_get_values)
 
             with conn.cursor() as cursor :
@@ -531,7 +552,7 @@ class SqlUdp(Udp):
                     times.append(acquired_time)
                     values.append(acquired_value)
                     byte_strings.append(acquired_base64)
-
+        print("byte_strings", byte_strings)
         return list(channels), times, values, byte_strings
 
 
@@ -746,7 +767,7 @@ class SqlUdpNmeaLines(SqlUdp) :
 class SqlUdpNmeaPos(SqlUdp) :
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, nmea_prepend = None, nmea_append = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -754,8 +775,6 @@ class SqlUdpNmeaPos(SqlUdp) :
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.port = port
-        self.nmea_prepend = nmea_prepend
-        self.nmea_append = nmea_append
         self.max_age = max_age
 
         self.config_filepath = config_filepath
@@ -763,14 +782,14 @@ class SqlUdpNmeaPos(SqlUdp) :
 
         SqlUdp.__init__(self)
 
-        self.nmea = tr.Nmea(prepend = self.nmea_prepend, append = self.nmea_append)
+        self.nmea = tr.Nmea()
 
 
     def set_requested(self, channels, times, values, strings, ip = '127.0.0.1'):
 
         try :
 
-            nmea_string = self.nmea.from_time_pos(nmea_prepend = self.nmea_prepend, timestamp = times[0], latitude = values[0], longitude = values[1], nmea_append = self.nmea_append)
+            nmea_string = self.nmea.gll_from_time_pos_float(timestamp = times[0], latitude = values[0], longitude = values[1])
             self.socket.sendto(nmea_string.encode('utf-8'), (ip, self.port))
 
         except Exception as e:
@@ -900,6 +919,7 @@ class SqlUdpBinaryBroadcastMessageAreaNoticeCircle(SqlUdp):
 
 class SqlUdpAtonReport(SqlUdp):
 
+
     def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, length_offset = None, width_offset = None, mmsi = None, aid_type = None, name = None, virtual_aid = None, config_filepath = None, config_filename = None) :
         #repeat = 0, mmsi = 0, aid_type = 0, name = 0, accuracy = 0, lon = 181000, lat = 91000, to_bow = 0, to_stern = 0, to_port = 0, to_starboard = 0, epfd = 0, ts = 60, off_position = 0, raim = 0, virtual_aid = 0, assigned = 0)
         self.channels = channels
@@ -940,3 +960,156 @@ class SqlUdpAtonReport(SqlUdp):
         except Exception as e :
 
             print(e)
+
+
+
+class SqlFile(ps.IngestFile):
+
+
+    def __init__(self) :
+
+        ps.IngestFile.__init__(self)
+
+        self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
+
+
+    def get_stored(self, channels) :
+
+        acquired_value = None
+
+        conn = self.sql.connect_db()
+
+        times = []
+        values = []
+        byte_strings = []
+
+        for channel in channels :
+
+            current_timestamp = int(time.time())
+            back_timestamp = current_timestamp - self.max_age
+
+            sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + str(channel) + " AND AD.ACQUIRED_TIME BETWEEN " + str(back_timestamp) + " AND " + str(current_timestamp) + " AND AD.STATUS>=0 ORDER BY AD.ACQUIRED_TIME DESC" 
+            print("sql_get_values",sql_get_values)
+
+            with conn.cursor() as cursor :
+                try:
+                    cursor.execute(sql_get_values)
+                except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e :
+                    rt.logging.exception(e)
+                results = cursor.fetchall()
+                rt.logging.debug(results)
+                if len(results) > 0 :
+                    row = results[0]
+                    acquired_time = row[0]
+                    acquired_value = row[1]
+                    acquired_subsamples = row[2]
+                    acquired_base64 = row[3]
+                    base64_string = ''
+                    if acquired_base64 is not None :
+                        base64_string = acquired_base64.decode('utf-8')
+                    print("Channel: ", str(channel), ", Value: ", acquired_value, ", Timestamp: ", acquired_time) #, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
+                    times.append(acquired_time)
+                    values.append(acquired_value)
+                    byte_strings.append(acquired_base64)
+
+        return list(channels), times, values, byte_strings
+
+
+    # def run(self) :
+
+        # time.sleep(self.start_delay)
+
+        # while True :
+
+
+                # try:
+
+                    # channels, times, values, byte_strings = self.get_stored(self.channels)
+                    # self.write(channels, times, values, byte_strings)
+
+                # except (pymysql.err.OperationalError, pymysql.err.Error) as e :
+                    # rt.logging.exception(e)
+
+                # finally :
+
+                    # self.sql.close_db_connection()
+
+
+            # time.sleep(1/self.transmit_rate)
+
+
+
+class SqlFileAtonReport(SqlFile):
+
+
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, length_offset = None, width_offset = None, mmsi = None, aid_type = None, name = None, virtual_aid = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
+        #repeat = 0, mmsi = 0, aid_type = 0, name = 0, accuracy = 0, lon = 181000, lat = 91000, to_bow = 0, to_stern = 0, to_port = 0, to_starboard = 0, epfd = 0, ts = 60, off_position = 0, raim = 0, virtual_aid = 0, assigned = 0)
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+        self.transmit_rate = transmit_rate
+        self.gateway_database_connection = gateway_database_connection
+        self.max_age = max_age
+        self.target_channels = target_channels
+
+        self.length_offset = length_offset
+        self.width_offset = width_offset
+
+        self.mmsi = mmsi
+        self.aid_type = aid_type
+        self.name = name
+        self.virtual_aid = virtual_aid
+
+        self.file_path = file_path
+        self.archive_file_path = archive_file_path
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        SqlFile.__init__(self)
+
+        self.nmea = tr.Nmea()
+
+
+    def run(self):
+
+        time.sleep(self.start_delay)
+
+        while True:
+
+            channels, times, values, byte_strings = self.get_stored(self.channels)
+            print("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
+            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+            print("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
+            aivdm_aton_payloads = self.nmea.aivdm_atons_from_pos(self.mmsi, values[0], values[1], self.aid_type, self.name, self.virtual_aid, self.length_offset, self.width_offset)
+            nmea_data_array = self.nmea.decode_to_channels(char_data = aivdm_aton_payloads, channel_data = { 'VDM':{170:'txt'} }, time_tuple = current_timetuple, line_end = ' ' )
+            print('nmea_data_array', nmea_data_array)
+
+                    # for aivdm_aton_payload in aivdm_aton_payloads :
+                        # if aivdm_aton_payload is not None :
+                            # (selected_tag, data_array), = aivdm_aton_payload.items()
+                            # self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+
+            time.sleep(1/self.transmit_rate)
+
+
+        # while True:
+
+
+            # for char_data in char_data_lines :
+
+                # if self.concatenate is None or not self.concatenate : 
+                    # char_data = [char_data]
+                # print("char_data", char_data)
+
+                # timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+                # nmea_data_array = self.nmea.decode_to_channels(char_data = char_data, channel_data = self.channels)
+
+                # for nmea_data in nmea_data_array :
+                    # if nmea_data is not None :
+                        # (selected_tag, data_array), = nmea_data.items()
+                        # print("data_array", data_array)
+                        # self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+
+                # time.sleep(1/self.sample_rate)
