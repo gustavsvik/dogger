@@ -2,7 +2,8 @@ import gateway.daqc
 
 
 usb_serial = gateway.daqc.SerialNmeaFile(
-    channels = { 'VDM':{144:'txt'} , 'VDO':{145:'txt'} , 'ALV':{146:'txt'} , 'ALR':{147:'txt'} }, 
+    channels = { 'VDM':{144:'txt'} , 'VDO':{145:'txt', 146:'npy', 147:'npy'} , 'ALV':{150:'txt'} , 'ALR':{151:'txt'} },
+    ctrl_channels = { 'GGA':{164:'txt'} },
     start_delay = 10, 
     sample_rate = 1,
     location = '1-5',
@@ -13,7 +14,6 @@ usb_serial = gateway.daqc.SerialNmeaFile(
     bytesize = 8,
     file_path = '/home/heta/Z/data/files/', 
     archive_file_path = '/home/heta/Z/data/files/',
-    start_pos = 1,
     delay_waiting_check = 0,
     config_filepath = '/home/heta/Z/app/python/dogger/', 
     config_filename = 'conf.ini')
