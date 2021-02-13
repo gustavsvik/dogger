@@ -2,7 +2,7 @@ import gateway.link
 
 
 mob_upload_sql_udp = gateway.link.SqlUdpRawBytes(
-    channels = {144,145,162}, 
+    channels = {144,145,162,163}, 
     start_delay = 0,
     transmit_rate = 1, 
     port = 61011,
