@@ -5,10 +5,12 @@ import glob
 import datetime
 import time
 import pymysql
+import numpy
 
 import gateway.runtime as rt
 import gateway.metadata as md
 import gateway.task as ta
+import gateway.transform as tr
 
 
 
@@ -98,6 +100,126 @@ def load_text_string_file(current_file = None):
             rt.logging.exception(e)
 
     return acquired_microsecs, acquired_value, acquired_subsamples, acquired_base64
+
+
+
+class AcquireControlFile(ta.AcquireControlTask) :
+
+
+    def __init__(self) :
+
+        self.env = self.get_env()
+        if self.file_path is None: self.file_path = self.env['FILE_PATH']
+
+        ta.AcquireControlTask.__init__(self)
+
+
+
+class ProcessFile(ta.ProcessDataTask) :
+
+
+    def __init__(self) :
+
+        self.env = self.get_env()
+        if self.file_path is None: self.file_path = self.env['FILE_PATH']
+
+        ta.ProcessDataTask.__init__(self)
+
+
+
+class LoadFile(ProcessFile):
+
+
+    def __init__(self):
+
+        ProcessFile.__init__(self)
+
+
+    def get_filenames(self, channel = None):
+    
+        files = get_all_files(path = self.file_path, extensions = self.file_extensions, channel = channel)
+
+        return files
+
+
+    def retrieve_file_data(self, current_file = None):
+
+        current_channel = get_file_channel(current_file)
+        acquired_time = get_file_timestamp(current_file)
+        acquired_time_string = repr(acquired_time)
+
+        self.current_channel = current_channel
+        self.acquired_time = acquired_time
+        self.current_file = current_file
+
+        self.acquired_microsecs, self.acquired_value, self.acquired_subsamples, self.acquired_base64 = self.load_file(current_file)
+
+
+
+class IngestFile(AcquireControlFile) :
+
+
+    def __init__(self) :
+
+        self.env = self.get_env()
+        if self.archive_file_path is None: self.archive_file_path = self.env['ARCHIVE_FILE_PATH']
+
+        AcquireControlFile.__init__(self)
+
+
+    def write(self, data_array = None, selected_tag = None, timestamp_secs = None, timestamp_microsecs = None, sample_rate = None, write_interval = None) :
+
+        rt.logging.debug("data_array", data_array)
+        selected_channel_array = [ tag_channels for channel_tag, tag_channels in self.channels.items() if channel_tag == selected_tag ]
+        rt.logging.debug("selected_channel_array", selected_channel_array)
+
+        for channel, file_type in selected_channel_array[0].items() :
+            rt.logging.debug ("channel, file_type", channel, file_type) 
+            rt.logging.debug("selected_channel_array[0][channel]", selected_channel_array[0][channel])
+            if self.file_path is not None and os.path.exists(self.file_path) :
+
+                if timestamp_secs is None and timestamp_microsecs is None and sample_rate is not None :
+                    timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = sample_rate)
+
+                if timestamp_microsecs is None : timestamp_microsecs = 0
+
+                capture_file_timestamp = timestamp_secs 
+                store_filename = self.file_path + str(channel) + '_' + str(capture_file_timestamp) + '.' + file_type
+
+                try :
+
+                    if file_type == 'npy' :
+                        float_array = data_array[0][channel]
+                        float_avg = tr.downsample(numpy.float64(float_array), 1)
+                        float_array = numpy.concatenate(([0.0], timestamp_microsecs, float_array), axis = None)
+                        float_array[0] = float_avg
+                        print("store_filename", store_filename, "float_array", float_array)
+                        try :
+                            numpy.save(store_filename, float_array)
+                        except PermissionError as e:
+                            rt.logging.exception(e)
+
+                    if file_type == 'txt' and data_array[0][channel] != '' :
+                        try :
+                            with open(store_filename, 'w') as text_file :
+                                text_file.write(data_array[0][channel])
+                        except PermissionError as e:
+                            rt.logging.exception(e)
+
+                except KeyError as e : 
+
+                    print(e)
+
+                if self.file_path is not None and os.path.exists(self.file_path):
+                    try:
+                        if self.archive_file_path is not None and os.path.exists(self.archive_file_path) :
+                            archive_filename = self.archive_file_path + str(channel) + '_' + str(capture_file_timestamp) + '.' + file_type
+                            #shutil.copy(store_filename, archive_filename)
+                    except (FileNotFoundError, PermissionError) as e:
+                        rt.logging.exception(e)
+
+                if write_interval is not None :
+                    time.sleep(self.write_interval)
 
 
 
