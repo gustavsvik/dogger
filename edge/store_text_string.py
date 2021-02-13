@@ -2,7 +2,7 @@ import gateway.store
 
 
 mob_store_text_sql = gateway.store.TextStringFile(
-    channels = {142,144,145,146,147,162}, 
+    channels = {142,144,145,150,151,162,163,167},
     start_delay = 0, 
     file_path = '/home/heta/Z/data/files/', 
     files_to_keep = 0,
