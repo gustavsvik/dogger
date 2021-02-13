@@ -9,49 +9,19 @@ import base64
 
 import gateway.runtime as rt
 import gateway.persist as ps
-import gateway.task as ta
 
 
 
-class LoadFile(ta.ProcessDataTask):
-
-
-    def __init__(self):
-
-        ta.ProcessDataTask.__init__(self)
-
-
-    def get_filenames(self, channel = None):
-    
-        files = ps.get_all_files(path = self.file_path, extensions = self.file_extensions, channel = channel)
-
-        return files
-
-
-
-class FileToSQL(LoadFile):
+class FileToSQL(ps.LoadFile):
 
 
     def __init__(self):
 
-        LoadFile.__init__(self)
+        ps.LoadFile.__init__(self)
 
         self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
         
         if self.files_to_keep is None : self.files_to_keep = 2
-
-
-    def retrieve_file_data(self, current_file = None):
-
-        current_channel = ps.get_file_channel(current_file)
-        acquired_time = ps.get_file_timestamp(current_file)
-        acquired_time_string = repr(acquired_time)
-
-        self.current_channel = current_channel
-        self.acquired_time = acquired_time
-        self.current_file = current_file
-
-        self.acquired_microsecs, self.acquired_value, self.acquired_subsamples, self.acquired_base64 = self.load_file(current_file)
 
 
     def store_file_data(self):
@@ -77,7 +47,7 @@ class FileToSQL(LoadFile):
                 with self.sql.conn.cursor() as cursor :
                     try:
                         rt.logging.debug(acquired_time_string + channel_string + acquired_value_string + str(self.acquired_subsamples) + str(self.acquired_base64))
-                        insert_sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,ACQUIRED_MICROSECS,CHANNEL_INDEX,ACQUIRED_VALUE,ACQUIRED_SUBSAMPLES,ACQUIRED_BASE64) VALUES (%s,%s,%s,%s,%s,%s)"
+                        insert_sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,ACQUIRED_MICROSECS,CHANNEL_INDEX,ACQUIRED_VALUE,ACQUIRED_SUBSAMPLES,ACQUIRED_BASE64,STATUS) VALUES (%s,%s,%s,%s,%s,%s,0)"
                         cursor.execute(insert_sql, (acquired_time_string, acquired_microsecs_string, channel_string, acquired_value_string, self.acquired_subsamples, self.acquired_base64))
                     except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
                         rt.logging.exception(e)
