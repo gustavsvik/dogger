@@ -2,7 +2,7 @@ import gateway.link
 
 
 udp_upload_local = gateway.link.SqlUdpBytes(
-    channels = {162,163}, 
+    channels = {162,163,171}, 
     start_delay = 0,
     transmit_rate = 1, 
     port = 4444,
