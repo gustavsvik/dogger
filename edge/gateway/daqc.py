@@ -60,10 +60,11 @@ class UdpHttp(li.UdpReceive) :
 class UdpValueHttp(UdpHttp) :
 
 
-    def __init__(self, channels = None, start_delay = None, ip_list = None, port = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, port = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
         self.ip_list = ip_list
         self.port = port
         self.max_connect_attempts = max_connect_attempts
@@ -80,7 +81,7 @@ class UdpValueHttp(UdpHttp) :
 
         while True :
 
-            time.sleep(0.1)
+            #time.sleep(1/self.transmit_rate)
             data, address = self.socket.recvfrom(4096)
             print("data", data, "len(data)", len(data))
             values = struct.unpack('>HIf', data)
@@ -92,10 +93,11 @@ class UdpValueHttp(UdpHttp) :
 class UdpBytesHttp(UdpHttp) :
 
 
-    def __init__(self, channels = None, start_delay = None, ip_list = None, port = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, port = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
         self.ip_list = ip_list
         self.port = port
         self.max_connect_attempts = max_connect_attempts
@@ -112,13 +114,13 @@ class UdpBytesHttp(UdpHttp) :
 
         while True :
 
-            time.sleep(0.1)
+            #time.sleep(1/self.transmit_rate)
             data, address = self.socket.recvfrom(4096)
             print("data", data, "len(data)", len(data))
             values = struct.unpack_from('>HI', data, offset = 0)
             print("values", values)
             byte_string = struct.unpack_from( '{}s'.format(len(data) - 6), data[6:len(data)], offset = 0)
-            replaced_byte_string = byte_string[0].replace(b',', b'|').replace(b';', b'~')
+            replaced_byte_string = tr.armor_separators(byte_string[0])
             print("replaced_byte_string", replaced_byte_string)
             self.upload_data(int(values[0]), int(values[1]), -9999.0, replaced_byte_string)
 
@@ -311,6 +313,7 @@ class SerialNmeaFile(SerialFile) :
                     #timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
                     #nmea_data_array = self.nmea.decode_to_channels(char_data = self.acquire_base64, channel_data = self.ctrl_channels, time_tuple = current_timetuple, line_end = ' ')
                     #from_time_pos(timestamp, latitude, longitude)
+                #self.serial_conn.write(b'$GPGGA,204000.000,6237.8000,N,01757.0000,E,1,9,0.91,44.7,M,24.4,M,,*62\r\n')
 
                 response = ''
                 while self.serial_conn.in_waiting:
@@ -362,13 +365,14 @@ class UdpFile(li.UdpReceive, ps.IngestFile):
 class NmeaUdpFile(UdpFile):
 
 
-    def __init__(self, channels = None, ip_list = None, port = None, start_delay = None, sample_rate = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, ip_list = None, port = None, start_delay = None, sample_rate = None, transmit_rate = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.ip_list = ip_list
         self.port = port
         self.start_delay = start_delay
         self.sample_rate = sample_rate
+        self.transmit_rate = transmit_rate
         self.file_path = file_path
         self.archive_file_path = archive_file_path
 
@@ -386,7 +390,7 @@ class NmeaUdpFile(UdpFile):
 
         while True :
 
-            time.sleep(0.1)
+            #time.sleep(1/self.transmit_rate)
 
             data = None
             address = None
@@ -401,25 +405,27 @@ class NmeaUdpFile(UdpFile):
 
             timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
             nmea_data_array = self.nmea.decode_to_channels(char_data = data_lines, channel_data = self.channels, time_tuple = current_timetuple, line_end = None)
-
+            print("nmea_data_array", nmea_data_array)
             for nmea_data in nmea_data_array :
                 if nmea_data is not None :
                     (selected_tag, data_array), = nmea_data.items()
                     print("data_array", data_array)
-                    self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+                    if not ( None in data_array ) :
+                        self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
 
 
 
 class RawUdpFile(UdpFile):
 
 
-    def __init__(self, channels = None, ip_list = None, port = None, start_delay = None, sample_rate = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, ip_list = None, port = None, start_delay = None, sample_rate = None, transmit_rate = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.ip_list = ip_list
         self.port = port
         self.start_delay = start_delay
         self.sample_rate = sample_rate
+        self.transmit_rate = transmit_rate
         self.file_path = file_path
         self.archive_file_path = archive_file_path
 
@@ -437,7 +443,7 @@ class RawUdpFile(UdpFile):
 
         while True :
 
-            time.sleep(0.1)
+            #time.sleep(1/self.transmit_rate)
 
             data = None
             address = None
@@ -655,7 +661,7 @@ class ScreenshotUpload(Image):
             for current_ip in self.ip_list :
                 res = http.send_request(start_time = sample_secs, end_time = sample_secs, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
                 data_string = str(channel) + ';' + str(sample_secs) + ',-9999.0,,' + str(img_str.decode('utf-8')) + ',;'
-                rt.logging.debug('data_string', data_string[0:100])
+                rt.logging.debug('data_string', data_string[:100])
                 res = http.set_requested(data_string, ip = current_ip)
 
         except PermissionError as e :
@@ -725,7 +731,7 @@ class TempFileUpload(Image):
             for current_ip in self.ip_list :
                 res = http.send_request(start_time = sample_secs, end_time = sample_secs, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
                 data_string = str(channel) + ';' + str(sample_secs) + ',-9999.0,,' + str(img_str.decode('utf-8')) + ',;'
-                rt.logging.debug('data_string', data_string[0:100])
+                rt.logging.debug('data_string', data_string[:100])
                 res = http.set_requested(data_string, ip = current_ip)
 
         except PermissionError as e :
