@@ -167,15 +167,20 @@ class IngestFile(AcquireControlFile) :
         AcquireControlFile.__init__(self)
 
 
-    def write(self, data_array = None, selected_tag = None, timestamp_secs = None, timestamp_microsecs = None, sample_rate = None, write_interval = None) :
+    def write(self, target_channels = None, data_array = None, selected_tag = None, timestamp_secs = None, timestamp_microsecs = None, sample_rate = None, write_interval = None) :
 
-        rt.logging.debug("data_array", data_array)
-        selected_channel_array = [ tag_channels for channel_tag, tag_channels in self.channels.items() if channel_tag == selected_tag ]
-        rt.logging.debug("selected_channel_array", selected_channel_array)
+        write_channels = self.channels
+        if target_channels is not None :
+            write_channels = target_channels
+        print("write_channels", write_channels)
+        print("data_array", data_array)
+        selected_channel_array = [ tag_channels for channel_tag, tag_channels in write_channels.items() if channel_tag == selected_tag ]
+        print("selected_channel_array", selected_channel_array)
 
         for channel, file_type in selected_channel_array[0].items() :
-            rt.logging.debug ("channel, file_type", channel, file_type) 
-            rt.logging.debug("selected_channel_array[0][channel]", selected_channel_array[0][channel])
+            print("channel, file_type", channel, file_type) 
+            print("selected_channel_array[0][channel]", selected_channel_array[0][channel])
+            print("self.file_path", self.file_path)
             if self.file_path is not None and os.path.exists(self.file_path) :
 
                 if timestamp_secs is None and timestamp_microsecs is None and sample_rate is not None :
@@ -193,18 +198,18 @@ class IngestFile(AcquireControlFile) :
                         float_avg = tr.downsample(numpy.float64(float_array), 1)
                         float_array = numpy.concatenate(([0.0], timestamp_microsecs, float_array), axis = None)
                         float_array[0] = float_avg
-                        print("store_filename", store_filename, "float_array", float_array)
+                        print("float_array", float_array)
                         try :
                             numpy.save(store_filename, float_array)
                         except PermissionError as e:
-                            rt.logging.exception(e)
+                            print(e)
 
                     if file_type == 'txt' and data_array[0][channel] != '' :
                         try :
                             with open(store_filename, 'w') as text_file :
                                 text_file.write(data_array[0][channel])
                         except PermissionError as e:
-                            rt.logging.exception(e)
+                            print(e)
 
                 except KeyError as e : 
 
@@ -216,7 +221,7 @@ class IngestFile(AcquireControlFile) :
                             archive_filename = self.archive_file_path + str(channel) + '_' + str(capture_file_timestamp) + '.' + file_type
                             #shutil.copy(store_filename, archive_filename)
                     except (FileNotFoundError, PermissionError) as e:
-                        rt.logging.exception(e)
+                        print(e)
 
                 if write_interval is not None :
                     time.sleep(self.write_interval)
@@ -264,6 +269,114 @@ class SQL:
             self.conn.commit()
         except (pymysql.err.OperationalError, pymysql.err.Error) as e :
             rt.logging.exception(e)
+
+
+    def get_stored(self, channels, max_age) :
+
+        times = []
+        values = []
+        byte_strings = []
+
+        for channel in channels :
+
+            current_timestamp = int(time.time())
+            back_timestamp = current_timestamp - max_age
+
+            sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + str(channel) + " AND AD.ACQUIRED_TIME BETWEEN " + str(back_timestamp) + " AND " + str(current_timestamp) + " AND AD.STATUS>=0 ORDER BY AD.ACQUIRED_TIME DESC" 
+            print("sql_get_values",sql_get_values)
+
+            with self.conn.cursor() as cursor :
+                try:
+                    cursor.execute(sql_get_values)
+                except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e :
+                    rt.logging.exception(e)
+                results = cursor.fetchall()
+                rt.logging.debug(results)
+                if len(results) > 0 :
+                    row = results[0]
+                    acquired_time = row[0]
+                    acquired_value = row[1]
+                    acquired_subsamples = row[2]
+                    acquired_base64 = row[3]
+                    base64_string = ''
+                    if acquired_base64 is not None :
+                        base64_string = acquired_base64.decode('utf-8')
+                    print("Channel: ", str(channel), ", Value: ", acquired_value, ", Timestamp: ", acquired_time) #, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
+                    times.append(acquired_time)
+                    values.append(acquired_value)
+                    byte_strings.append(acquired_base64)
+
+        return list(channels), times, values, byte_strings
+
+
+    def get_requests(self, channel_list, timestamp_list) :
+
+        return_string = None
+
+        if not ( None in [channel_list, timestamp_list] ) and not ( 0 in [len(channel_list), len(timestamp_list)] ) : 
+
+            try:
+
+                self.connect_db()
+
+                return_string = ""
+
+                #channel_start = 0
+                #end = 0
+                #if data_string is not None:
+                #    end = len(data_string)
+
+                # channel_list = []
+                # timestamp_list = []
+                # if data_string is not None:
+                    # channel_timestamps = [channel_string.split(',') for channel_string in data_string.split(';')]
+                    # channel_list = channel_timestamps[0::2][:-1]
+                    # timestamp_list = channel_timestamps[1::2]
+
+                for channel_index in range(len(channel_list)):
+
+                    requested_timestamps = [int(ts_string) for ts_string in timestamp_list[channel_index][:-1]] 
+                    channel_string = channel_list[channel_index][0]
+
+                    if not requested_timestamps :
+                        pass
+                    else :
+                        sql_timestamps = '(' + ','.join([str(ts) for ts in requested_timestamps]) + ')'
+
+                        sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + channel_string + " AND AD.ACQUIRED_TIME IN " + sql_timestamps + " AND AD.STATUS>=0"
+                        print("sql_get_values",sql_get_values)
+
+                        return_string += channel_string + ';'
+                        with self.conn.cursor() as cursor :
+                            try:
+                                cursor.execute(sql_get_values)
+                            except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
+                                rt.logging.exception(e)
+                            results = cursor.fetchall()
+                            for row in results:
+                                acquired_time = row[0]
+                                acquired_value = row[1]
+                                acquired_subsamples = row[2]
+                                acquired_base64 = row[3]
+                                base64_string = acquired_base64.decode('utf-8')
+                                rt.logging.debug("Channel: ", channel_string, ", Value: ", acquired_value, ", Timestamp: ", acquired_time, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
+                                if acquired_time in requested_timestamps:
+                                    requested_timestamps.remove(acquired_time)
+                                return_string += str(acquired_time) + ',' + str(acquired_value) + ',' + str(acquired_subsamples) + ',' + str(base64_string) + ','
+                        return_string += ';'
+
+                        if len(requested_timestamps) > 0:
+                            if min(requested_timestamps) < int(time.time()) - 3600:
+                                r_clear = self.clear_data_requests(ip)
+
+            except (pymysql.err.OperationalError, pymysql.err.Error) as e:
+                rt.logging.exception(e)
+
+            finally:
+
+                self.close_db_connection()
+                
+        return return_string
 
 
     def close_db_connection(self) :
