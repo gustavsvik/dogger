@@ -4,10 +4,6 @@ import json
 import yaml
 
 
-def get_channel_range_string(channels) :
-
-    return ';;'.join([str(ch) for ch in channels]) + ';;'
-
 
 def instance_from_dict(cls, argument_dict) :
 
