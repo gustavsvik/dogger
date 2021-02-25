@@ -302,8 +302,6 @@ class SqlHttp(HttpHost, HttpClient):
                 print("self.channels", self.channels, "self.max_age", self.max_age)
                 channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
                 print("channels", channels, "times", times, "values", values, "byte_strings", byte_strings)
-                #for ip in self.ip_list :
-                #    print("ip", ip)
                 self.upload_data(channels, times, values, byte_strings, self.ip_list) #[ip])
             except (pymysql.err.OperationalError, pymysql.err.Error) as e :
                 rt.logging.exception(e)
@@ -375,136 +373,12 @@ class Replicate(HttpHost):
                 channel_list, timestamp_list = tr.parse_channel_timestamp_string(data_string)
                 print("channel_list", channel_list, "timestamp_list", timestamp_list)
                 return_string = None
-
-                # try:
-
-                    # self.sql.connect_db()
-
-                    # return_string = ""
-
-                    # #channel_start = 0
-                    # #end = 0
-                    # #if data_string is not None:
-                    # #    end = len(data_string)
-
-                    # # channel_list = []
-                    # # timestamp_list = []
-                    # # if data_string is not None:
-                        # # channel_timestamps = [channel_string.split(',') for channel_string in data_string.split(';')]
-                        # # channel_list = channel_timestamps[0::2][:-1]
-                        # # timestamp_list = channel_timestamps[1::2]
-
-                    # for channel_index in range(len(channel_list)):
-
-                        # requested_timestamps = [int(ts_string) for ts_string in timestamp_list[channel_index][:-1]] 
-                        # channel_string = channel_list[channel_index][0]
-
-                        # if not requested_timestamps :
-                            # pass
-                        # else :
-                            # sql_timestamps = '(' + ','.join([str(ts) for ts in requested_timestamps]) + ')'
-
-                            # sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + channel_string + " AND AD.ACQUIRED_TIME IN " + sql_timestamps + " AND AD.STATUS>=0"
-                            # rt.logging.debug("sql_get_values",sql_get_values)
-
-                            # return_string += channel_string + ';'
-                            # with self.sql.conn.cursor() as cursor :
-                                # try:
-                                    # cursor.execute(sql_get_values)
-                                # except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
-                                    # rt.logging.exception(e)
-                                # results = cursor.fetchall()
-                                # for row in results:
-                                    # acquired_time = row[0]
-                                    # acquired_value = row[1]
-                                    # acquired_subsamples = row[2]
-                                    # acquired_base64 = row[3]
-                                    # base64_string = acquired_base64.decode('utf-8')
-                                    # rt.logging.debug("Channel: ", channel_string, ", Value: ", acquired_value, ", Timestamp: ", acquired_time, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
-                                    # if acquired_time in requested_timestamps:
-                                        # requested_timestamps.remove(acquired_time)
-                                    # return_string += str(acquired_time) + ',' + str(acquired_value) + ',' + str(acquired_subsamples) + ',' + str(base64_string) + ','
-                            # return_string += ';'
-
-                            # if len(requested_timestamps) > 0:
-                                # if min(requested_timestamps) < int(time.time()) - 3600:
-                                    # r_clear = self.clear_data_requests(ip)
-
-                # except (pymysql.err.OperationalError, pymysql.err.Error) as e:
-                    # rt.logging.exception(e)
-
-                # finally:
-
-                    # self.sql.close_db_connection()
-
                 return_string = self.sql.get_requests(channel_list, timestamp_list)
-
                 print("return_string", return_string)
                 if return_string is not None :
                     r_post = self.set_requested(return_string, ip)
                     print("r_post", r_post)
             time.sleep(1/self.transmit_rate)
-
-
-
-# class SqlHttpAtonReport(DirectUpload):
-
-
-    # def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, length_offset = None, width_offset = None, mmsi = None, aid_type = None, name = None, virtual_aid = None, config_filepath = None, config_filename = None) :
-        # #repeat = 0, mmsi = 0, aid_type = 0, name = 0, accuracy = 0, lon = 181000, lat = 91000, to_bow = 0, to_stern = 0, to_port = 0, to_starboard = 0, epfd = 0, ts = 60, off_position = 0, raim = 0, virtual_aid = 0, assigned = 0)
-        # self.channels = channels
-        # self.start_delay = start_delay
-        # self.transmit_rate = transmit_rate
-        # self.gateway_database_connection = gateway_database_connection
-        # self.ip_list = ip_list
-        # self.port = port
-        # self.max_age = max_age
-
-        # self.length_offset = length_offset
-        # self.width_offset = width_offset
-
-        # self.mmsi = mmsi
-        # self.aid_type = aid_type
-        # self.name = name
-        # self.virtual_aid = virtual_aid
-
-        # self.config_filepath = config_filepath
-        # self.config_filename = config_filename
-
-        # SqlUdp.__init__(self)
-
-        # self.nmea = tr.Nmea(prepend = '', append = '')
-
-
-    # def set_requested(self, channels, times, values, strings, ip = '127.0.0.1') :
-
-        # try :
-
-            # print("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
-            # aivdm_aton_payloads = self.nmea.aivdm_atons_from_pos(self.mmsi, values[0], values[1], self.aid_type, self.name, self.virtual_aid, self.length_offset, self.width_offset)
-            # print('aivdm_aton_payloads', aivdm_aton_payloads)
-
-            # for aivdm_aton_payload in aivdm_aton_payloads :
-                # self.socket.sendto(aivdm_aton_payload.encode('utf-8'), (ip, self.port))
-
-        # except Exception as e :
-
-            # print(e)
-
-
-    # def upload_data(self, channel, sample_secs, data_value, byte_string) :
-
-        # if self.channels is not None and ( self.channels == set() or channel in self.channels ) :
-
-            # try :
-                # http = li.DirectUpload(channels = [channel], start_delay = self.start_delay, max_connect_attempts = self.max_connect_attempts, config_filepath = self.config_filepath, config_filename = self.config_filename)
-                # for current_ip in self.ip_list :
-                    # res = http.send_request(start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
-                    # data_string = str(channel) + ';' + str(sample_secs) + ',' + str(data_value) + ',,' + byte_string.decode() + ',;'
-                    # print("data_string", data_string)
-                    # res = http.set_requested(data_string, ip = current_ip)
-            # except PermissionError as e :
-                # rt.logging.exception(e)
 
 
 
@@ -535,7 +409,6 @@ class HttpSql(HttpClient):
 
         while True:
 
-
             for ip in self.ip_list :
 
                 data_string = ''
@@ -550,16 +423,6 @@ class HttpSql(HttpClient):
                         rt.logging.debug("Decoding JSON has failed", e)
                 rt.logging.debug("data_string", data_string)
 
-                # channel_data = [channel_string.split(',') for channel_string in data_string.split(';')]
-                # channel_list = channel_data[0::4][:-1]
-                # #print("channel_list", channel_list)
-                # data_list = channel_data[1::4]
-                # rt.logging.debug("data_list", data_list)
-                # times_list = [data[0::4][:-1] for data in data_list]
-                # values_list = [data[1::4] for data in data_list]
-                # #print("values_list", values_list)
-                # byte_string_list = [data[3::4] for data in data_list]
-                # rt.logging.debug("byte_string_list", byte_string_list)
                 channel_list, times_list, values_list, byte_string_list = tr.parse_delimited_string(data_string)
                 print("channel_list", channel_list, "times_list", times_list, "values_list", values_list, "byte_string_list", byte_string_list)
                 try:
@@ -568,7 +431,6 @@ class HttpSql(HttpClient):
                         channel= channel[0]
                         for timestamp, value, byte_string in zip(times, values, byte_strings) :
                             replaced_byte_string = tr.de_armor_separators(byte_string)
-                            # replaced_byte_string = byte_string.replace('|', ',').replace('~', ';')
                             rt.logging.debug("replaced_byte_string", replaced_byte_string)
                             with self.sql.conn.cursor() as cursor :
                                 # TODO: precede by SELECT to avoid INSERT attempts causing primary key violations
@@ -638,48 +500,6 @@ class SqlUdp(UdpSend):
         self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
 
-    # def get_stored(self, channels) :
-
-        # acquired_value = None
-
-        # conn = self.sql.connect_db()
-
-        # times = []
-        # values = []
-        # byte_strings = []
-
-        # for channel in channels :
-
-            # current_timestamp = int(time.time())
-            # back_timestamp = current_timestamp - self.max_age
-
-            # sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + str(channel) + " AND AD.ACQUIRED_TIME BETWEEN " + str(back_timestamp) + " AND " + str(current_timestamp) + " AND AD.STATUS>=0 ORDER BY AD.ACQUIRED_TIME DESC" 
-            # print("sql_get_values",sql_get_values)
-
-            # with conn.cursor() as cursor :
-                # try:
-                    # cursor.execute(sql_get_values)
-                # except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e :
-                    # rt.logging.exception(e)
-                # results = cursor.fetchall()
-                # rt.logging.debug(results)
-                # if len(results) > 0 :
-                    # row = results[0]
-                    # acquired_time = row[0]
-                    # acquired_value = row[1]
-                    # acquired_subsamples = row[2]
-                    # acquired_base64 = row[3]
-                    # base64_string = ''
-                    # if acquired_base64 is not None :
-                        # base64_string = acquired_base64.decode('utf-8')
-                    # print("Channel: ", str(channel), ", Value: ", acquired_value, ", Timestamp: ", acquired_time) #, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
-                    # times.append(acquired_time)
-                    # values.append(acquired_value)
-                    # byte_strings.append(acquired_base64)
-        # print("byte_strings", byte_strings)
-        # return list(channels), times, values, byte_strings
-
-
     def run(self) :
 
         time.sleep(self.start_delay)
@@ -733,14 +553,6 @@ class SqlUdpRawValue(SqlUdp) :
                         self.socket.sendto(data_bytes, (ip, self.port))
                     except Exception as e :
                         rt.logging.exception('Exception', e)
-
-                                                                                                                                      
-                                                                                                                                                                                                       
-                     
-                                                                   
-                                       
-                                                        
-
             except Exception as e :
                 rt.logging.exception('Exception', e)
 
@@ -846,6 +658,7 @@ class SqlUdpBytes(SqlUdp) :
                 self.socket.sendto(byte_string, (ip, self.port))
 
 
+
 class SqlUdpNmeaLines(SqlUdp) :
 
 
@@ -877,18 +690,6 @@ class SqlUdpNmeaLines(SqlUdp) :
                         nmea_sentence += b'\r\n'
                         print("nmea_sentence", nmea_sentence)
                         self.socket.sendto(nmea_sentence, (ip, self.port))
-        # for byte_string in strings :
-            # nmea_string_array =  [b'$' + e for e in byte_string.split(b'$') if e]
-            # for nmea_sentence_string in nmea_string_array :
-                # if nmea_sentence_string != b'' :
-                    # if nmea_sentence_string[1:2] == b'!' :
-                        # nmea_sentence_array = [b'!' + e for e in nmea_sentence_string[1:].split(b'!') if e]
-                    # else :
-                        # nmea_sentence_array = [nmea_sentence_string]
-                    # for nmea_sentence in nmea_sentence_array :
-                        # if nmea_sentence[-1:] == b'\n' : nmea_sentence = nmea_sentence[:-1]
-                        # print("nmea_sentence + rn", nmea_sentence + b'\r\n')
-                        # self.socket.sendto(nmea_sentence, (ip, self.port))
 
 
 
@@ -949,18 +750,6 @@ class SqlUdpAivdmStatic(SqlUdp):
         finally :
             aivdm_payload += ''
         return aivdm_payload
-
-
-    # def set_requested(self, channels, times, values, ip = '127.0.0.1'):
-
-        # try :
-            # rt.logging.debug("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
-            # aivdm_payload = self.get_aivdm_payload()
-            # rt.logging.debug('aivdm_payload', aivdm_payload)
-            # self.socket.sendto(aivdm_payload.encode('utf-8'), (ip, self.port))
-
-        # except Exception as e:
-            # rt.logging.exception(e)
 
 
 
@@ -1094,28 +883,6 @@ class SqlFile(ps.IngestFile):
 
         self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
-    # def run(self) :
-
-        # time.sleep(self.start_delay)
-
-        # while True :
-
-
-                # try:
-
-                    # channels, times, values, byte_strings = self.get_stored(self.channels)
-                    # self.write(channels, times, values, byte_strings)
-
-                # except (pymysql.err.OperationalError, pymysql.err.Error) as e :
-                    # rt.logging.exception(e)
-
-                # finally :
-
-                    # self.sql.close_db_connection()
-
-
-            # time.sleep(1/self.transmit_rate)
-
 
 
 class SqlFileAtonReport(SqlFile):
@@ -1176,24 +943,3 @@ class SqlFileAtonReport(SqlFile):
                     self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
 
             time.sleep(1/self.transmit_rate)
-
-
-        # while True:
-
-
-            # for char_data in char_data_lines :
-
-                # if self.concatenate is None or not self.concatenate : 
-                    # char_data = [char_data]
-                # print("char_data", char_data)
-
-                # timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
-                # nmea_data_array = self.nmea.decode_to_channels(char_data = char_data, channel_data = self.channels)
-
-                # for nmea_data in nmea_data_array :
-                    # if nmea_data is not None :
-                        # (selected_tag, data_array), = nmea_data.items()
-                        # print("data_array", data_array)
-                        # self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
-
-                # time.sleep(1/self.sample_rate)
