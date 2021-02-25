@@ -29,15 +29,6 @@ class UdpHttp(li.UdpReceive) :
 
     def __init__(self):
 
-        #self.channels = None
-        #self.ip_list = None
-        #self.start_delay = 0
-        #self.max_connect_attempts = 50
-        #self.sample_rate = None
-
-        #self.env = self.get_env()
-        #if self.ip_list is None: self.ip_list = self.env['IP_LIST']
-
         li.UdpReceive.__init__(self)
 
 
@@ -269,13 +260,10 @@ class SerialNmeaFile(SerialFile) :
             channel_array = []
         else :
             channel_array = [ tag_channels for channel_tag, tag_channels in channel_data.items() ]
-            #print("channel_array[0]", channel_array[0])
             for channel, file_type in channel_array[0].items() :
                 channel_list.append(channel)
                 filetype_list.append(file_type)
-        #channel_list = [ list(channel_dict.items())[0][0] for channel_dict in list(channel_array[0]) ]
         channels = set(channel_list)
-        #file_type_list = [ list(channel_dict.items())[0][1] for channel_dict in list(channel_array[0]) ]
         file_types = set(filetype_list)
         rt.logging.debug("channels", channels, "file_types", file_types)
         files = []
@@ -457,11 +445,6 @@ class RawUdpFile(UdpFile):
             selected_tag, = self.channels
             print("selected_tag", selected_tag)
             self.write(data_array = data_array, selected_tag = str(selected_tag), timestamp_secs = values[1]) 
-
-            # for nmea_data in nmea_data_array :
-                # if nmea_data is not None :
-                    # (selected_tag, data_array), = nmea_data.items()
-                    # self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
 
 
 
@@ -912,11 +895,6 @@ class AcquireCurrent(ps.IngestFile):
 
     def scale_Opto_22_AD3_SATT_ETT45_0101(self, I_temp):
         return ( I_temp * 1000.0 - 4.0 ) / 16.0 * 50.0
-
-    #def downsample(self, y, size):
-    #    y_reshape = y.reshape(size, int(len(y)/size))
-    #    y_downsamp = y_reshape.mean(axis=1)
-    #    return y_downsamp
 
     # Create Task and Voltage Channel and Configure Sample Clock
     def SetupTasks(self):
