@@ -19,12 +19,10 @@ def parse_delimited_string(data_string) :
 
     channel_data = [channel_string.split(',') for channel_string in data_string.split(';')]
     channel_list = channel_data[0::4][:-1]
-    #print("channel_list", channel_list)
     data_list = channel_data[1::4]
     rt.logging.debug("data_list", data_list)
     timestamp_list = [data[0::4][:-1] for data in data_list]
     values_list = [data[1::4] for data in data_list]
-    #print("values_list", values_list)
     byte_string_list = [data[3::4] for data in data_list]
     rt.logging.debug("byte_string_list", byte_string_list)
     return channel_list, timestamp_list, values_list, byte_string_list
@@ -64,9 +62,6 @@ def timestamp_to_date_times(timestamp = None, sample_rate = None) :
 
     datetime_current = datetime.datetime.fromtimestamp(current_secs)
     current_timetuple = datetime_current.timetuple()
-    #year = current_timestamp.tm_year
-    #month = current_timestamp.tm_mon
-    #monthday = current_timestamp.tm_mday
 
     return current_secs, current_timetuple, current_microsec_part, next_sample_secs
 
@@ -104,8 +99,6 @@ class Nmea :
         print("min_common_length", min_common_length)
         data_dict = dict(channel_value_tuple_list)
         print("data_dict", data_dict)
-        # data_dict = data_array[0]
-        # data_array.extend( = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [latitude]) , (channels_list[2], [longitude]) ] ) ]
         return data_dict
 
 
@@ -234,35 +227,11 @@ class Nmea :
         nmea_data = self.prepend
 
         try :
-
-            # latitude_dir = 'N'
-            # latitude_abs = abs(float(latitude))
-            # latitude_sign = float(latitude) / latitude_abs
-            # if latitude_sign < 0 : latitude_dir = 'S'
-            # latitude_deg = latitude_abs // 1
-            # latitude_min = ( latitude_abs - latitude_deg ) * 60
-
-            # longitude_dir = 'E'
-            # longitude_abs = abs(float(longitude))
-            # longitude_sign = float(longitude) / longitude_abs
-            # if longitude_sign < 0 : longitude_dir = 'W'
-            # longitude_deg = longitude_abs // 1
-            # longitude_min = ( longitude_abs - longitude_deg ) * 60
-
-            # datetime_origin = datetime.datetime.fromtimestamp(int(timestamp))
-            # origin_timestamp = datetime_origin.timetuple()
-            # hour = origin_timestamp.tm_hour
-            # min = origin_timestamp.tm_min
-            # sec = origin_timestamp.tm_sec
-
-            # timestamp_string = "{:.{}f}".format(hour * 10000 + min * 100 + sec, 2)
             latitude_string, longitude_string = self.pos_from_float(latitude, longitude)
             nmea_data += latitude_string + ',' + longitude_string + ',' + self.time_from_timestamp(timestamp)
-
         except ValueError as e :
             nmea_data += '9999.0,N,9999.0,E'
             rt.logging.exception(e)
-
         finally :
             nmea_data += self.append
 
@@ -279,11 +248,9 @@ class Nmea :
         try :
             latitude_string, longitude_string = self.pos_from_float(latitude, longitude)
             nmea_data += self.time_from_timestamp(timestamp) + ',' + latitude_string + ',' + longitude_string
-
         except ValueError as e :
             nmea_data += '9999.0,N,9999.0,E'
             rt.logging.exception(e)
-
         finally :
             nmea_data += self.append
 
@@ -311,28 +278,12 @@ class Nmea :
         longitude = None
 
         if len(nmea_fields) > 5 : 
-
             if int(float(nmea_fields[1])) >= 0 and int(float(nmea_fields[1])) <= 235959 :
                 hour, minute, second, microsec = self.time_to_time_members(nmea_fields[1])
-            # hour = int(float(nmea_fields[1])) // 10000
-            # minute = ( int(float(nmea_fields[1])) - orig_hour * 10000 ) // 100
-            # second = int(float(nmea_fields[1])) - orig_hour * 10000 - orig_minute * 100
-            # microsec = int ( ( float(nmea_fields[1]) - orig_hour * 10000 - orig_minute * 100 - orig_second ) * 1000000 )
-
             latitude, longitude = self.pos_to_float(nmea_fields[2], nmea_fields[3], nmea_fields[4], nmea_fields[5])
 
         available_datetime = datetime.datetime(year, month, monthday, hour, minute, second, microsec)
         timestamp_secs = int(available_datetime.timestamp())
-
-        # latitude_deg = float(nmea_fields[2]) // 100
-        # latitude_min = float(nmea_fields[2]) - latitude_deg * 100
-        # latitude = latitude_deg + latitude_min / 60
-        # if nmea_fields[3] == 'S' : latitude = -latitude
-
-        # longitude_deg = float(nmea_fields[4]) // 100
-        # longitude_min = float(nmea_fields[4]) - longitude_deg * 100
-        # longitude = longitude_deg + longitude_min / 60
-        # if nmea_fields[5] == 'W' : longitude = -longitude
 
         return timestamp_secs, microsec, latitude, longitude
 
@@ -341,6 +292,7 @@ class Nmea :
 
         aivdo_message = ai.AISPositionReportMessage()
         aivdo_instance = ai.AIS(aivdo_message)
+
         latitude = None
         longitude = None
         try :
@@ -365,14 +317,10 @@ class Nmea :
             aivdm_instance = ai.AIS(aivdm_message)
             aivdm_payload += aivdm_instance.build_payload(False)
             print("aivdm_payload", aivdm_payload)
-
         except ValueError as e :
-
             aivdm_payload += ''
             print(e)
-
         finally :
-
             aivdm_payload += self.append
 
         return aivdm_payload
@@ -523,15 +471,6 @@ class Nmea :
             channels_list = sorted(list(channels))
             rt.logging.debug("channels_list", channels_list)
 
-            #dict_string = ''
-            #try :
-            #    dict_string = string_dict[selected_tag]
-            #except KeyError as e :
-            #    pass
-            #if dict_string.endswith(line_end) :
-            #    dict_string = dict_string[:-len(line_end)]
-            #dict_string += '\r\n'
-
             dict_string = ''
             try :
                 dict_string = string_dict[selected_tag] #+ '\r\n'
@@ -542,7 +481,6 @@ class Nmea :
             if line_end is not None :
                 if dict_string.endswith(line_end) :
                     dict_string = dict_string[:-len(line_end)]
-            # dict_string += '\r\n'
 
             if len(dict_string) > 0 :
 
@@ -556,18 +494,7 @@ class Nmea :
                     data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
 
                 if selected_tag == 'VDO' :
-                    #aivdo_string = dict_string.split(line_end)[0]
                     latitude, longitude = self.aivdo_to_pos(dict_string.split(line_end)[0])
-                    # aivdo_message = ai.AISPositionReportMessage()
-                    # aivdo_instance = ai.AIS(aivdo_message)
-                    # try :
-                        # aivdo_data = aivdo_instance.decode(aivdo_string, ignore_crc = True)
-                        # rt.logging.debug("aivdo_data.mmsi.int", aivdo_data.mmsi.int) 
-                        # longitude = aivdo_data.lon.int / 10000 / 60 
-                        # latitude = aivdo_data.lat.int / 10000 / 60 
-                        # data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [latitude]) , (channels_list[2], [longitude]) ] ) ]
-                    # except (KeyError, UnboundLocalError) as e :
-                        # rt.logging.exception(e)
                     data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [latitude]) , (channels_list[2], [longitude]) ] ) ]
 
                 if selected_tag == 'ALV' :
@@ -590,7 +517,6 @@ class Nmea :
                         data_dict = self.channel_value_dict(channels_list, [ gga_string_valid_time, [latitude], [longitude] ])
                     print("data_dict", data_dict)
                     data_array = [data_dict]
-                    # data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [latitude]) , (channels_list[2], [longitude]) ] ) ]
 
                 if selected_tag == 'GLL' :
                     data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
