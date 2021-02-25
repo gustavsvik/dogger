@@ -321,18 +321,6 @@ class SQL:
 
                 return_string = ""
 
-                #channel_start = 0
-                #end = 0
-                #if data_string is not None:
-                #    end = len(data_string)
-
-                # channel_list = []
-                # timestamp_list = []
-                # if data_string is not None:
-                    # channel_timestamps = [channel_string.split(',') for channel_string in data_string.split(';')]
-                    # channel_list = channel_timestamps[0::2][:-1]
-                    # timestamp_list = channel_timestamps[1::2]
-
                 for channel_index in range(len(channel_list)):
 
                     requested_timestamps = [int(ts_string) for ts_string in timestamp_list[channel_index][:-1]] 
