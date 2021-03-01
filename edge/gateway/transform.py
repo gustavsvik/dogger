@@ -10,6 +10,17 @@ import gateway.aislib as ai
 
 
 
+def channel_value_dict(channels_list, values_list) :
+
+    channel_value_tuple_list = list(zip(channels_list, values_list))
+    print("channel_value_tuple_list", channel_value_tuple_list)
+    min_common_length = min( len(channels_list), len(values_list) )
+    print("min_common_length", min_common_length)
+    data_dict = dict(channel_value_tuple_list)
+    print("data_dict", data_dict)
+    return data_dict
+
+
 def get_channel_range_string(channels) :
 
     return ';;'.join([str(ch) for ch in channels]) + ';;'
@@ -79,7 +90,121 @@ def de_armor_separators(byte_string = None) :
 
 
 
-class Nmea :
+class TextNumeric :
+
+
+    def __init__(self) :
+
+        if self.prepend is None : self.prepend = ''
+        if self.append is None : self.append = ''
+
+
+    def decode_to_channels(self, char_data = None, channel_data = None, time_tuple = None, line_end = None) :
+
+        if time_tuple is None :
+            time_tuple = time.gmtime(time.time())
+            print("time_tuple", time_tuple)
+
+        string_dict = {}
+
+        if not ( None in [char_data, channel_data] ) :
+
+            for selected_line in char_data :
+
+                rt.logging.debug("selected_line", selected_line)
+
+                for selected_tag, channels in channel_data.items() :
+                    rt.logging.debug("channels", channels)
+                    channels_list = list(channels)
+
+                    if selected_tag in selected_line : 
+                        rt.logging.debug("selected_tag", selected_tag, "channels_list", channels_list)
+                        current_string_value = ''
+                        try :
+                            current_string_value = string_dict[selected_tag]
+                        except KeyError as e :
+                            pass
+                        string_dict[selected_tag] = current_string_value + selected_line
+                        if line_end is not None :
+                            string_dict[selected_tag] += line_end
+        print("string_dict", string_dict)
+
+        data_arrays = []
+
+        for selected_tag, channels in channel_data.items() :
+            print("channel_data", channel_data, "selected_tag", selected_tag, "channels", channels)
+            channels_list = sorted(list(channels))
+            rt.logging.debug("channels_list", channels_list)
+
+            dict_string = ''
+            try :
+                dict_string = string_dict[selected_tag] #+ '\r\n'
+            except KeyError as e :
+                pass
+            print("dict_string", dict_string)
+
+            if line_end is not None :
+                if dict_string.endswith(line_end) :
+                    dict_string = dict_string[:-len(line_end)]
+
+            if len(dict_string) > 0 :
+
+                data_array = []
+
+                if selected_tag == 'MMB' :
+                    value = self.to_float(dict_string, 1)
+                    data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [value]) ] ) ]
+
+                if selected_tag == 'VDM' :
+                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                if selected_tag == 'VDO' :
+                    latitude, longitude = self.aivdo_to_pos(dict_string.split(line_end)[0])
+                    data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [latitude]) , (channels_list[2], [longitude]) ] ) ]
+
+                if selected_tag == 'ALV' :
+                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                if selected_tag == 'ALR' :
+                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                if selected_tag == 'TTM' :
+                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                if selected_tag == 'GGA' :
+                    print("channels_list", channels_list, "dict_string", dict_string, "time_tuple", time_tuple)
+                    validated_timestamp, timestamp_microsecs, latitude, longitude = self.gga_to_time_pos(dict_string, time_tuple)
+                    print("[latitude]", [latitude], "[longitude]", [longitude])
+                    data_dict = None
+                    if not ( None in [latitude, longitude] ) :
+                        gga_string_valid_time = self.gga_from_time_pos_float(validated_timestamp, latitude, longitude)
+                        print("gga_string_valid_time", gga_string_valid_time)
+                        data_dict = channel_value_dict(channels_list, [ gga_string_valid_time, [latitude], [longitude] ])
+                    print("data_dict", data_dict)
+                    data_array = [data_dict]
+
+                if selected_tag == 'GLL' :
+                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                if selected_tag == 'VTG' :
+                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                if selected_tag == 'RSA' :
+                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                if selected_tag == 'XDR' :
+                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+
+                rt.logging.debug("data_array", data_array)
+                if len(data_array) > 0 :
+                    data_arrays.append( dict( [ (selected_tag, data_array) ] ) )
+
+        print("data_arrays", data_arrays)
+        return data_arrays
+
+
+
+class Nmea(TextNumeric) :
 
 
     def __init__(self, prepend = None, append = None) :
@@ -87,19 +212,7 @@ class Nmea :
         self.prepend = prepend
         self.append = append
 
-        if self.prepend is None : self.prepend = ''
-        if self.append is None : self.append = ''
-
-
-    def channel_value_dict(self, channels_list, values_list) :
-
-        channel_value_tuple_list = list(zip(channels_list, values_list))
-        print("channel_value_tuple_list", channel_value_tuple_list)
-        min_common_length = min( len(channels_list), len(values_list) )
-        print("min_common_length", min_common_length)
-        data_dict = dict(channel_value_tuple_list)
-        print("data_dict", data_dict)
-        return data_dict
+        TextNumeric.__init__(self)
 
 
     def get_checksum(self, nmea_data) :
@@ -408,12 +521,12 @@ class Nmea :
 
                 latitude_degs += float ( length_offset / ( 1 * 1852 ) * 1/60 )
                 latitude_min_fraction = int(latitude_degs * 60 * 10000)
-                rt.logging.debug("latitude_degs", latitude_degs, "latitude_min_fraction", latitude_min_fraction)
+                print("latitude_degs", latitude_degs, "latitude_min_fraction", latitude_min_fraction)
 
                 latitude_factor = math.cos(latitude_degs/180 * math.pi)
                 longitude_degs += float ( width_offset / ( latitude_factor * 1852 ) * 1/60 )
                 longitude_min_fraction = int(longitude_degs * 60 * 10000)
-                rt.logging.debug("longitude_degs", longitude_degs, "longitude_min_fraction", longitude_min_fraction)
+                print("longitude_degs", longitude_degs, "longitude_min_fraction", longitude_min_fraction)
 
                 rt.logging.debug("mmsi", mmsi, "aid_type", aid_type, "name", name, "longitude_min_fraction", longitude_min_fraction, "latitude_min_fraction", latitude_min_fraction, "virtual_aid", virtual_aid)
                 aivdm_message = ai.AISAtonReport(mmsi = mmsi, aid_type = aid_type, name = name, lon = longitude_min_fraction, lat = latitude_min_fraction, virtual_aid = virtual_aid)
@@ -432,107 +545,3 @@ class Nmea :
             pass
 
         return aivdm_payloads
-
-
-    def decode_to_channels(self, char_data = None, channel_data = None, time_tuple = None, line_end = None) :
-
-        if time_tuple is None :
-            time_tuple = time.gmtime(time.time())
-            print("time_tuple", time_tuple)
-
-        string_dict = {}
-
-        if not ( None in [char_data, channel_data] ) :
-
-            for selected_line in char_data :
-
-                rt.logging.debug("selected_line", selected_line)
-
-                for selected_tag, channels in channel_data.items() :
-                    rt.logging.debug("channels", channels)
-                    channels_list = list(channels)
-
-                    if selected_tag in selected_line : 
-                        rt.logging.debug("selected_tag", selected_tag, "channels_list", channels_list)
-                        current_string_value = ''
-                        try :
-                            current_string_value = string_dict[selected_tag]
-                        except KeyError as e :
-                            pass
-                        string_dict[selected_tag] = current_string_value + selected_line
-                        if line_end is not None :
-                            string_dict[selected_tag] += line_end
-        print("string_dict", string_dict)
-
-        data_arrays = []
-
-        for selected_tag, channels in channel_data.items() :
-            print("channel_data", channel_data, "selected_tag", selected_tag, "channels", channels)
-            channels_list = sorted(list(channels))
-            rt.logging.debug("channels_list", channels_list)
-
-            dict_string = ''
-            try :
-                dict_string = string_dict[selected_tag] #+ '\r\n'
-            except KeyError as e :
-                pass
-            print("dict_string", dict_string)
-
-            if line_end is not None :
-                if dict_string.endswith(line_end) :
-                    dict_string = dict_string[:-len(line_end)]
-
-            if len(dict_string) > 0 :
-
-                data_array = []
-
-                if selected_tag == 'MMB' :
-                    value = self.to_float(dict_string, 1)
-                    data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [value]) ] ) ]
-
-                if selected_tag == 'VDM' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
-
-                if selected_tag == 'VDO' :
-                    latitude, longitude = self.aivdo_to_pos(dict_string.split(line_end)[0])
-                    data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [latitude]) , (channels_list[2], [longitude]) ] ) ]
-
-                if selected_tag == 'ALV' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
-
-                if selected_tag == 'ALR' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
-
-                if selected_tag == 'TTM' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
-
-                if selected_tag == 'GGA' :
-                    print("channels_list", channels_list, "dict_string", dict_string, "time_tuple", time_tuple)
-                    validated_timestamp, timestamp_microsecs, latitude, longitude = self.gga_to_time_pos(dict_string, time_tuple)
-                    print("[latitude]", [latitude], "[longitude]", [longitude])
-                    data_dict = None
-                    if not ( None in [latitude, longitude] ) :
-                        gga_string_valid_time = self.gga_from_time_pos_float(validated_timestamp, latitude, longitude)
-                        print("gga_string_valid_time", gga_string_valid_time)
-                        data_dict = self.channel_value_dict(channels_list, [ gga_string_valid_time, [latitude], [longitude] ])
-                    print("data_dict", data_dict)
-                    data_array = [data_dict]
-
-                if selected_tag == 'GLL' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
-
-                if selected_tag == 'VTG' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
-
-                if selected_tag == 'RSA' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
-
-                if selected_tag == 'XDR' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
-
-                rt.logging.debug("data_array", data_array)
-                if len(data_array) > 0 :
-                    data_arrays.append( dict( [ (selected_tag, data_array) ] ) )
-
-        print("data_arrays", data_arrays)
-        return data_arrays
