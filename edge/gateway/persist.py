@@ -286,11 +286,12 @@ class SQL:
             print("sql_get_values",sql_get_values)
 
             with self.conn.cursor() as cursor :
+                results = []
                 try:
                     cursor.execute(sql_get_values)
-                except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e :
+                    results = cursor.fetchall()
+                except (pymysql.err.IntegrityError, pymysql.err.InternalError, pymysql.err.OperationalError, pymysql.err.ProgrammingError) as e :
                     rt.logging.exception(e)
-                results = cursor.fetchall()
                 rt.logging.debug(results)
                 if len(results) > 0 :
                     row = results[0]
@@ -336,11 +337,12 @@ class SQL:
 
                         return_string += channel_string + ';'
                         with self.conn.cursor() as cursor :
+                            results = []
                             try:
                                 cursor.execute(sql_get_values)
-                            except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
+                                results = cursor.fetchall()
+                            except (pymysql.err.IntegrityError, pymysql.err.InternalError, pymysql.err.OperationalError, pymysql.err.ProgrammingError) as e:
                                 rt.logging.exception(e)
-                            results = cursor.fetchall()
                             for row in results:
                                 acquired_time = row[0]
                                 acquired_value = row[1]
