@@ -748,7 +748,9 @@ class AIS(object):
 
         if   msgId == '000001':
              aismsg = AISPositionReportMessage()
-        elif   msgId == '000011':
+        elif  msgId == '000010':
+             aismsg = AISPositionReportMessage()
+        elif  msgId == '000011':
              aismsg = AISPositionReportMessage()
         elif msgId == '011000' and bitstream[38] == '0':
              aismsg = AISStaticDataReportAMessage()
