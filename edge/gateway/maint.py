@@ -3,6 +3,7 @@
 import time
 import datetime
 import calendar
+import math
 import struct
 from contextlib import closing
 from socket import gaierror, socket, AF_INET, SOCK_DGRAM
@@ -27,6 +28,9 @@ class CloudDBPartition(li.HttpMaint):
         self.new_partition_name_date = new_partition_name_date
         self.new_partition_timestamp = new_partition_timestamp
         self.oldest_kept_partition_name_date = oldest_kept_partition_name_date
+
+        #self.transmit_rate = math.inf
+        #self.channels = set()
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
