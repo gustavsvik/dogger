@@ -32,7 +32,7 @@ def delete_multiple(files) :
         try :
             os.remove(current_file)
         except (PermissionError, FileNotFoundError) as e:
-            print(e)
+            rt.logging.exception(e)
 
 
 def get_timestamped_range(files, lower_timestamp, higher_timestamp) :
@@ -172,15 +172,15 @@ class IngestFile(AcquireControlFile) :
         write_channels = self.channels
         if target_channels is not None :
             write_channels = target_channels
-        print("write_channels", write_channels)
-        print("data_array", data_array)
+        rt.logging.debug("write_channels", write_channels)
+        rt.logging.debug("data_array", data_array)
         selected_channel_array = [ tag_channels for channel_tag, tag_channels in write_channels.items() if channel_tag == selected_tag ]
-        print("selected_channel_array", selected_channel_array)
+        rt.logging.debug("selected_channel_array", selected_channel_array)
 
         for channel, file_type in selected_channel_array[0].items() :
-            print("channel, file_type", channel, file_type) 
-            print("selected_channel_array[0][channel]", selected_channel_array[0][channel])
-            print("self.file_path", self.file_path)
+            rt.logging.debug("channel, file_type", channel, file_type) 
+            rt.logging.debug("selected_channel_array[0][channel]", selected_channel_array[0][channel])
+            rt.logging.debug("self.file_path", self.file_path)
             if self.file_path is not None and os.path.exists(self.file_path) :
 
                 if timestamp_secs is None and timestamp_microsecs is None and sample_rate is not None :
@@ -198,22 +198,22 @@ class IngestFile(AcquireControlFile) :
                         float_avg = tr.downsample(numpy.float64(float_array), 1)
                         float_array = numpy.concatenate(([0.0], timestamp_microsecs, float_array), axis = None)
                         float_array[0] = float_avg
-                        print("float_array", float_array)
+                        rt.logging.debug("float_array", float_array)
                         try :
                             numpy.save(store_filename, float_array)
                         except PermissionError as e:
-                            print(e)
+                            rt.logging.exception(e)
 
                     if file_type == 'txt' and data_array[0][channel] != '' :
                         try :
                             with open(store_filename, 'w') as text_file :
                                 text_file.write(data_array[0][channel])
                         except PermissionError as e:
-                            print(e)
+                            rt.logging.exception(e)
 
                 except KeyError as e : 
 
-                    print(e)
+                    rt.logging.exception(e)
 
                 if self.file_path is not None and os.path.exists(self.file_path):
                     try:
@@ -221,7 +221,7 @@ class IngestFile(AcquireControlFile) :
                             archive_filename = self.archive_file_path + str(channel) + '_' + str(capture_file_timestamp) + '.' + file_type
                             #shutil.copy(store_filename, archive_filename)
                     except (FileNotFoundError, PermissionError) as e:
-                        print(e)
+                        rt.logging.exception(e)
 
                 if write_interval is not None :
                     time.sleep(self.write_interval)
@@ -271,19 +271,20 @@ class SQL:
             rt.logging.exception(e)
 
 
-    def get_stored(self, channels, max_age) :
+    def get_stored(self, selected_channels, max_age) :
 
-        times = []
+        channels = []
+        timestamps = []
         values = []
         byte_strings = []
 
-        for channel in channels :
+        for channel in selected_channels :
 
             current_timestamp = int(time.time())
             back_timestamp = current_timestamp - max_age
 
             sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + str(channel) + " AND AD.ACQUIRED_TIME BETWEEN " + str(back_timestamp) + " AND " + str(current_timestamp) + " AND AD.STATUS>=0 ORDER BY AD.ACQUIRED_TIME DESC" 
-            print("sql_get_values",sql_get_values)
+            rt.logging.debug("sql_get_values",sql_get_values)
 
             with self.conn.cursor() as cursor :
                 results = []
@@ -302,12 +303,13 @@ class SQL:
                     base64_string = ''
                     if acquired_base64 is not None :
                         base64_string = acquired_base64.decode('utf-8')
-                    print("Channel: ", str(channel), ", Value: ", acquired_value, ", Timestamp: ", acquired_time) #, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
-                    times.append(acquired_time)
+                    rt.logging.debug("Channel: ", str(channel), ", Value: ", acquired_value, ", Timestamp: ", acquired_time) #, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
+                    channels.append(channel)
+                    timestamps.append(acquired_time)
                     values.append(acquired_value)
                     byte_strings.append(acquired_base64)
 
-        return list(channels), times, values, byte_strings
+        return channels, timestamps, values, byte_strings
 
 
     def get_requests(self, channel_list, timestamp_list) :
@@ -333,7 +335,7 @@ class SQL:
                         sql_timestamps = '(' + ','.join([str(ts) for ts in requested_timestamps]) + ')'
 
                         sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + channel_string + " AND AD.ACQUIRED_TIME IN " + sql_timestamps + " AND AD.STATUS>=0"
-                        print("sql_get_values",sql_get_values)
+                        rt.logging.debug("sql_get_values",sql_get_values)
 
                         return_string += channel_string + ';'
                         with self.conn.cursor() as cursor :
