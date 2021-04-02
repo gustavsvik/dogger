@@ -43,7 +43,7 @@ class Http(Link):
 
 
 
-class HttpMaint(Http):
+class HttpMaint(ta.MaintenanceTask):
 
 
     def __init__(self) :
@@ -51,7 +51,7 @@ class HttpMaint(Http):
         self.env = self.get_env()
         if self.maint_api_url is None: self.maint_api_url = self.env['MAINT_API_URL']
 
-        Http.__init__(self)
+        ta.MaintenanceTask.__init__(self)
 
 
     def partition_database(self, ip = '127.0.0.1'):
@@ -129,7 +129,7 @@ class HttpHost(Http):
         try:
             rt.logging.debug("data_string", data_string)
             raw_data = requests.post("http://" + ip + self.host_api_url + "set_requested.php", timeout = 5, data = {"returnstring": data_string})
-            print("raw_data", raw_data)
+            rt.logging.debug("raw_data", raw_data)
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
@@ -283,12 +283,12 @@ class SqlHttp(HttpHost, HttpClient):
                     if not ( None in [channel, timestamp, value, byte_string] ) :
                         res = self.send_request(start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
                         armored_byte_string = tr.armor_separators(byte_string)
-                        print("armored_byte_string", armored_byte_string)
+                        rt.logging.debug("armored_byte_string", armored_byte_string)
                         data_string = str(channel) + ';' + str(timestamp) + ',' + str(value) + ',,' + armored_byte_string.decode() + ',;'
-                        print("data_string", data_string)
+                        rt.logging.debug("data_string", data_string)
                         res = self.set_requested(data_string, ip = current_ip)
                 except Exception as e :
-                    print(e)
+                    rt.logging.exception(e)
 
 
     def run(self) :
@@ -299,9 +299,9 @@ class SqlHttp(HttpHost, HttpClient):
 
             try:
                 self.sql.connect_db()
-                print("self.channels", self.channels, "self.max_age", self.max_age)
+                rt.logging.debug("self.channels", self.channels, "self.max_age", self.max_age)
                 channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
-                print("channels", channels, "times", times, "values", values, "byte_strings", byte_strings)
+                rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings)
                 self.upload_data(channels, times, values, byte_strings, self.ip_list) #[ip])
             except (pymysql.err.OperationalError, pymysql.err.Error) as e :
                 rt.logging.exception(e)
@@ -369,15 +369,15 @@ class Replicate(HttpHost):
                         data_string = requested_data['returnstring']
                     except ValueError as e:  # includes simplejson.decoder.JSONDecodeError
                         rt.logging.debug("Decoding JSON has failed", e)
-                print("data_string",data_string)
+                rt.logging.debug("data_string",data_string)
                 channel_list, timestamp_list = tr.parse_channel_timestamp_string(data_string)
-                print("channel_list", channel_list, "timestamp_list", timestamp_list)
+                rt.logging.debug("channel_list", channel_list, "timestamp_list", timestamp_list)
                 return_string = None
                 return_string = self.sql.get_requests(channel_list, timestamp_list)
-                print("return_string", return_string)
+                rt.logging.debug("return_string", return_string)
                 if return_string is not None :
                     r_post = self.set_requested(return_string, ip)
-                    print("r_post", r_post)
+                    rt.logging.debug("r_post", r_post)
             time.sleep(1/self.transmit_rate)
 
 
@@ -424,7 +424,7 @@ class HttpSql(HttpClient):
                 rt.logging.debug("data_string", data_string)
 
                 channel_list, times_list, values_list, byte_string_list = tr.parse_delimited_string(data_string)
-                print("channel_list", channel_list, "times_list", times_list, "values_list", values_list, "byte_string_list", byte_string_list)
+                rt.logging.debug("channel_list", channel_list, "times_list", times_list, "values_list", values_list, "byte_string_list", byte_string_list)
                 try:
                     self.sql.connect_db()
                     for channel, times, values, byte_strings in zip(channel_list, times_list, values_list, byte_string_list) :
@@ -508,10 +508,11 @@ class SqlUdp(UdpSend):
 
             try:
                 self.sql.connect_db()
-                channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
+                channels, timestamps, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
+                rt.logging.debug("channels", channels, "timestamps", timestamps, "values", values)
                 for ip in self.ip_list :
-                    rt.logging.debug(channels, times, values, ip)
-                    self.set_requested(channels, times, values, byte_strings, ip)
+                    rt.logging.debug(channels, timestamps, values, ip)
+                    self.set_requested(channels, timestamps, values, byte_strings, ip)
             except (pymysql.err.OperationalError, pymysql.err.Error) as e :
                 rt.logging.exception(e)
             finally :
@@ -542,13 +543,13 @@ class SqlUdpRawValue(SqlUdp) :
 
     def set_requested(self, channels, timestamps, values, strings, ip = '127.0.0.1') :
 
-        print("ip", ip, "self.port", self.port)
+        rt.logging.debug("ip", ip, "self.port", self.port)
         for channel, timestamp, value in zip(channels, timestamps, values) : #range(len(values)) :
             try :
                 if not (None in [channel, timestamp, value]) :
-                    print("int(channel)", int(channel), "int(timestamp)", int(timestamp), "float(value)", float(value))
+                    rt.logging.debug("int(channel)", int(channel), "int(timestamp)", int(timestamp), "float(value)", float(value))
                     data_bytes = struct.pack('>HIf', int(channel), int(timestamp), float(value))   # short unsigned int, big endian
-                    print("len(data_bytes)", len(data_bytes))
+                    rt.logging.debug("len(data_bytes)", len(data_bytes))
                     try :
                         self.socket.sendto(data_bytes, (ip, self.port))
                     except Exception as e :
@@ -579,13 +580,13 @@ class SqlUdpRawBytes(SqlUdp) :
 
     def set_requested(self, channels, timestamps, values, strings, ip = '127.0.0.1') :
 
-        print("ip", ip, "self.port", self.port)
+        rt.logging.debug("ip", ip, "self.port", self.port)
         for channel, timestamp, string in zip(channels, timestamps, strings) : #range(len(values)) :
             try :
                 if not (None in [channel, timestamp, string]) :
-                    print("int(channel)", int(channel), "int(timestamp)", int(timestamp), "string", string)
+                    rt.logging.debug("int(channel)", int(channel), "int(timestamp)", int(timestamp), "string", string)
                     data_bytes = struct.pack('>HI{}s'.format(len(string)), int(channel), int(timestamp), string)
-                    print("len(data_bytes)", len(data_bytes))
+                    rt.logging.debug("len(data_bytes)", len(data_bytes))
                     try :
                         self.socket.sendto(data_bytes, (ip, self.port))
                     except Exception as e :
@@ -626,7 +627,7 @@ class SqlUdpNmeaValue(SqlUdp) :
         for value in values :
             if value is not None :
                 nmea_string = self.nmea.from_float(multiplier = self.multiplier, decimals = self.decimals, value = value)
-                print("nmea_string", nmea_string)
+                rt.logging.debug("nmea_string", nmea_string)
                 self.socket.sendto(nmea_string.encode('utf-8'), (ip, self.port))
 
 
@@ -653,7 +654,7 @@ class SqlUdpBytes(SqlUdp) :
     def set_requested(self, channels, timestamps, values, strings, ip = '127.0.0.1') :
 
         for byte_string in strings :
-            print("byte_string", byte_string)
+            rt.logging.debug("byte_string", byte_string)
             if byte_string is not None :
                 self.socket.sendto(byte_string, (ip, self.port))
 
@@ -683,12 +684,12 @@ class SqlUdpNmeaLines(SqlUdp) :
         for byte_string in strings :
             if byte_string is not None :
                 nmea_sentence_array =  byte_string.split(b' ')
-                print("nmea_sentence_array", nmea_sentence_array)
+                rt.logging.debug("nmea_sentence_array", nmea_sentence_array)
 
                 for nmea_sentence in nmea_sentence_array :
                     if nmea_sentence.find(b'\n') and nmea_sentence.find(b'\r') :
                         nmea_sentence += b'\r\n'
-                        print("nmea_sentence", nmea_sentence)
+                        rt.logging.debug("nmea_sentence", nmea_sentence)
                         self.socket.sendto(nmea_sentence, (ip, self.port))
 
 
@@ -782,14 +783,14 @@ class SqlUdpAivdmPosition(SqlUdpAivdmStatic):
 
         try :
             aivdm_stat_payload = self.nmea.aivdm_from_static(mmsi = self.mmsi, vessel_name = self.vessel_name, call_sign = self.call_sign, ship_type = self.ship_type)
-            print('aivdm_stat_payload', aivdm_stat_payload)
+            rt.logging.debug('aivdm_stat_payload', aivdm_stat_payload)
             self.socket.sendto(aivdm_stat_payload.encode('utf-8'), (ip, self.port))
-            print("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
+            rt.logging.debug("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
             aivdm_pos_payload = self.nmea.aivdm_from_pos(mmsi = self.mmsi, timestamp = times[0], latitude = values[0], longitude = values[1], status = self.nav_status)
-            print('aivdm_pos_payload', aivdm_pos_payload)
+            rt.logging.debug('aivdm_pos_payload', aivdm_pos_payload)
             self.socket.sendto(aivdm_pos_payload.encode('utf-8'), (ip, self.port))
         except Exception as e:
-            print(e)
+            rt.logging.exception(e)
 
 
 
@@ -861,16 +862,16 @@ class SqlUdpAtonReport(SqlUdp):
 
         try :
 
-            print("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
+            rt.logging.debug("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
             aivdm_aton_payloads = self.nmea.aivdm_atons_from_pos(self.mmsi, values[0], values[1], self.aid_type, self.name, self.virtual_aid, self.length_offset, self.width_offset)
-            print('aivdm_aton_payloads', aivdm_aton_payloads)
+            rt.logging.debug('aivdm_aton_payloads', aivdm_aton_payloads)
 
             for aivdm_aton_payload in aivdm_aton_payloads :
                 self.socket.sendto(aivdm_aton_payload.encode('utf-8'), (ip, self.port))
 
         except Exception as e :
 
-            print(e)
+            rt.logging.exception(e)
 
 
 
@@ -926,20 +927,60 @@ class SqlFileAtonReport(SqlFile):
 
             self.sql.connect_db()
             channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
-            print("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
+            rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
             timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
-            print("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
+            rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
             aivdm_aton_payloads = None
             if len(values) > 0 :
                 aivdm_aton_payloads = self.nmea.aivdm_atons_from_pos(self.mmsi, values[0], values[1], self.aid_type, self.name, self.virtual_aid, self.length_offset, self.width_offset)
-            print('aivdm_aton_payloads', aivdm_aton_payloads)
+            rt.logging.debug('aivdm_aton_payloads', aivdm_aton_payloads)
             nmea_data_array = self.nmea.decode_to_channels(char_data = aivdm_aton_payloads, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ' )
-            print('nmea_data_array', nmea_data_array)
+            rt.logging.debug('nmea_data_array', nmea_data_array)
             for nmea_data in nmea_data_array :
-                print('nmea_data', nmea_data)
+                rt.logging.debug('nmea_data', nmea_data)
                 if nmea_data is not None :
                     (selected_tag, data_array), = nmea_data.items()
-                    print("selected_tag", selected_tag, "data_array", data_array)
+                    rt.logging.debug("selected_tag", selected_tag, "data_array", data_array)
                     self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+
+            time.sleep(1/self.transmit_rate)
+
+
+
+class SqlFileAisData(SqlFile):
+
+
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
+        #repeat = 0, mmsi = 0, aid_type = 0, name = 0, accuracy = 0, lon = 181000, lat = 91000, to_bow = 0, to_stern = 0, to_port = 0, to_starboard = 0, epfd = 0, ts = 60, off_position = 0, raim = 0, virtual_aid = 0, assigned = 0)
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+        self.transmit_rate = transmit_rate
+        self.gateway_database_connection = gateway_database_connection
+        self.max_age = max_age
+
+        self.file_path = file_path
+        self.archive_file_path = archive_file_path
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        SqlFile.__init__(self)
+
+        self.nmea = tr.Nmea()
+
+
+    def run(self):
+
+        time.sleep(self.start_delay)
+
+        while True:
+
+            self.sql.connect_db()
+            channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
+            #rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
+            if len(byte_strings) > 0 :
+                mmsis, latitudes, longitudes = self.nmea.data_from_aivdm(byte_strings)
 
             time.sleep(1/self.transmit_rate)
