@@ -41,7 +41,7 @@ class UdpHttp(li.UdpReceive) :
                 for current_ip in self.ip_list :
                     res = http.send_request(start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
                     data_string = str(channel) + ';' + str(sample_secs) + ',' + str(data_value) + ',,' + byte_string.decode() + ',;'
-                    print("data_string", data_string)
+                    rt.logging.debug("data_string", data_string)
                     res = http.set_requested(data_string, ip = current_ip)
             except PermissionError as e :
                 rt.logging.exception(e)
@@ -74,9 +74,9 @@ class UdpValueHttp(UdpHttp) :
 
             #time.sleep(1/self.transmit_rate)
             data, address = self.socket.recvfrom(4096)
-            print("data", data, "len(data)", len(data))
+            rt.logging.debug("data", data, "len(data)", len(data))
             values = struct.unpack('>HIf', data)
-            print("values", values)
+            rt.logging.debug("values", values)
             self.upload_data(int(values[0]), int(values[1]), float(values[2]), b'')
 
 
@@ -107,12 +107,12 @@ class UdpBytesHttp(UdpHttp) :
 
             #time.sleep(1/self.transmit_rate)
             data, address = self.socket.recvfrom(4096)
-            print("data", data, "len(data)", len(data))
+            rt.logging.debug("data", data, "len(data)", len(data))
             values = struct.unpack_from('>HI', data, offset = 0)
-            print("values", values)
+            rt.logging.debug("values", values)
             byte_string = struct.unpack_from( '{}s'.format(len(data) - 6), data[6:len(data)], offset = 0)
             replaced_byte_string = tr.armor_separators(byte_string[0])
-            print("replaced_byte_string", replaced_byte_string)
+            rt.logging.debug("replaced_byte_string", replaced_byte_string)
             self.upload_data(int(values[0]), int(values[1]), -9999.0, replaced_byte_string)
 
 
@@ -153,7 +153,7 @@ class StaticFileNmeaFile(ps.IngestFile) :
                 data_lines = text_file.read().splitlines()
             except OSError as e :
                 rt.logging.exception(e)
-            print("data_lines", data_lines)
+            rt.logging.debug("data_lines", data_lines)
             time.sleep(1.0)
 
         while True:
@@ -161,22 +161,22 @@ class StaticFileNmeaFile(ps.IngestFile) :
             char_data_lines = data_lines
             if self.concatenate is not None and self.concatenate : 
                 char_data_lines = [data_lines]
-            print("char_data_lines", char_data_lines)
+            rt.logging.debug("char_data_lines", char_data_lines)
 
             for char_data in char_data_lines :
 
                 if self.concatenate is None or not self.concatenate : 
                     char_data = [char_data]
-                print("char_data", char_data)
+                rt.logging.debug("char_data", char_data)
 
                 timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
                 nmea_data_array = self.nmea.decode_to_channels(char_data = char_data, channel_data = self.channels)
-                print("nmea_data_array", nmea_data_array)
+                rt.logging.debug("nmea_data_array", nmea_data_array)
                 for nmea_data in nmea_data_array :
-                    print('nmea_data', nmea_data)
+                    rt.logging.debug('nmea_data', nmea_data)
                     if nmea_data is not None :
                         (selected_tag, data_array), = nmea_data.items()
-                        print("selected_tag", selected_tag, "data_array", data_array)
+                        rt.logging.debug("selected_tag", selected_tag, "data_array", data_array)
                         self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
 
                 time.sleep(1/self.sample_rate)
@@ -197,13 +197,13 @@ class SerialFile(ps.IngestFile, ps.LoadFile) :
         comport_list = serial.tools.list_ports.comports()
         for comport in comport_list:
             port_string = str(comport.device) + ';' + str(comport.name) + ';' + str(comport.description) + ';' + str(comport.hwid) + ';' + str(comport.vid) + ';' + str(comport.pid) + ';' + str(comport.serial_number) + ';' + str(comport.location) + ';' + str(comport.manufacturer) + ';' + str(comport.product) + ';' + str(comport.interface)
-            print("port_string", port_string)
+            rt.logging.debug("port_string", port_string)
 
             if self.port is None :
-                print("self.location", self.location)
+                rt.logging.debug("self.location", self.location)
                 if (port_string.find(self.location)) >= 0:
                     self.port = comport.device
-                    print("self.port", self.port)
+                    rt.logging.debug("self.port", self.port)
 
         self.serial_conn = None 
 
@@ -211,7 +211,7 @@ class SerialFile(ps.IngestFile, ps.LoadFile) :
             self.serial_conn = serial.Serial(port = self.port, baudrate = self.baudrate, timeout = self.timeout, parity = serial.PARITY_EVEN, stopbits = serial.STOPBITS_ONE, bytesize = serial.SEVENBITS) #, write_timeout=1, , , , xonxoff=False, rtscts=False, dsrdtr=False)
             time.sleep(0.1)
             if (self.serial_conn.isOpen()):
-                print("connected to : " + self.serial_conn.portstr)
+                rt.logging.debug("connected to : " + self.serial_conn.portstr)
         except serial.serialutil.SerialException as e:
             rt.logging.exception(e)
 
@@ -255,7 +255,7 @@ class SerialNmeaFile(SerialFile) :
         channel_list = []
         filetype_list = []
 
-        print("channel_data", channel_data)
+        rt.logging.debug("channel_data", channel_data)
         if channel_data is None :
             channel_array = []
         else :
@@ -286,14 +286,14 @@ class SerialNmeaFile(SerialFile) :
             while self.serial_conn.isOpen():
 
                 files = self.get_filenames(channel_data = self.ctrl_channels)
-                print('self.ctrl_channels', self.ctrl_channels)
-                print('files', files)
+                rt.logging.debug('self.ctrl_channels', self.ctrl_channels)
+                rt.logging.debug('files', files)
 
                 for current_file in files :
-                    print("current_file", current_file)
+                    rt.logging.debug("current_file", current_file)
                     self.retrieve_file_data(current_file)
                     #store_result = self.store_file_data()
-                    print("self.acquire_base64", self.acquired_base64)
+                    rt.logging.debug("self.acquire_base64", self.acquired_base64)
                     try :
                         os.remove(self.current_file)
                     except (PermissionError, FileNotFoundError) as e :
@@ -384,20 +384,20 @@ class NmeaUdpFile(UdpFile):
             address = None
 
             data, address = self.socket.recvfrom(4096)
-            print("address", address, "data", data)
+            rt.logging.debug("address", address, "data", data)
 
             data_lines = []
             if data is not None :
                 data_lines = data.decode("utf-8").splitlines()
-                print("data_lines", data_lines)
+                rt.logging.debug("data_lines", data_lines)
 
             timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
             nmea_data_array = self.nmea.decode_to_channels(char_data = data_lines, channel_data = self.channels, time_tuple = current_timetuple, line_end = None)
-            print("nmea_data_array", nmea_data_array)
+            rt.logging.debug("nmea_data_array", nmea_data_array)
             for nmea_data in nmea_data_array :
                 if nmea_data is not None :
                     (selected_tag, data_array), = nmea_data.items()
-                    print("data_array", data_array)
+                    rt.logging.debug("data_array", data_array)
                     if not ( None in data_array ) :
                         self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
 
@@ -437,13 +437,13 @@ class RawUdpFile(UdpFile):
             address = None
 
             data, address = self.socket.recvfrom(4096)
-            print("address", address, "data", data)
+            rt.logging.debug("address", address, "data", data)
             values = struct.unpack('>HIf', data)
-            print("values", values)
+            rt.logging.debug("values", values)
             data_array =  [ { values[0]:[values[2]] } ]
-            print("data_array", data_array)
+            rt.logging.debug("data_array", data_array)
             selected_tag, = self.channels
-            print("selected_tag", selected_tag)
+            rt.logging.debug("selected_tag", selected_tag)
             self.write(data_array = data_array, selected_tag = str(selected_tag), timestamp_secs = values[1]) 
 
 
