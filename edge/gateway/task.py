@@ -93,5 +93,8 @@ class MaintenanceTask(Task):
 
         self.env = self.get_env()
         if self.ip_list is None: self.ip_list = self.env['IP_LIST']
+        if self.max_connect_attempts is None: self.max_connect_attempts = self.env['MAX_CONNECT_ATTEMPTS']
 
         Task.__init__(self)
+
+        self.connect_attempts = 0
