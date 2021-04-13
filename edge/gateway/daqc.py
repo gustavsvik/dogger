@@ -428,6 +428,8 @@ class RawUdpFile(UdpFile):
     def run(self):
 
         time.sleep(self.start_delay)
+        selected_tag = 'DUMMY'
+        self.channels = {selected_tag: self.channels}
 
         while True :
 
@@ -442,9 +444,8 @@ class RawUdpFile(UdpFile):
             rt.logging.debug("values", values)
             data_array =  [ { values[0]:[values[2]] } ]
             rt.logging.debug("data_array", data_array)
-            selected_tag, = self.channels
-            rt.logging.debug("selected_tag", selected_tag)
-            self.write(data_array = data_array, selected_tag = str(selected_tag), timestamp_secs = values[1]) 
+            rt.logging.debug("self.channels", self.channels)
+            self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = values[1]) 
 
 
 
