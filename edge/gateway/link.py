@@ -159,6 +159,26 @@ class HttpHost(Http):
                 exit(-1)
 
 
+    def update_devices(self, ip = '127.0.0.1', host_id = 0, hardware_id = None, description = None):
+
+        self.connect_attempts += 1
+        if self.connect_attempts > 1:
+            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
+        try:
+            raw_data = requests.post("http://" + ip + self.host_api_url + "update_devices.php", timeout = 5, data = {"host_id": host_id, "hardware_id": hardware_id, "description": description})
+            rt.logging.debug("raw_data", raw_data)
+            self.connect_attempts = 0
+            return raw_data
+        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
+
+            rt.logging.exception(e)
+            time.sleep(10)
+            if self.connect_attempts < self.max_connect_attempts:
+                self.update_devices(ip, hardware, description)
+            else:
+                exit(-1)
+
+
 
 class HttpClient(Http):
 
@@ -940,7 +960,7 @@ class SqlFileAtonReport(SqlFile):
                 rt.logging.debug('nmea_data', nmea_data)
                 if nmea_data is not None :
                     (selected_tag, data_array), = nmea_data.items()
-                    rt.logging.debug("selected_tag", selected_tag, "data_array", data_array)
+                    rt.logging.debug("self.target_channels", self.target_channels, "data_array", data_array, "selected_tag", selected_tag)
                     self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
 
             time.sleep(1/self.transmit_rate)
@@ -950,8 +970,7 @@ class SqlFileAtonReport(SqlFile):
 class SqlFileAisData(SqlFile):
 
 
-    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
-        #repeat = 0, mmsi = 0, aid_type = 0, name = 0, accuracy = 0, lon = 181000, lat = 91000, to_bow = 0, to_stern = 0, to_port = 0, to_starboard = 0, epfd = 0, ts = 60, off_position = 0, raim = 0, virtual_aid = 0, assigned = 0)
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, ip_list = None, host_api_url = None, max_connect_attempts = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -959,6 +978,7 @@ class SqlFileAisData(SqlFile):
         self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.max_age = max_age
+        self.target_channels = target_channels
 
         self.file_path = file_path
         self.archive_file_path = archive_file_path
@@ -974,6 +994,67 @@ class SqlFileAisData(SqlFile):
     def run(self):
 
         time.sleep(self.start_delay)
+        rt.logging.debug(self.target_channels)
+
+        while True:
+
+            self.sql.connect_db()
+            channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
+            rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
+            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+            rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
+            nmea_data_array = self.nmea.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ' )
+            rt.logging.debug("nmea_data_array", nmea_data_array) 
+            for nmea_data in nmea_data_array :
+                rt.logging.debug('nmea_data', nmea_data)
+                if nmea_data is not None :
+                    (selected_tag, data_array), = nmea_data.items()
+                    rt.logging.debug("self.target_channels", self.target_channels, "data_array", data_array, "selected_tag", selected_tag)
+                    self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+
+            if len(byte_strings) > 0 :
+                pass
+                #mmsis, message_types, asm_format_ids, ais_datasets, latitudes, longitudes = self.nmea.data_from_ais(byte_strings)
+                #print("mmsis", mmsis, "message_types", message_types, "asm_format_ids", asm_format_ids, "ais_datasets", ais_datasets, "latitudes", latitudes, "longitudes", longitudes)
+                #for mmsi, message_type, asm_format_id, ais_dataset, latitude, longitude in zip(mmsis, message_types, asm_format_ids, ais_datasets, latitudes, longitudes) :
+                #    print("mmsi", mmsi, "message_type", message_type, "asm_format_id", asm_format_id, "ais_dataset", ais_dataset, "latitude", latitude, "longitude", longitudes)
+                #    self.write(target_channels = self.target_channels, data_array = [json.dumps(ais_dataset)], selected_tag = ais_dataset['sentence'], timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+            time.sleep(1/self.transmit_rate)
+
+
+
+class SqlHttpUpdateStatic(HttpHost):
+
+
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None) :
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+        self.transmit_rate = transmit_rate
+        self.gateway_database_connection = gateway_database_connection
+        self.max_age = max_age
+        self.target_channels = target_channels
+
+        self.ip_list = ip_list
+        self.host_api_url = host_api_url
+        self.max_connect_attempts = max_connect_attempts
+        #self.file_path = file_path
+        #self.archive_file_path = archive_file_path
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        #SqlFile.__init__(self)
+        HttpHost.__init__(self)
+
+        self.nmea = tr.Nmea()
+
+
+    def run(self):
+
+        time.sleep(self.start_delay)
+        rt.logging.debug(self.target_channels)
 
         while True:
 
@@ -981,6 +1062,25 @@ class SqlFileAisData(SqlFile):
             channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
             #rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
             if len(byte_strings) > 0 :
-                mmsis, latitudes, longitudes = self.nmea.data_from_aivdm(byte_strings)
+                mmsis, message_types, asm_format_ids, ais_datasets, latitudes, longitudes = self.nmea.data_from_ais(byte_strings)
+                rt.logging.debug("mmsis", mmsis, "message_types", message_types, "asm_format_ids", asm_format_ids, "ais_datasets", ais_datasets, "latitudes", latitudes, "longitudes", longitudes)
+                for mmsi, message_type, asm_format_id, ais_dataset, latitude, longitude in zip(mmsis, message_types, asm_format_ids, ais_datasets, latitudes, longitudes) :
+                    #rt.logging.debug("mmsi", mmsi, "message_type", message_type, "asm_format_id", asm_format_id, "ais_dataset", ais_dataset, "latitude", latitude, "longitude", longitudes)
+                    for current_ip in self.ip_list :
+                        #if not None in [latitude, longitude] :
+                        #    description += '-' + str("%.4f" % latitude) + '-' + str("%.4f" % longitude)
+                        if message_type in [5, 24, 4] :
+                            description = ''
+                            if message_type in [5, 24] :
+                                try :
+                                    description += ais_dataset["callsign"] + '-' + ais_dataset["shipname"]
+                                except (KeyError) as e :
+                                    pass #rt.logging.exception(e)
+                            if message_type in [4] :
+                                description += str("%.4f" % latitude) + '-' + str("%.4f" % longitude)
+                            #res = self.update_devices(host_id = 0, hardware_id = mmsi, description = description)
+                        else :
+                            pass
+                            #res = self.update_devices(host_id = 0, hardware_id = mmsi)
 
             time.sleep(1/self.transmit_rate)
