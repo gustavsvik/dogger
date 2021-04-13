@@ -101,10 +101,20 @@ def data_field_binary_string(message_data_binary_string, start_in_complete_messa
 
 
 def twos_comp(val, bits):
+
     """compute the 2's complement of int value val"""
     if (val & (1 << (bits - 1))) != 0: # if sign bit is set e.g., 8bit: 128-255
         val = val - (1 << bits)        # compute negative value
     return val                         # return positive value as is
+
+
+def safe_get(dict_like_object, key, default_value = None) :
+    value = default_value
+    try :
+        value = dict_like_object[key]
+    except KeyError as e :
+        pass
+    return value
 
 
 
@@ -129,12 +139,18 @@ class TextNumeric :
 
             for selected_line in char_data :
 
-                rt.logging.debug("selected_line", selected_line)
+                try :
+                    selected_line = selected_line.decode()
+                except (UnicodeDecodeError, AttributeError) :
+                    pass
+
 
                 for selected_tag, channels in channel_data.items() :
+                    selected_tag = str(selected_tag)
+                    rt.logging.debug("selected_tag", selected_tag)
                     rt.logging.debug("channels", channels)
                     channels_list = list(channels)
-
+                    #TODO: Take into account that a single selected_line can contain several separated strings which potentially can be different NMEA/AIS sentences as identified by selected_tag. In current state, loss of data may occur.
                     if selected_tag in selected_line : 
                         rt.logging.debug("selected_tag", selected_tag, "channels_list", channels_list)
                         current_string_value = ''
@@ -167,51 +183,66 @@ class TextNumeric :
 
             if len(dict_string) > 0 :
 
-                data_array = []
+                #data_array = []
+                data_list = []
 
                 if selected_tag == 'MMB' :
                     value = self.to_float(dict_string, 1)
-                    data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [value]) ] ) ]
+                    #data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [value]) ] ) ]
+                    data_list = [ dict_string, [ value ] ]
 
                 if selected_tag == 'VDM' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+                    mmsis, message_types, asm_format_ids, ais_datasets, latitudes, longitudes = self.data_from_ais([dict_string], line_end)
+                    rt.logging.debug("ais_datasets", ais_datasets)
+                    #data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], ais_datasets) ] ) ]
+                    data_list = [ dict_string, ais_datasets ]
 
                 if selected_tag == 'VDO' :
                     latitude, longitude = self.aivdo_to_pos(dict_string.split(line_end)[0])
-                    data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [latitude]) , (channels_list[2], [longitude]) ] ) ]
+                    #data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [latitude]) , (channels_list[2], [longitude]) ] ) ]
+                    data_list = [ dict_string, [latitude], [longitude] ]
 
                 if selected_tag == 'ALV' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+                    #data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+                    data_list = [ dict_string ]
 
                 if selected_tag == 'ALR' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+                    #data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+                    data_list = [ dict_string ]
 
                 if selected_tag == 'TTM' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+                    #data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+                    data_list = [ dict_string ]
 
                 if selected_tag == 'GGA' :
                     rt.logging.debug("channels_list", channels_list, "dict_string", dict_string, "time_tuple", time_tuple)
                     validated_timestamp, timestamp_microsecs, latitude, longitude = self.gga_to_time_pos(dict_string, time_tuple)
                     rt.logging.debug("[latitude]", [latitude], "[longitude]", [longitude])
-                    data_dict = None
+                    #data_dict = None
                     if not ( None in [latitude, longitude] ) :
                         gga_string_valid_time = self.gga_from_time_pos_float(validated_timestamp, latitude, longitude)
                         rt.logging.debug("gga_string_valid_time", gga_string_valid_time)
-                        data_dict = channel_value_dict(channels_list, [ gga_string_valid_time, [latitude], [longitude] ])
-                    rt.logging.debug("data_dict", data_dict)
-                    data_array = [data_dict]
+                        #data_dict = channel_value_dict(channels_list, [ gga_string_valid_time, [latitude], [longitude] ])
+                        data_list = [ gga_string_valid_time, [latitude], [longitude] ]
+                    #data_array = [data_dict]
 
                 if selected_tag == 'GLL' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+                    #data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+                    data_list = [ dict_string ]
 
                 if selected_tag == 'VTG' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+                    #data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+                    data_list = [ dict_string ]
 
                 if selected_tag == 'RSA' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+                    #data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+                    data_list = [ dict_string ]
 
                 if selected_tag == 'XDR' :
-                    data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+                    #data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
+                    data_list = [ dict_string ]
+
+                data_array = [ channel_value_dict( channels_list, data_list ) ]
 
                 rt.logging.debug("data_array", data_array)
                 if len(data_array) > 0 :
@@ -565,71 +596,173 @@ class Nmea(TextNumeric) :
         return aivdm_payloads
 
 
-    def data_from_aivdm(self, aivdm_message_strings) :
+    def decode_ais_binary_string(self, message_string, message_structure, bit_offset) :
+        structure_array = [ structure_items for structure_tag, structure_items in message_structure.items() ]
+        for structure_item in structure_array :
+            print(structure_item['bits'])
+            print(structure_item['type'])
+            print(structure_item['div'])
+        #lon_string = data_field_binary_string(message_string, bit_offset, 56, 80)
+        #aivdm_8_31_data["lon"] = twos_comp( int(lon_string, 2), len(lon_string) ) / 1000 / 60
+
+
+    def data_from_ais(self, ais_message_strings, separator) :
 
         mmsis = []
+        message_types = []
+        asm_format_ids = []
+        ais_datasets = []
         latitudes = []
         longitudes = []
 
-        #rt.logging.debug("aivdm_message_strings", aivdm_message_strings)
+        rt.logging.debug("ais_message_strings", ais_message_strings)
 
-        for aivdm_message_string in aivdm_message_strings :
-            aivdm_messages = aivdm_message_string.split(b' ')
-            for aivdm_message in aivdm_messages :
-                aivdm_data = []
+        for ais_message_string in ais_message_strings :
+
+            ais_message_string = str(ais_message_string)
+            rt.logging.debug("ais_message_string", ais_message_string)
+            rt.logging.debug("separator", separator)
+            ais_messages = ais_message_string.split(separator)
+            rt.logging.debug("ais_messages", ais_messages)
+
+            for ais_message in ais_messages :
+
                 try :
-                    aivdm_data = pyais.NMEAMessage(aivdm_message).decode()
+                    ais_message = ais_message.decode()
+                except (UnicodeDecodeError, AttributeError) :
+                    pass
+
+                ais_sentence = None
+                if 'VDM' in ais_message : ais_sentence = 'VDM'
+                elif 'VDO' in ais_message : ais_sentence = 'VDO'
+
+                ais_data = {}
+
+                try :
+                    try :
+                        ais_message = ais_message.encode('UTF-8')
+                    except (UnicodeDecodeError, AttributeError) :
+                        pass
+                    ais_data = pyais.NMEAMessage(ais_message).decode()
                 except (ValueError, IndexError, pyais.exceptions.InvalidNMEAMessageException) as e :
                     pass #rt.logging.exception(e)
-                try :
-                    mmsi = aivdm_data['mmsi']
-                    if int(aivdm_data['type']) == 8 and int(aivdm_data['fid']) == 31 :
-                        lon = int( data_field_binary_string(aivdm_data['data'], 56, 56, 80), 2 ) / 1000 / 60
-                        lat = int( data_field_binary_string(aivdm_data['data'], 56, 81, 104), 2 ) / 1000 / 60
-                        accuracy = bool( data_field_binary_string(aivdm_data['data'], 56, 105, 105) )
-                        day = int( data_field_binary_string(aivdm_data['data'], 56, 106, 110), 2 )
-                        hour = int( data_field_binary_string(aivdm_data['data'], 56, 111, 115), 2 )
-                        minute = int( data_field_binary_string(aivdm_data['data'], 56, 116, 121), 2 )
-                        wspeed = int( data_field_binary_string(aivdm_data['data'], 56, 122, 128), 2 )
-                        wgust = int( data_field_binary_string(aivdm_data['data'], 56, 129, 135), 2 )
-                        wdir = int( data_field_binary_string(aivdm_data['data'], 56, 136, 144), 2 )
-                        wgustdir = int( data_field_binary_string(aivdm_data['data'], 56, 145, 153), 2 )
-                        airtemp_string = data_field_binary_string(aivdm_data['data'], 56, 154, 164)
-                        airtemp = twos_comp( int(airtemp_string, 2), len(airtemp_string) ) / 10
-                        humidity = int( data_field_binary_string(aivdm_data['data'], 56, 165, 171), 2 )
-                        dewpoint_string = data_field_binary_string(aivdm_data['data'], 56, 172, 181)
-                        dewpoint = twos_comp( int(dewpoint_string, 2), len(dewpoint_string) ) / 10
-                        pressure = int( data_field_binary_string(aivdm_data['data'], 56, 182, 190), 2 )
-                        pressuretend = int( data_field_binary_string(aivdm_data['data'], 56, 191, 192), 2 )
-                        visgreater = int( data_field_binary_string(aivdm_data['data'], 56, 193, 193), 2 )
-                        visibility = int( data_field_binary_string(aivdm_data['data'], 56, 194, 200), 2 ) / 10
-                        waterlevel_string = data_field_binary_string(aivdm_data['data'], 56, 201, 212)
-                        waterlevel = twos_comp( int(waterlevel_string, 2), len(waterlevel_string) ) / 100
-                        leveltrend = int( data_field_binary_string(aivdm_data['data'], 56, 213, 214), 2 )
-                        cspeed = int( data_field_binary_string(aivdm_data['data'], 56, 215, 222), 2 ) / 10
-                        cdir = int( data_field_binary_string(aivdm_data['data'], 56, 223, 231), 2 )
-                        cspeed2 = int( data_field_binary_string(aivdm_data['data'], 56, 232, 239), 2 ) / 10
-                        cdir2 = int( data_field_binary_string(aivdm_data['data'], 56, 240, 248), 2 )
-                        cdepth2 = int( data_field_binary_string(aivdm_data['data'], 56, 249, 253), 2 )
-                        cspeed3 = int( data_field_binary_string(aivdm_data['data'], 56, 254, 261), 2 ) / 10
-                        cdir3 = int( data_field_binary_string(aivdm_data['data'], 56, 262, 270), 2 )
-                        cdepth3 = int( data_field_binary_string(aivdm_data['data'], 56, 271, 275), 2 )
-                        waveheight = int( data_field_binary_string(aivdm_data['data'], 56, 276, 283), 2 ) / 10
-                        waveperiod = int( data_field_binary_string(aivdm_data['data'], 56, 284, 289), 2 )
-                        wavedir = int( data_field_binary_string(aivdm_data['data'], 56, 290, 298), 2 )
-                        swellheight = int( data_field_binary_string(aivdm_data['data'], 56, 299, 306), 2 ) / 10
-                        swellperiod = int( data_field_binary_string(aivdm_data['data'], 56, 307, 312), 2 )
-                        swelldir = int( data_field_binary_string(aivdm_data['data'], 56, 313, 321), 2 )
-                        seastate = int( data_field_binary_string(aivdm_data['data'], 56, 322, 325), 2 )
-                        watertemp_string = data_field_binary_string(aivdm_data['data'], 56, 326, 335)
-                        watertemp = twos_comp( int(watertemp_string, 2), len(watertemp_string) ) / 10
-                        preciptype = int( data_field_binary_string(aivdm_data['data'], 56, 336, 338), 2 )
-                        salinity = int( data_field_binary_string(aivdm_data['data'], 56, 339, 347), 2 ) / 10
-                        ice = int( data_field_binary_string(aivdm_data['data'], 56, 348, 349), 2 )
-                        rt.logging.debug("mmsi", mmsi, "lon", lon, "lat", lat, "accuracy", accuracy, "day", day, "hour", hour, "minute", minute, "wspeed", wspeed, "wgust", wgust, "wdir", wdir, "wgustdir", wgustdir, "airtemp", airtemp, "humidity", humidity, "dewpoint", dewpoint, "pressure", pressure, "pressuretend", pressuretend, "visgreater", visgreater, "visibility", visibility, "waterlevel", waterlevel, "leveltrend", leveltrend, "cspeed", cspeed, "cdir", cdir, "cspeed2", cspeed2, "cdir2", cdir2, "cdepth2", cdepth2, "cspeed3", cspeed3, "cdir3", cdir3, "cdepth3", cdepth3, "waveheight", waveheight, "waveperiod", waveperiod, "wavedir", wavedir, "swellheight", swellheight, "swellperiod", swellperiod, "swelldir", swelldir, "seastate", seastate, "watertemp", watertemp, "preciptype", preciptype, "salinity", salinity, "ice", ice)
+                rt.logging.debug("ais_data", ais_data)
 
-                    #mmsis.append(mmsi)
-                except (TypeError, KeyError) as e :
-                    pass #rt.logging.exception(e)
+                #try :
 
-        return mmsis, latitudes, longitudes
+                mmsi = None
+                message_type = None
+                asm_format_id = None
+                ais_dataset = None
+                longitude = None
+                latitude = None
+
+                #ais_dataset = ais_data
+
+                mmsi = safe_get(ais_data, 'mmsi')
+                message_type = safe_get(ais_data, 'type')
+
+                if message_type is not None and int(message_type) in [1, 2, 3, 9, 4, 18, 5, 20, 24, 8] :
+
+                    ais_dataset = {}
+                    ais_dataset["sentence"] = ais_sentence
+                    ais_dataset["mmsi"] = mmsi
+                    ais_dataset["type"] = message_type
+
+                    if message_type is not None and int(message_type) in [8] :
+
+                        asm_format_id = safe_get(ais_data, 'fid')
+                        #print(ais_dataset)
+                        asm_data = safe_get(ais_data, 'data')
+
+                        if asm_format_id is not None and int(asm_format_id) == 31 :
+
+                            #aivdm_8_31_structure = { "lon": {"bits":[56,80], "type":"I3", "div": 60000}, "lat": {"bits":[81,104], "type":"I3", "div": 60000} }
+                            #aivdm_8_31_data = self.decode_ais_binary_string(asm_data, aivdm_8_31_structure, 56)
+                            #aivdm_8_31_data = {} 
+                            # dict keys according to JSON member names chosen by the GPSD Project: https://gpsd.gitlab.io/gpsd/AIVDM.html#_ais_payload_interpretation
+                            #ais_dataset["lon"] = int( data_field_binary_string(asm_data, 56, 56, 80), 2 ) / 1000 / 60
+                            lon_string = data_field_binary_string(asm_data, 56, 56, 80)
+                            ais_dataset["lon"] = twos_comp( int(lon_string, 2), len(lon_string) ) / 1000 / 60
+                            #ais_dataset["lat"] = int( data_field_binary_string(asm_data, 56, 81, 104), 2 ) / 1000 / 60
+                            lat_string = data_field_binary_string(asm_data, 56, 81, 104)
+                            ais_dataset["lat"] = twos_comp( int(lat_string, 2), len(lat_string) ) / 1000 / 60
+                            ais_dataset["accuracy"] = bool( data_field_binary_string(asm_data, 56, 105, 105) )
+                            ais_dataset["day"] = int( data_field_binary_string(asm_data, 56, 106, 110), 2 )
+                            ais_dataset["hour"] = int( data_field_binary_string(asm_data, 56, 111, 115), 2 )
+                            ais_dataset["minute"] = int( data_field_binary_string(asm_data, 56, 116, 121), 2 )
+                            ais_dataset["wspeed"] = int( data_field_binary_string(asm_data, 56, 122, 128), 2 )
+                            ais_dataset["wgust"] = int( data_field_binary_string(asm_data, 56, 129, 135), 2 )
+                            ais_dataset["wdir"] = int( data_field_binary_string(asm_data, 56, 136, 144), 2 )
+                            ais_dataset["wgustdir"] = int( data_field_binary_string(asm_data, 56, 145, 153), 2 )
+                            airtemp_string = data_field_binary_string(asm_data, 56, 154, 164)
+                            ais_dataset["airtemp"] = twos_comp( int(airtemp_string, 2), len(airtemp_string) ) / 10
+                            ais_dataset["humidity"] = int( data_field_binary_string(asm_data, 56, 165, 171), 2 )
+                            dewpoint_string = data_field_binary_string(asm_data, 56, 172, 181)
+                            ais_dataset["dewpoint"] = twos_comp( int(dewpoint_string, 2), len(dewpoint_string) ) / 10
+                            ais_dataset["pressure"] = int( data_field_binary_string(asm_data, 56, 182, 190), 2 )
+                            ais_dataset["pressuretend"] = int( data_field_binary_string(asm_data, 56, 191, 192), 2 )
+                            ais_dataset["visgreater"] = int( data_field_binary_string(asm_data, 56, 193, 193), 2 )
+                            ais_dataset["visibility"] = int( data_field_binary_string(asm_data, 56, 194, 200), 2 ) / 10
+                            waterlevel_string = data_field_binary_string(asm_data, 56, 201, 212)
+                            ais_dataset["waterlevel"] = twos_comp( int(waterlevel_string, 2), len(waterlevel_string) ) / 100
+                            ais_dataset["leveltrend"] = int( data_field_binary_string(asm_data, 56, 213, 214), 2 )
+                            ais_dataset["cspeed"] = int( data_field_binary_string(asm_data, 56, 215, 222), 2 ) / 10
+                            ais_dataset["cdir"] = int( data_field_binary_string(asm_data, 56, 223, 231), 2 )
+                            ais_dataset["cspeed2"] = int( data_field_binary_string(asm_data, 56, 232, 239), 2 ) / 10
+                            ais_dataset["cdir2"] = int( data_field_binary_string(asm_data, 56, 240, 248), 2 )
+                            ais_dataset["cdepth2"] = int( data_field_binary_string(asm_data, 56, 249, 253), 2 )
+                            ais_dataset["cspeed3"] = int( data_field_binary_string(asm_data, 56, 254, 261), 2 ) / 10
+                            ais_dataset["cdir3"] = int( data_field_binary_string(asm_data, 56, 262, 270), 2 )
+                            ais_dataset["cdepth3"] = int( data_field_binary_string(asm_data, 56, 271, 275), 2 )
+                            ais_dataset["waveheight"] = int( data_field_binary_string(asm_data, 56, 276, 283), 2 ) / 10
+                            ais_dataset["waveperiod"] = int( data_field_binary_string(asm_data, 56, 284, 289), 2 )
+                            ais_dataset["wavedir"] = int( data_field_binary_string(asm_data, 56, 290, 298), 2 )
+                            ais_dataset["swellheight"] = int( data_field_binary_string(asm_data, 56, 299, 306), 2 ) / 10
+                            ais_dataset["swellperiod"] = int( data_field_binary_string(asm_data, 56, 307, 312), 2 )
+                            ais_dataset["swelldir"] = int( data_field_binary_string(asm_data, 56, 313, 321), 2 )
+                            ais_dataset["seastate"] = int( data_field_binary_string(asm_data, 56, 322, 325), 2 )
+                            watertemp_string = data_field_binary_string(asm_data, 56, 326, 335)
+                            ais_dataset["watertemp"] = twos_comp( int(watertemp_string, 2), len(watertemp_string) ) / 10
+                            ais_dataset["preciptype"] = int( data_field_binary_string(asm_data, 56, 336, 338), 2 )
+                            ais_dataset["salinity"] = int( data_field_binary_string(asm_data, 56, 339, 347), 2 ) / 10
+                            ais_dataset["ice"] = int( data_field_binary_string(asm_data, 56, 348, 349), 2 )
+                            longitude = ais_dataset["lon"]
+                            latitude = ais_dataset["lat"]
+
+                        ais_dataset["fid"] = asm_format_id
+
+                    if message_type is not None and int(message_type) in [1, 2, 3, 9, 4, 18] :
+
+                        ais_dataset["lon"] = safe_get(ais_data, 'lon')
+                        ais_dataset["lat"] = safe_get(ais_data, 'lat')
+                        ais_dataset["accuracy"] = safe_get(ais_data, 'accuracy')
+                        longitude = safe_get(ais_data, "lon")
+                        latitude = safe_get(ais_data, "lat")
+
+                        if int(message_type) in [1, 2, 3, 9, 18] :
+
+                            ais_dataset["course"] = safe_get(ais_data, 'course')
+                            ais_dataset["speed"] = safe_get(ais_data, 'speed')
+
+                            if int(message_type) in [1, 2, 3, 18] :
+
+                                ais_dataset["heading"] = safe_get(ais_data, 'heading')
+
+                                if int(message_type) in [1, 2, 3] :
+
+                                    ais_dataset["turn"] = safe_get(ais_data, 'turn')
+
+                if None not in [mmsi] :
+
+                    mmsis.append(mmsi)
+                    message_types.append(message_type)
+                    asm_format_ids.append(asm_format_id)
+                    ais_datasets.append(ais_dataset)
+                    longitudes.append(longitude)
+                    latitudes.append(latitude)
+                    #except (TypeError, KeyError) as e :
+                    #    pass #rt.logging.exception(e)
+
+        rt.logging.debug("ais_datasets", ais_datasets)
+        return mmsis, message_types, asm_format_ids, ais_datasets, latitudes, longitudes
