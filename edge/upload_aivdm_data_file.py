@@ -6,6 +6,7 @@ udp_upload_ais = gateway.link.SqlFileAisData(
     start_delay = 0,
     transmit_rate = 0.5, 
     max_age = 10,
+    target_channels = {'VDM':{0:'txt', 148:'json'}},
     file_path = '/srv/dogger/files/',
     config_filepath = '/srv/dogger/', 
     config_filename = 'conf_cloud_db.ini')
