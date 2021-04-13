@@ -2,6 +2,7 @@
 
 import os
 import glob
+import json
 import datetime
 import time
 import pymysql
@@ -39,45 +40,56 @@ def get_timestamped_range(files, lower_timestamp, higher_timestamp) :
 
     selected_files = []
     for current_file in files :
-        start = current_file.rfind('_')
-        end = current_file.rfind('.')
-        current_timestamp_string = current_file[start+1:end]
-        current_timestamp = int(current_timestamp_string)
-        if current_timestamp <= higher_timestamp and current_timestamp >= lower_timestamp :
-            selected_files.append(current_file)
-
+        try :
+            start = current_file.rfind('_')
+            end = current_file.rfind('.')
+            current_timestamp_string = current_file[start+1:end]
+            current_timestamp = int(current_timestamp_string)
+            if current_timestamp <= higher_timestamp and current_timestamp >= lower_timestamp :
+                selected_files.append(current_file)
+        except (AttributeError, TypeError, ValueError) as e :
+            rt.logging.exception(e)
     return selected_files
 
 
-def get_file_timestamp(current_file = None):
+def get_file_timestamp(current_file = None) :
 
-    before_start_position = current_file.find("_")
-    after_end_position = current_file.find(".")
-    acquired_time_string = current_file[before_start_position+1:after_end_position]
-    acquired_time = int(acquired_time_string)
-
+    acquired_time = None
+    try :
+        before_start_position = current_file.find("_")
+        after_end_position = current_file.find(".")
+        acquired_time_string = current_file[before_start_position+1:after_end_position]
+        acquired_time = int(acquired_time_string)
+    except (AttributeError, TypeError, ValueError) as e :
+        rt.logging.exception(e)
     return acquired_time
 
 
-def get_file_local_datetime(current_file = None, datetime_pattern = '%Y%m%d%H%M%S'):
+def get_file_local_datetime(current_file = None, datetime_pattern = '%Y%m%d%H%M%S') :
 
-    before_start_position = current_file.find("_")
-    after_end_position = current_file.find(".")
-    acquired_local_datetime_string = current_file[before_start_position+1:after_end_position]
-    local_datetime = datetime.datetime.strptime(acquired_local_datetime_string, datetime_pattern)
-    acquired_time = int(time.mktime(local_datetime.timetuple()))
-
+    acquired_time = None
+    try :
+        before_start_position = current_file.find("_")
+        after_end_position = current_file.find(".")
+        acquired_local_datetime_string = current_file[before_start_position+1:after_end_position]
+        local_datetime = datetime.datetime.strptime(acquired_local_datetime_string, datetime_pattern)
+        acquired_time = int(time.mktime(local_datetime.timetuple()))
+    except (AttributeError, TypeError, ValueError) as e :
+        rt.logging.exception(e)
     return acquired_time
 
 
-def get_file_channel(current_file = None):
+def get_file_channel(current_file = None) :
 
-    position_after = current_file.find("_")
-    string_before_timestamp = current_file[0:position_after]
-    position_before = current_file.rfind("/")
-    channel_string = current_file[position_before+1:position_after]
-    channel = int(channel_string)
-
+    channel = None
+    try :
+        position_after = current_file.find("_")
+        string_before_timestamp = current_file[0:position_after]
+        position_before = current_file.rfind("/")
+        channel_string = current_file[position_before+1:position_after]
+        channel = int(channel_string)
+    except (AttributeError, TypeError, ValueError) as e :
+        rt.logging.exception(e)
     return channel
 
 
@@ -181,7 +193,7 @@ class IngestFile(AcquireControlFile) :
             rt.logging.debug("channel, file_type", channel, file_type) 
             rt.logging.debug("selected_channel_array[0][channel]", selected_channel_array[0][channel])
             rt.logging.debug("self.file_path", self.file_path)
-            if self.file_path is not None and os.path.exists(self.file_path) :
+            if self.file_path is not None and os.path.exists(self.file_path) and channel > 0 :
 
                 if timestamp_secs is None and timestamp_microsecs is None and sample_rate is not None :
                     timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = sample_rate)
@@ -207,7 +219,16 @@ class IngestFile(AcquireControlFile) :
                     if file_type == 'txt' and data_array[0][channel] != '' :
                         try :
                             with open(store_filename, 'w') as text_file :
+                                rt.logging.debug("data_array", data_array)
+                                rt.logging.debug("channel", channel)
                                 text_file.write(data_array[0][channel])
+                        except PermissionError as e:
+                            rt.logging.exception(e)
+
+                    if file_type == 'json' and data_array[0][channel] != '' :
+                        try :
+                            with open(store_filename, 'w') as text_file :
+                                text_file.write( json.dumps(data_array[0][channel]) )
                         except PermissionError as e:
                             rt.logging.exception(e)
 
