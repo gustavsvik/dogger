@@ -257,7 +257,7 @@ class TextFile(FileToSQL):
 class TextStringFile(FileToSQL):
 
 
-    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['csv', 'txt'], files_to_keep = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['csv', 'txt', 'json'], files_to_keep = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
