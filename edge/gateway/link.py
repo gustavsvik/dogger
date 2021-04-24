@@ -970,7 +970,7 @@ class SqlFileAtonReport(SqlFile):
 class SqlFileAisData(SqlFile):
 
 
-    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, ip_list = None, host_api_url = None, max_connect_attempts = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, message_formats = None, ip_list = None, host_api_url = None, max_connect_attempts = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -979,6 +979,7 @@ class SqlFileAisData(SqlFile):
         self.gateway_database_connection = gateway_database_connection
         self.max_age = max_age
         self.target_channels = target_channels
+        self.message_formats = message_formats
 
         self.file_path = file_path
         self.archive_file_path = archive_file_path
@@ -1014,10 +1015,10 @@ class SqlFileAisData(SqlFile):
 
             if len(byte_strings) > 0 :
                 pass
-                #mmsis, message_types, asm_format_ids, ais_datasets, latitudes, longitudes = self.nmea.data_from_ais(byte_strings)
-                #print("mmsis", mmsis, "message_types", message_types, "asm_format_ids", asm_format_ids, "ais_datasets", ais_datasets, "latitudes", latitudes, "longitudes", longitudes)
-                #for mmsi, message_type, asm_format_id, ais_dataset, latitude, longitude in zip(mmsis, message_types, asm_format_ids, ais_datasets, latitudes, longitudes) :
-                #    print("mmsi", mmsi, "message_type", message_type, "asm_format_id", asm_format_id, "ais_dataset", ais_dataset, "latitude", latitude, "longitude", longitudes)
+                #mmsis, message_types, message_format_ids, ais_datasets, latitudes, longitudes = self.nmea.data_from_ais(byte_strings)
+                #print("mmsis", mmsis, "message_types", message_types, "message_format_ids", message_format_ids, "ais_datasets", ais_datasets, "latitudes", latitudes, "longitudes", longitudes)
+                #for mmsi, message_type, message_format_id, ais_dataset, latitude, longitude in zip(mmsis, message_types, message_format_ids, ais_datasets, latitudes, longitudes) :
+                #    print("mmsi", mmsi, "message_type", message_type, "message_format_id", message_format_id, "ais_dataset", ais_dataset, "latitude", latitude, "longitude", longitudes)
                 #    self.write(target_channels = self.target_channels, data_array = [json.dumps(ais_dataset)], selected_tag = ais_dataset['sentence'], timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
             time.sleep(1/self.transmit_rate)
 
@@ -1026,7 +1027,7 @@ class SqlFileAisData(SqlFile):
 class SqlHttpUpdateStatic(HttpHost):
 
 
-    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, message_formats = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -1035,6 +1036,9 @@ class SqlHttpUpdateStatic(HttpHost):
         self.gateway_database_connection = gateway_database_connection
         self.max_age = max_age
         self.target_channels = target_channels
+        #target_channels = {'VDM':{'mmsi|t_device/DEVICE_HARDWARE_ID':'json'}},
+        self.message_formats = message_formats
+        #print("self.message_formats[0]['type']", self.message_formats[0]['type'])
 
         self.ip_list = ip_list
         self.host_api_url = host_api_url
@@ -1048,7 +1052,8 @@ class SqlHttpUpdateStatic(HttpHost):
         #SqlFile.__init__(self)
         HttpHost.__init__(self)
 
-        self.nmea = tr.Nmea()
+        self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
+        self.nmea = tr.Nmea(message_formats = self.message_formats)
 
 
     def run(self):
@@ -1060,27 +1065,48 @@ class SqlHttpUpdateStatic(HttpHost):
 
             self.sql.connect_db()
             channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
-            #rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
-            if len(byte_strings) > 0 :
-                mmsis, message_types, asm_format_ids, ais_datasets, latitudes, longitudes = self.nmea.data_from_ais(byte_strings)
-                rt.logging.debug("mmsis", mmsis, "message_types", message_types, "asm_format_ids", asm_format_ids, "ais_datasets", ais_datasets, "latitudes", latitudes, "longitudes", longitudes)
-                for mmsi, message_type, asm_format_id, ais_dataset, latitude, longitude in zip(mmsis, message_types, asm_format_ids, ais_datasets, latitudes, longitudes) :
-                    #rt.logging.debug("mmsi", mmsi, "message_type", message_type, "asm_format_id", asm_format_id, "ais_dataset", ais_dataset, "latitude", latitude, "longitude", longitudes)
-                    for current_ip in self.ip_list :
-                        #if not None in [latitude, longitude] :
-                        #    description += '-' + str("%.4f" % latitude) + '-' + str("%.4f" % longitude)
-                        if message_type in [5, 24, 4] :
-                            description = ''
-                            if message_type in [5, 24] :
-                                try :
-                                    description += ais_dataset["callsign"] + '-' + ais_dataset["shipname"]
-                                except (KeyError) as e :
-                                    pass #rt.logging.exception(e)
-                            if message_type in [4] :
-                                description += str("%.4f" % latitude) + '-' + str("%.4f" % longitude)
-                            #res = self.update_devices(host_id = 0, hardware_id = mmsi, description = description)
-                        else :
-                            pass
-                            #res = self.update_devices(host_id = 0, hardware_id = mmsi)
+            #print("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
+            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+            rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
+            #for selected_line in byte_strings :
+            #    print(tr.locations_of_substring(selected_line, b'VDM'))
+            nmea_data_array = self.nmea.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ')
+            #print('nmea_data_array', nmea_data_array)
+            aivdm_array = []
+            try :
+                aivdm_array = nmea_data_array[0]['VDM'][0][149]
+            except IndexError as e :
+                rt.logging.exception(e)
+
+            for aivdm_data in aivdm_array :
+                type = tr.safe_get(aivdm_data, 'type')
+                mmsi = tr.safe_get(aivdm_data, 'mmsi')
+                lat = tr.safe_get(aivdm_data, 'lat')
+                lon = tr.safe_get(aivdm_data, 'lon')
+                shipname = tr.safe_get(aivdm_data, 'shipname')
+                callsign = tr.safe_get(aivdm_data, 'callsign')
+                #print('type', type, 'mmsi', mmsi, 'lat', lat, 'lon', lon, 'shipname', shipname, 'callsign', callsign) 
+
+            # if len(byte_strings) > 0 :
+                # mmsis, message_types, message_format_ids, ais_datasets, latitudes, longitudes = self.nmea.data_from_ais(byte_strings)
+                # rt.logging.debug("mmsis", mmsis, "message_types", message_types, "message_format_ids", message_format_ids, "ais_datasets", ais_datasets, "latitudes", latitudes, "longitudes", longitudes)
+                # for mmsi, message_type, message_format_id, ais_dataset, latitude, longitude in zip(mmsis, message_types, message_format_ids, ais_datasets, latitudes, longitudes) :
+                    # #rt.logging.debug("mmsi", mmsi, "message_type", message_type, "message_format_id", message_format_id, "ais_dataset", ais_dataset, "latitude", latitude, "longitude", longitudes)
+                    # for current_ip in self.ip_list :
+                        # #if not None in [latitude, longitude] :
+                        # #    description += '-' + str("%.4f" % latitude) + '-' + str("%.4f" % longitude)
+                        # if message_type in [5, 24, 4] :
+                            # description = ''
+                            # if message_type in [5, 24] :
+                                # try :
+                                    # description += ais_dataset["callsign"] + '-' + ais_dataset["shipname"]
+                                # except (KeyError) as e :
+                                    # pass #rt.logging.exception(e)
+                            # if message_type in [4] :
+                                # description += str("%.4f" % latitude) + '-' + str("%.4f" % longitude)
+                            # #res = self.update_devices(host_id = 0, hardware_id = mmsi, description = description)
+                        # else :
+                            # pass
+                            # #res = self.update_devices(host_id = 0, hardware_id = mmsi)
 
             time.sleep(1/self.transmit_rate)
