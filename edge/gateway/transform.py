@@ -4,6 +4,8 @@ import time
 import datetime
 import math
 import numpy
+import tempfile
+import os
 try:
     import pyais
 except ImportError:
@@ -11,6 +13,22 @@ except ImportError:
 import gateway.runtime as rt
 import gateway.aislib as ai
 
+
+def number_convertible(value):
+
+    return str(value).lstrip('-').replace('.','',1).replace('e-','',1).replace('e','',1).isdigit()
+
+
+def locations_of_substring(string, substring):
+    """Return a list of locations of a substring. ( https://stackoverflow.com/a/19720214 )"""
+    substring_length = len(substring)    
+    def recurse(locations_found, start):
+        location = string.find(substring, start)
+        if location != -1:
+            return recurse(locations_found + [location], location+substring_length)
+        else:
+            return locations_found
+    return recurse([], 0)
 
 
 def channel_value_dict(channels_list, values_list) :
@@ -192,7 +210,13 @@ class TextNumeric :
                     data_list = [ dict_string, [ value ] ]
 
                 if selected_tag == 'VDM' :
-                    mmsis, message_types, asm_format_ids, ais_datasets, latitudes, longitudes = self.data_from_ais([dict_string], line_end)
+                    ais_datasets = self.data_from_ais([dict_string], line_end)
+                    #mmsis = [ safe_get(dataset, "mmsi") for dataset in ais_datasets ]
+                    #message_format_ids = [ safe_get(dataset, "fid") for dataset in ais_datasets ]
+                    #message_types = [ safe_get(dataset, "type") for dataset in ais_datasets ]
+                    #latitudes = [ safe_get(dataset, "lat") for dataset in ais_datasets ]
+                    #longitudes = [ safe_get(dataset, "lon") for dataset in ais_datasets ]
+                    #print('mmsis', mmsis, 'message_types', message_types, 'message_format_ids', message_format_ids, 'latitudes', latitudes, 'longitudes', longitudes)
                     rt.logging.debug("ais_datasets", ais_datasets)
                     #data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], ais_datasets) ] ) ]
                     data_list = [ dict_string, ais_datasets ]
@@ -256,12 +280,15 @@ class TextNumeric :
 class Nmea(TextNumeric) :
 
 
-    def __init__(self, prepend = None, append = None) :
+    def __init__(self, prepend = None, append = None, message_formats = None) :
 
         self.prepend = prepend
         self.append = append
+        self.message_formats = message_formats
 
         TextNumeric.__init__(self)
+
+        self.message_ids = self.get_message_ids(self.message_formats)
 
 
     def get_checksum(self, nmea_data) :
@@ -596,173 +623,250 @@ class Nmea(TextNumeric) :
         return aivdm_payloads
 
 
-    def decode_ais_binary_string(self, message_string, message_structure, bit_offset) :
-        structure_array = [ structure_items for structure_tag, structure_items in message_structure.items() ]
-        for structure_item in structure_array :
-            print(structure_item['bits'])
-            print(structure_item['type'])
-            print(structure_item['div'])
-        #lon_string = data_field_binary_string(message_string, bit_offset, 56, 80)
-        #aivdm_8_31_data["lon"] = twos_comp( int(lon_string, 2), len(lon_string) ) / 1000 / 60
+    def get_message_ids(self, message_formats) :
+
+        message_ids = []
+        if message_formats is not None :
+            for message_format in message_formats :
+                message_id = safe_get(message_format, 'message')
+                if message_id is not None :
+                    message_ids.append( [ safe_get(message_id, 'type'), safe_get(message_id, 'fid'), safe_get(message_id, 'start_pos') ] )
+                else :
+                    message_ids.append( [ None, None, None ] )
+
+        return message_ids
+
+
+    def parse_ais_struct(self, message_string, message_structure) :
+
+        return_dict = dict()
+
+        bit_offset = None
+        #print('message_structure', message_structure)
+        for structure_tag, structure_item in message_structure.items() :
+            #print('structure_tag', structure_tag)
+
+            if structure_tag in ['message'] :
+                bit_offset = safe_get(structure_item, 'start_pos')
+
+            if structure_tag not in ['message'] :
+
+                bits_arg = safe_get(structure_item, 'bits')
+                type_arg = safe_get(structure_item, 'type')
+                if type_arg is not None : type_arg = str(type_arg)
+
+                add_arg = safe_get(structure_item, 'add')
+                if add_arg is not None : add_arg = float(add_arg)
+                div_arg = safe_get(structure_item, 'div')
+                if div_arg is not None : div_arg = float(div_arg)
+                round_arg = safe_get(structure_item, 'round')
+                if round_arg is not None : round_arg = int(round_arg)
+
+                underflow_arg = safe_get(structure_item, 'underflow')
+                if underflow_arg is not None : underflow_arg = int(underflow_arg)
+                overflow_arg = safe_get(structure_item, 'overflow')
+                if overflow_arg is not None : overflow_arg = int(overflow_arg)
+                overflow_var_flag_pos = safe_get(structure_item, 'overflow_var_flag')
+                overflow_var_flag_arg = None
+
+                nosensor_arg = safe_get(structure_item, 'nosensor')
+                if nosensor_arg is not None : nosensor_arg = int(nosensor_arg)
+                novalue_arg = safe_get(structure_item, 'novalue')
+
+                return_val = None
+
+                if bits_arg is not None and not None in bits_arg :
+
+                    if overflow_var_flag_pos is not None : 
+                        overflow_var_flag_field_string = data_field_binary_string(message_string, bit_offset, overflow_var_flag_pos[0], overflow_var_flag_pos[1])
+                        overflow_var_flag_arg = bool(overflow_var_flag_field_string)
+                        bits_arg[0] += overflow_var_flag_pos[1] - overflow_var_flag_pos[0] + 1
+                    return_val = data_field_binary_string(message_string, bit_offset, bits_arg[0], bits_arg[1])
+
+                    if return_val is not None and number_convertible(return_val) and type_arg is not None and type_arg not in ["int", "float", "bool"] :
+
+                        if type_arg[0] in ['u','U','e'] :
+                            return_val = int(return_val, 2)
+                        elif type_arg[0] in ['i','I'] :
+                            return_val = twos_comp( int(return_val, 2), len(return_val) )
+
+                if return_val is None : 
+                    return_val = safe_get(message_string, structure_tag)
+
+                if return_val is not None and number_convertible(return_val) :
+                    int_return_val = None
+                    try : 
+                        int_return_val = int(return_val)
+                    except ValueError :
+                        int_return_val = int(round(float(return_val)))
+                    if underflow_arg is not None and int_return_val == underflow_arg :
+                        return_val = float('-inf')
+                    elif ( overflow_arg is not None and int_return_val == overflow_arg ) or ( overflow_var_flag_arg is not None and overflow_var_flag_arg == True ) :
+                        return_val = float('inf')
+                    if nosensor_arg is not None and int_return_val == nosensor_arg :
+                        return_val = None
+                    elif novalue_arg is not None :
+                        if ( type(novalue_arg) is list and int_return_val in novalue_arg ) or int_return_val == novalue_arg :
+                            return_val = None
+
+                if div_arg is not None or add_arg is not None :
+                    if return_val is not None and number_convertible(return_val) : 
+                        if type(return_val) == str : 
+                            return_val = float(return_val)
+                        if div_arg is not None :
+                            return_val /= div_arg
+                            if type_arg[0] in ['U','I'] and div_arg < 1.0 :
+                                try : 
+                                    return_val = int(return_val)
+                                except ValueError :
+                                    return_val = int(round(float(return_val)))
+                        if add_arg is not None : 
+                            return_val += add_arg
+
+                if return_val is not None and number_convertible(return_val) and type_arg is not None and ( type_arg in ["int", "float"] or type_arg[0] in ['U','I'] ) :
+
+                    if round_arg is not None :
+                        return_val = round(float(return_val), round_arg)
+
+                    if type_arg == "int" : 
+                        return_val = int(round(float(return_val)))
+                    elif type_arg == "float" :
+                        return_val = float(return_val)
+
+                if return_val is not None and type_arg is not None and type_arg not in ["bool"] and type_arg[0] in ['b'] :
+
+                    return_val = bool(return_val)
+
+                return_dict[structure_tag] = return_val
+
+        return return_dict
 
 
     def data_from_ais(self, ais_message_strings, separator) :
 
         mmsis = []
         message_types = []
-        asm_format_ids = []
+        message_format_ids = []
         ais_datasets = []
         latitudes = []
         longitudes = []
 
-        rt.logging.debug("ais_message_strings", ais_message_strings)
+        #for ais_message_string in ais_message_strings :
+        #    ais_message_string = str(ais_message_string)
+        #    print("ais_message_string", ais_message_string)
+        #    ais_messages = ais_message_string.split(separator)
+        #    f = tempfile.NamedTemporaryFile(mode='w+', delete=False)
+        #    for ais_message in ais_messages :
+        #        f.write(ais_message + '\n')
+        #    f.close()
+        #    for msg in pyais.stream.FileReaderStream(f.name):
+        #        decoded_message = msg.decode()
+        #        ais_content = decoded_message.content
+        #        print('ais_content', ais_content)
+        #    os.unlink(f.name) # delete the file after
 
         for ais_message_string in ais_message_strings :
 
             ais_message_string = str(ais_message_string)
             rt.logging.debug("ais_message_string", ais_message_string)
-            rt.logging.debug("separator", separator)
             ais_messages = ais_message_string.split(separator)
             rt.logging.debug("ais_messages", ais_messages)
 
+            ais_messages_temp_file = tempfile.NamedTemporaryFile(mode = 'w+', delete = False)
             for ais_message in ais_messages :
+                ais_messages_temp_file.write(ais_message + '\n')
+            ais_messages_temp_file.close()
 
-                try :
-                    ais_message = ais_message.decode()
-                except (UnicodeDecodeError, AttributeError) :
-                    pass
+            try :
 
-                ais_sentence = None
-                if 'VDM' in ais_message : ais_sentence = 'VDM'
-                elif 'VDO' in ais_message : ais_sentence = 'VDO'
+                for ais_message in pyais.stream.FileReaderStream(ais_messages_temp_file.name) :
 
-                ais_data = {}
+                    #try :
+                    #    ais_message = ais_message.decode()
+                    #except (UnicodeDecodeError, AttributeError) :
+                    #    pass
 
-                try :
+                    ais_data = {}
+
                     try :
-                        ais_message = ais_message.encode('UTF-8')
-                    except (UnicodeDecodeError, AttributeError) :
-                        pass
-                    ais_data = pyais.NMEAMessage(ais_message).decode()
-                except (ValueError, IndexError, pyais.exceptions.InvalidNMEAMessageException) as e :
-                    pass #rt.logging.exception(e)
-                rt.logging.debug("ais_data", ais_data)
+                        #try :
+                        #    ais_message = ais_message.encode('UTF-8')
+                        #except (UnicodeDecodeError, AttributeError) :
+                        #    pass
+                        #ais_data = pyais.NMEAMessage(ais_message).decode()
+                        ais_data = ais_message.decode().content
+                    except (ValueError, IndexError, pyais.exceptions.InvalidNMEAMessageException) as e :
+                        pass #rt.logging.exception(e)
+                    rt.logging.debug('ais_data', ais_data)
+                    message_id_data = self.parse_ais_struct(ais_data, { "mmsi":{"type":"str"}, "type":{"type":"int"} } )
 
-                #try :
+                    ais_dataset = None
 
-                mmsi = None
-                message_type = None
-                asm_format_id = None
-                ais_dataset = None
-                longitude = None
-                latitude = None
+                    if message_id_data['type'] is not None :
 
-                #ais_dataset = ais_data
+                        ais_dataset = {}
 
-                mmsi = safe_get(ais_data, 'mmsi')
-                message_type = safe_get(ais_data, 'type')
+                        #ais_sentence = None
+                        #if b'VDM' in ais_message : ais_sentence = 'VDM'
+                        #elif b'VDO' in ais_message : ais_sentence = 'VDO'
+                        #ais_dataset["sentence"] = ais_sentence
 
-                if message_type is not None and int(message_type) in [1, 2, 3, 9, 4, 18, 5, 20, 24, 8] :
+                        ais_dataset |= message_id_data
 
-                    ais_dataset = {}
-                    ais_dataset["sentence"] = ais_sentence
-                    ais_dataset["mmsi"] = mmsi
-                    ais_dataset["type"] = message_type
+                    # message_types = [ message_id[0] for message_id in self.message_ids ]
+                    # print('message_types', message_types)
+                    # for message_type in message_types :
+                        # ais_dataset |= self.parse_ais_struct(ais_data,
 
-                    if message_type is not None and int(message_type) in [8] :
+                    if message_id_data['type'] is not None and int(message_id_data['type']) in [1,2,3,9,4,5,18,19,20,24,6,8] :
 
-                        asm_format_id = safe_get(ais_data, 'fid')
-                        #print(ais_dataset)
-                        asm_data = safe_get(ais_data, 'data')
+                        if int(message_id_data['type']) in [4,5] :
 
-                        if asm_format_id is not None and int(asm_format_id) == 31 :
+                            ais_dataset |= self.parse_ais_struct(ais_data, { "minute":{"type":"int", "novalue":60}, "hour":{"type":"int", "novalue":24}, "day":{"type":"int", "novalue":0}, "month":{"type":"int", "novalue":0} } )
 
-                            #aivdm_8_31_structure = { "lon": {"bits":[56,80], "type":"I3", "div": 60000}, "lat": {"bits":[81,104], "type":"I3", "div": 60000} }
-                            #aivdm_8_31_data = self.decode_ais_binary_string(asm_data, aivdm_8_31_structure, 56)
-                            #aivdm_8_31_data = {} 
-                            # dict keys according to JSON member names chosen by the GPSD Project: https://gpsd.gitlab.io/gpsd/AIVDM.html#_ais_payload_interpretation
-                            #ais_dataset["lon"] = int( data_field_binary_string(asm_data, 56, 56, 80), 2 ) / 1000 / 60
-                            lon_string = data_field_binary_string(asm_data, 56, 56, 80)
-                            ais_dataset["lon"] = twos_comp( int(lon_string, 2), len(lon_string) ) / 1000 / 60
-                            #ais_dataset["lat"] = int( data_field_binary_string(asm_data, 56, 81, 104), 2 ) / 1000 / 60
-                            lat_string = data_field_binary_string(asm_data, 56, 81, 104)
-                            ais_dataset["lat"] = twos_comp( int(lat_string, 2), len(lat_string) ) / 1000 / 60
-                            ais_dataset["accuracy"] = bool( data_field_binary_string(asm_data, 56, 105, 105) )
-                            ais_dataset["day"] = int( data_field_binary_string(asm_data, 56, 106, 110), 2 )
-                            ais_dataset["hour"] = int( data_field_binary_string(asm_data, 56, 111, 115), 2 )
-                            ais_dataset["minute"] = int( data_field_binary_string(asm_data, 56, 116, 121), 2 )
-                            ais_dataset["wspeed"] = int( data_field_binary_string(asm_data, 56, 122, 128), 2 )
-                            ais_dataset["wgust"] = int( data_field_binary_string(asm_data, 56, 129, 135), 2 )
-                            ais_dataset["wdir"] = int( data_field_binary_string(asm_data, 56, 136, 144), 2 )
-                            ais_dataset["wgustdir"] = int( data_field_binary_string(asm_data, 56, 145, 153), 2 )
-                            airtemp_string = data_field_binary_string(asm_data, 56, 154, 164)
-                            ais_dataset["airtemp"] = twos_comp( int(airtemp_string, 2), len(airtemp_string) ) / 10
-                            ais_dataset["humidity"] = int( data_field_binary_string(asm_data, 56, 165, 171), 2 )
-                            dewpoint_string = data_field_binary_string(asm_data, 56, 172, 181)
-                            ais_dataset["dewpoint"] = twos_comp( int(dewpoint_string, 2), len(dewpoint_string) ) / 10
-                            ais_dataset["pressure"] = int( data_field_binary_string(asm_data, 56, 182, 190), 2 )
-                            ais_dataset["pressuretend"] = int( data_field_binary_string(asm_data, 56, 191, 192), 2 )
-                            ais_dataset["visgreater"] = int( data_field_binary_string(asm_data, 56, 193, 193), 2 )
-                            ais_dataset["visibility"] = int( data_field_binary_string(asm_data, 56, 194, 200), 2 ) / 10
-                            waterlevel_string = data_field_binary_string(asm_data, 56, 201, 212)
-                            ais_dataset["waterlevel"] = twos_comp( int(waterlevel_string, 2), len(waterlevel_string) ) / 100
-                            ais_dataset["leveltrend"] = int( data_field_binary_string(asm_data, 56, 213, 214), 2 )
-                            ais_dataset["cspeed"] = int( data_field_binary_string(asm_data, 56, 215, 222), 2 ) / 10
-                            ais_dataset["cdir"] = int( data_field_binary_string(asm_data, 56, 223, 231), 2 )
-                            ais_dataset["cspeed2"] = int( data_field_binary_string(asm_data, 56, 232, 239), 2 ) / 10
-                            ais_dataset["cdir2"] = int( data_field_binary_string(asm_data, 56, 240, 248), 2 )
-                            ais_dataset["cdepth2"] = int( data_field_binary_string(asm_data, 56, 249, 253), 2 )
-                            ais_dataset["cspeed3"] = int( data_field_binary_string(asm_data, 56, 254, 261), 2 ) / 10
-                            ais_dataset["cdir3"] = int( data_field_binary_string(asm_data, 56, 262, 270), 2 )
-                            ais_dataset["cdepth3"] = int( data_field_binary_string(asm_data, 56, 271, 275), 2 )
-                            ais_dataset["waveheight"] = int( data_field_binary_string(asm_data, 56, 276, 283), 2 ) / 10
-                            ais_dataset["waveperiod"] = int( data_field_binary_string(asm_data, 56, 284, 289), 2 )
-                            ais_dataset["wavedir"] = int( data_field_binary_string(asm_data, 56, 290, 298), 2 )
-                            ais_dataset["swellheight"] = int( data_field_binary_string(asm_data, 56, 299, 306), 2 ) / 10
-                            ais_dataset["swellperiod"] = int( data_field_binary_string(asm_data, 56, 307, 312), 2 )
-                            ais_dataset["swelldir"] = int( data_field_binary_string(asm_data, 56, 313, 321), 2 )
-                            ais_dataset["seastate"] = int( data_field_binary_string(asm_data, 56, 322, 325), 2 )
-                            watertemp_string = data_field_binary_string(asm_data, 56, 326, 335)
-                            ais_dataset["watertemp"] = twos_comp( int(watertemp_string, 2), len(watertemp_string) ) / 10
-                            ais_dataset["preciptype"] = int( data_field_binary_string(asm_data, 56, 336, 338), 2 )
-                            ais_dataset["salinity"] = int( data_field_binary_string(asm_data, 56, 339, 347), 2 ) / 10
-                            ais_dataset["ice"] = int( data_field_binary_string(asm_data, 56, 348, 349), 2 )
-                            longitude = ais_dataset["lon"]
-                            latitude = ais_dataset["lat"]
+                        if int(message_id_data['type']) in [6,8] :
 
-                        ais_dataset["fid"] = asm_format_id
+                            ais_dataset |= self.parse_ais_struct(ais_data, { "fid":{"type":"int"} } )
+                            for i in range(0, len(self.message_ids) ) :
+                                message_id = self.message_ids[i]
+                                if message_id[1] == safe_get(ais_dataset,"fid") :
+                                    message_format = self.message_formats[i]
+                                    message_data = self.parse_ais_struct(ais_data, { "data":{"type":"struct"} } )
+                                    ais_dataset |= self.parse_ais_struct(message_data['data'], message_format)
 
-                    if message_type is not None and int(message_type) in [1, 2, 3, 9, 4, 18] :
+                        if message_id_data['type'] is not None and int(message_id_data['type']) in [1,2,3,9,4,18,19] :
 
-                        ais_dataset["lon"] = safe_get(ais_data, 'lon')
-                        ais_dataset["lat"] = safe_get(ais_data, 'lat')
-                        ais_dataset["accuracy"] = safe_get(ais_data, 'accuracy')
-                        longitude = safe_get(ais_data, "lon")
-                        latitude = safe_get(ais_data, "lat")
+                            ais_dataset |= self.parse_ais_struct(ais_data, { "second":{"type":"int", "novalue":[61,62,63], "nosensor":60},  "lon":{"type":"int", "div":1/600000, "novalue":181}, "lat":{"type":"int", "div":1/600000, "novalue":91}, "accuracy":{"type":"bool"} } )
 
-                        if int(message_type) in [1, 2, 3, 9, 18] :
+                            if int(message_id_data['type']) in [4] :
 
-                            ais_dataset["course"] = safe_get(ais_data, 'course')
-                            ais_dataset["speed"] = safe_get(ais_data, 'speed')
+                                ais_dataset |= self.parse_ais_struct(ais_data, { "year":{"type":"int", "novalue":0} } )
 
-                            if int(message_type) in [1, 2, 3, 18] :
+                            if int(message_id_data['type']) in [1,2,3,9,18,19] :
 
-                                ais_dataset["heading"] = safe_get(ais_data, 'heading')
+                                ais_dataset |= self.parse_ais_struct(ais_data, { "course":{"type":"float", "round": 1, "novalue":360}, "speed":{"type":"float", "round": 1, "novalue":1023, "overflow":1022} } )
 
-                                if int(message_type) in [1, 2, 3] :
+                                if int(message_id_data['type']) in [1,2,3,18,19] :
 
-                                    ais_dataset["turn"] = safe_get(ais_data, 'turn')
+                                    ais_dataset |= self.parse_ais_struct(ais_data, { "heading":{"type":"float", "round": 1, "novalue":511} } )
 
-                if None not in [mmsi] :
+                                    if int(message_id_data['type']) in [1,2,3] :
 
-                    mmsis.append(mmsi)
-                    message_types.append(message_type)
-                    asm_format_ids.append(asm_format_id)
-                    ais_datasets.append(ais_dataset)
-                    longitudes.append(longitude)
-                    latitudes.append(latitude)
-                    #except (TypeError, KeyError) as e :
-                    #    pass #rt.logging.exception(e)
+                                        ais_dataset |= self.parse_ais_struct(ais_data, { "turn":{"type":"float", "round": 1, "novalue":-128, "underflow":-127, "overflow":127} } )
 
-        rt.logging.debug("ais_datasets", ais_datasets)
-        return mmsis, message_types, asm_format_ids, ais_datasets, latitudes, longitudes
+                        if message_id_data['type'] is not None and int(message_id_data['type']) in [5,24] :
+
+                            ais_dataset |= self.parse_ais_struct(ais_data, { "callsign":{"type":"str"}, "shipname":{"type":"str"} } )
+
+                    if message_id_data['mmsi'] is not None :
+
+                        ais_datasets.append(ais_dataset)
+
+            except (ValueError, pyais.exceptions.InvalidNMEAMessageException) as e :
+
+                    rt.logging.exception(e)
+
+        for ais_dataset in ais_datasets :
+            rt.logging.debug("ais_dataset", dict([(k,r) for k,r in ais_dataset.items() if r is not None]) )
+
+        return ais_datasets  #, mmsis, message_types, message_format_ids, latitudes, longitudes
