@@ -130,10 +130,19 @@ def safe_get(dict_like_object, key, default_value = None) :
     value = default_value
     try :
         value = dict_like_object[key]
-    except KeyError as e :
+    except (KeyError, TypeError) as e :
         pass
     return value
 
+
+def safe_index(list_like_object, value, non_exist_index = None) :
+    index = non_exist_index
+    if (type(value) is list) :
+        common_values = list( set(value).intersection(set(list_like_object)) )
+        value = common_values[0]
+    if list_like_object is not None and value in list_like_object :
+        index = list_like_object.index(value)
+    return index
 
 
 class TextNumeric :
@@ -161,7 +170,6 @@ class TextNumeric :
                     selected_line = selected_line.decode()
                 except (UnicodeDecodeError, AttributeError) :
                     pass
-
 
                 for selected_tag, channels in channel_data.items() :
                     selected_tag = str(selected_tag)
@@ -627,12 +635,17 @@ class Nmea(TextNumeric) :
 
         message_ids = []
         if message_formats is not None :
-            for message_format in message_formats :
-                message_id = safe_get(message_format, 'message')
+            for format_index in range(0, len(message_formats)) :
+                message_id = safe_get(message_formats[format_index], 'message')
                 if message_id is not None :
-                    message_ids.append( [ safe_get(message_id, 'type'), safe_get(message_id, 'fid'), safe_get(message_id, 'start_pos') ] )
+                    message_types = safe_get(message_id, 'type')
+                    if (type(message_types) is list) :
+                        for message_type in message_types :
+                            message_ids.append( [ message_type, safe_get(message_id, 'fid'), safe_get(message_id, 'start_pos'), format_index ] )
+                    else :
+                        message_ids.append( [ message_types, safe_get(message_id, 'fid'), safe_get(message_id, 'start_pos'), format_index ] )
                 else :
-                    message_ids.append( [ None, None, None ] )
+                    message_ids.append( [ None, None, None, format_index ] )
 
         return message_ids
 
@@ -642,9 +655,8 @@ class Nmea(TextNumeric) :
         return_dict = dict()
 
         bit_offset = None
-        #print('message_structure', message_structure)
+
         for structure_tag, structure_item in message_structure.items() :
-            #print('structure_tag', structure_tag)
 
             if structure_tag in ['message'] :
                 bit_offset = safe_get(structure_item, 'start_pos')
@@ -768,7 +780,7 @@ class Nmea(TextNumeric) :
         for ais_message_string in ais_message_strings :
 
             ais_message_string = str(ais_message_string)
-            rt.logging.debug("ais_message_string", ais_message_string)
+            print("ais_message_string", ais_message_string)
             ais_messages = ais_message_string.split(separator)
             rt.logging.debug("ais_messages", ais_messages)
 
@@ -797,12 +809,16 @@ class Nmea(TextNumeric) :
                         ais_data = ais_message.decode().content
                     except (ValueError, IndexError, pyais.exceptions.InvalidNMEAMessageException) as e :
                         pass #rt.logging.exception(e)
-                    rt.logging.debug('ais_data', ais_data)
+                    print('ais_data', ais_data)
+
                     message_id_data = self.parse_ais_struct(ais_data, { "mmsi":{"type":"str"}, "type":{"type":"int"} } )
 
                     ais_dataset = None
 
-                    if message_id_data['type'] is not None :
+                    current_message_type = safe_get(message_id_data, 'type')
+                    if current_message_type is not None and number_convertible(current_message_type) :
+                        
+                        current_message_type = int(current_message_type)
 
                         ais_dataset = {}
 
@@ -813,50 +829,59 @@ class Nmea(TextNumeric) :
 
                         ais_dataset |= message_id_data
 
-                    # message_types = [ message_id[0] for message_id in self.message_ids ]
-                    # print('message_types', message_types)
-                    # for message_type in message_types :
-                        # ais_dataset |= self.parse_ais_struct(ais_data,
+                    message_types = [ message_id[0] for message_id in self.message_ids ]
+                    format_indices = [ message_id[3] for message_id in self.message_ids ]
+                    current_message_type_index = safe_index(message_types, current_message_type)
+                    current_format_index = safe_get(format_indices, current_message_type_index)
+                    if current_format_index is not None :
+                        message_format = self.message_formats[current_format_index]
+                        message_data = None
+                        if current_message_type in [6,8] :
+                            binary_message_data = self.parse_ais_struct(ais_data, { "data":{"type":"struct"} } )
+                            message_data = self.parse_ais_struct( safe_get(binary_message_data, 'data'), message_format )
+                        else :
+                            message_data = self.parse_ais_struct( ais_data, message_format )
+                        ais_dataset |= message_data
 
-                    if message_id_data['type'] is not None and int(message_id_data['type']) in [1,2,3,9,4,5,18,19,20,24,6,8] :
+                    # if message_id_data['type'] is not None and int(message_id_data['type']) in [1,2,3,9,4,5,18,19,20,24,6,8] :
 
-                        if int(message_id_data['type']) in [4,5] :
+                        # if int(message_id_data['type']) in [4,5] :
 
-                            ais_dataset |= self.parse_ais_struct(ais_data, { "minute":{"type":"int", "novalue":60}, "hour":{"type":"int", "novalue":24}, "day":{"type":"int", "novalue":0}, "month":{"type":"int", "novalue":0} } )
+                            # ais_dataset |= self.parse_ais_struct(ais_data, { "minute":{"type":"int", "novalue":60}, "hour":{"type":"int", "novalue":24}, "day":{"type":"int", "novalue":0}, "month":{"type":"int", "novalue":0} } )
 
-                        if int(message_id_data['type']) in [6,8] :
+                        # if int(message_id_data['type']) in [6,8] :
 
-                            ais_dataset |= self.parse_ais_struct(ais_data, { "fid":{"type":"int"} } )
-                            for i in range(0, len(self.message_ids) ) :
-                                message_id = self.message_ids[i]
-                                if message_id[1] == safe_get(ais_dataset,"fid") :
-                                    message_format = self.message_formats[i]
-                                    message_data = self.parse_ais_struct(ais_data, { "data":{"type":"struct"} } )
-                                    ais_dataset |= self.parse_ais_struct(message_data['data'], message_format)
+                            # ais_dataset |= self.parse_ais_struct(ais_data, { "fid":{"type":"int"} } )
+                            # for i in range(0, len(self.message_ids) ) :
+                                # message_id = self.message_ids[i]
+                                # if message_id[1] == safe_get(ais_dataset,"fid") :
+                                    # message_format = self.message_formats[i]
+                                    # message_data = self.parse_ais_struct(ais_data, { "data":{"type":"struct"} } )
+                                    # ais_dataset |= self.parse_ais_struct(message_data['data'], message_format)
 
-                        if message_id_data['type'] is not None and int(message_id_data['type']) in [1,2,3,9,4,18,19] :
+                        # if message_id_data['type'] is not None and int(message_id_data['type']) in [1,2,3,9,4,18,19] :
 
-                            ais_dataset |= self.parse_ais_struct(ais_data, { "second":{"type":"int", "novalue":[61,62,63], "nosensor":60},  "lon":{"type":"int", "div":1/600000, "novalue":181}, "lat":{"type":"int", "div":1/600000, "novalue":91}, "accuracy":{"type":"bool"} } )
+                            # ais_dataset |= self.parse_ais_struct(ais_data, { "second":{"type":"int", "novalue":[61,62,63], "nosensor":60},  "lon":{"type":"int", "div":1/600000, "novalue":181}, "lat":{"type":"int", "div":1/600000, "novalue":91}, "accuracy":{"type":"bool"} } )
 
-                            if int(message_id_data['type']) in [4] :
+                            # if int(message_id_data['type']) in [4] :
 
-                                ais_dataset |= self.parse_ais_struct(ais_data, { "year":{"type":"int", "novalue":0} } )
+                                # ais_dataset |= self.parse_ais_struct(ais_data, { "year":{"type":"int", "novalue":0} } )
 
-                            if int(message_id_data['type']) in [1,2,3,9,18,19] :
+                            # if int(message_id_data['type']) in [1,2,3,9,18,19] :
 
-                                ais_dataset |= self.parse_ais_struct(ais_data, { "course":{"type":"float", "round": 1, "novalue":360}, "speed":{"type":"float", "round": 1, "novalue":1023, "overflow":1022} } )
+                                # ais_dataset |= self.parse_ais_struct(ais_data, { "course":{"type":"float", "round": 1, "novalue":360}, "speed":{"type":"float", "round": 1, "novalue":1023, "overflow":1022} } )
 
-                                if int(message_id_data['type']) in [1,2,3,18,19] :
+                                # if int(message_id_data['type']) in [1,2,3,18,19] :
 
-                                    ais_dataset |= self.parse_ais_struct(ais_data, { "heading":{"type":"float", "round": 1, "novalue":511} } )
+                                    # ais_dataset |= self.parse_ais_struct(ais_data, { "heading":{"type":"float", "round": 1, "novalue":511} } )
 
-                                    if int(message_id_data['type']) in [1,2,3] :
+                                    # if int(message_id_data['type']) in [1,2,3] :
 
-                                        ais_dataset |= self.parse_ais_struct(ais_data, { "turn":{"type":"float", "round": 1, "novalue":-128, "underflow":-127, "overflow":127} } )
+                                        # ais_dataset |= self.parse_ais_struct(ais_data, { "turn":{"type":"float", "round": 1, "novalue":-128, "underflow":-127, "overflow":127} } )
 
-                        if message_id_data['type'] is not None and int(message_id_data['type']) in [5,24] :
+                        # if message_id_data['type'] is not None and int(message_id_data['type']) in [5,24] :
 
-                            ais_dataset |= self.parse_ais_struct(ais_data, { "callsign":{"type":"str"}, "shipname":{"type":"str"} } )
+                            # ais_dataset |= self.parse_ais_struct(ais_data, { "callsign":{"type":"str"}, "shipname":{"type":"str"} } )
 
                     if message_id_data['mmsi'] is not None :
 
@@ -867,6 +892,6 @@ class Nmea(TextNumeric) :
                     rt.logging.exception(e)
 
         for ais_dataset in ais_datasets :
-            rt.logging.debug("ais_dataset", dict([(k,r) for k,r in ais_dataset.items() if r is not None]) )
+            print("ais_dataset", dict([(k,r) for k,r in ais_dataset.items() if r is not None]) )
 
         return ais_datasets  #, mmsis, message_types, message_format_ids, latitudes, longitudes
