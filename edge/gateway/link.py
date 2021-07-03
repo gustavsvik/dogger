@@ -7,230 +7,17 @@ import json
 import pymysql
 import socket
 import struct
-import http
 
 import gateway.runtime as rt
-import gateway.metadata as md
-import gateway.task as ta
+import gateway.utils as ut
+
 import gateway.persist as ps
 import gateway.transform as tr
+import gateway.api as ap
 
 
 
-class Link(ta.LinkTask):
-
-
-    def __init__(self):
-
-        self.env = self.get_env()
-        if self.ip_list is None: self.ip_list = self.env['IP_LIST']
-
-        ta.LinkTask.__init__(self)
-
-
-
-class Http(Link):
-
-
-    def __init__(self) :
-
-        self.env = self.get_env()
-        if self.max_connect_attempts is None: self.max_connect_attempts = self.env['MAX_CONNECT_ATTEMPTS']
-
-        Link.__init__(self)
-
-        self.connect_attempts = 0
-
-
-
-class HttpMaint(ta.MaintenanceTask):
-
-
-    def __init__(self) :
-
-        self.env = self.get_env()
-        if self.maint_api_url is None: self.maint_api_url = self.env['MAINT_API_URL']
-
-        ta.MaintenanceTask.__init__(self)
-
-
-    def partition_database(self, ip = '127.0.0.1'):
-
-        self.connect_attempts += 1
-        if self.connect_attempts > 1:
-            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
-        try:
-            rt.logging.debug("http://" + ip + self.maint_api_url + "partition_database.php")
-            raw_data = requests.post("http://" + ip + self.maint_api_url + "partition_database.php", timeout = 5, data = {"new_partition_name_date": self.new_partition_name_date, "new_partition_timestamp": self.new_partition_timestamp, "oldest_kept_partition_name_date": self.oldest_kept_partition_name_date})
-            self.connect_attempts = 0
-            return raw_data
-        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
-            rt.logging.exception(e)
-            time.sleep(10)
-            if self.connect_attempts < self.max_connect_attempts:
-                self.partition_database(ip)
-            else:
-                exit(-1)
-
-
-    def get_db_rows(self, ip = '127.0.0.1'):
-
-        self.connect_attempts += 1
-        if self.connect_attempts > 1:
-            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
-        try:
-            raw_data = requests.post("http://" + ip + self.maint_api_url + "get_db_rows.php", timeout = 5, data = {"table_label": self.table_label, "id_range": self.id_range})
-            self.connect_attempts = 0
-            return raw_data
-        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
-            rt.logging.exception(e)
-            time.sleep(10)
-            if self.connect_attempts < self.max_connect_attempts:
-                self.get_db_rows(ip)
-            else:
-                exit(-1)
-
-
-
-class HttpHost(Http):
-
-
-    def __init__(self) :
-
-        self.env = self.get_env()
-        if self.host_api_url is None: self.host_api_url = self.env['HOST_API_URL']
-
-        Http.__init__(self)
-
-
-    def get_requested(self, ip = '127.0.0.1'):
-
-        self.connect_attempts += 1
-        if self.connect_attempts > 1:
-            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
-        try:
-            raw_data = requests.post("http://" + ip + self.host_api_url + "get_requested.php", timeout = 5, data = {"channelrange": tr.get_channel_range_string(self.channels), "duration": 10, "unit": 1})
-            self.connect_attempts = 0
-            return raw_data
-        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
-            rt.logging.exception(e)
-            time.sleep(10)
-            if self.connect_attempts < self.max_connect_attempts:
-                self.get_requested(ip)
-            else:
-                exit(-1)
-
-
-    def set_requested(self, data_string, ip = '127.0.0.1'):
-
-        self.connect_attempts += 1
-        if self.connect_attempts > 1:
-            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
-        try:
-            rt.logging.debug("data_string", data_string)
-            raw_data = requests.post("http://" + ip + self.host_api_url + "set_requested.php", timeout = 5, data = {"returnstring": data_string})
-            rt.logging.debug("raw_data", raw_data)
-            self.connect_attempts = 0
-            return raw_data
-        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
-            rt.logging.exception(e)
-            time.sleep(10)
-            if self.connect_attempts < self.max_connect_attempts:
-                self.set_requested(data_string, ip)
-            else:
-                exit(-1)
-
-
-    def clear_data_requests(self, ip = '127.0.0.1'):
-
-        self.connect_attempts += 1
-        if self.connect_attempts > 1:
-            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
-        try:
-            raw_data = requests.post("http://" + ip + self.host_api_url + "clear_data_requests.php", timeout = 5, data = {"channelrange": tr.get_channel_range_string(self.channels)})
-            self.connect_attempts = 0
-            return raw_data
-        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
-            rt.logging.exception(e)
-            time.sleep(10)
-            if self.connect_attempts < self.max_connect_attempts:
-                self.clear_data_requests(ip)
-            else:
-                exit(-1)
-
-
-    def update_devices(self, ip = '127.0.0.1', host_id = 0, hardware_id = None, description = None):
-
-        self.connect_attempts += 1
-        if self.connect_attempts > 1:
-            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
-        try:
-            raw_data = requests.post("http://" + ip + self.host_api_url + "update_devices.php", timeout = 5, data = {"host_id": host_id, "hardware_id": hardware_id, "description": description})
-            rt.logging.debug("raw_data", raw_data)
-            self.connect_attempts = 0
-            return raw_data
-        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
-
-            rt.logging.exception(e)
-            time.sleep(10)
-            if self.connect_attempts < self.max_connect_attempts:
-                self.update_devices(ip, hardware, description)
-            else:
-                exit(-1)
-
-
-
-class HttpClient(Http):
-
-
-    def __init__(self) :
-
-        self.env = self.get_env()
-        if self.client_api_url is None: self.client_api_url = self.env['CLIENT_API_URL']
-
-        Http.__init__(self)
-
-
-    def send_request(self, ip = '127.0.0.1', start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600):
-
-        self.connect_attempts += 1
-        if self.connect_attempts > 1:
-            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
-        try:
-            d = {"channels": tr.get_channel_range_string(self.channels), "start_time": start_time, "end_time": end_time, "duration": duration, "unit": unit, "delete_horizon": delete_horizon}
-            raw_data = requests.post("http://" + ip + self.client_api_url + "send_request.php", timeout = 5, data = d)
-            self.connect_attempts = 0
-            return raw_data
-        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
-            rt.logging.exception(e)
-            time.sleep(10)
-            if self.connect_attempts < self.max_connect_attempts:
-                self.send_request(ip, start_time, end_time, duration, unit, delete_horizon)
-            else:
-                exit(-1)
-
-
-    def get_uploaded(self, ip = '127.0.0.1', start_time = -9999, end_time = -9999, duration = 10, unit = 1, lowest_status = 0):
-
-        self.connect_attempts += 1
-        if self.connect_attempts > 1:
-            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
-        try:
-            d = {"channels": tr.get_channel_range_string(self.channels), "start_time": start_time, "end_time": end_time, "duration": duration, "unit": unit, "lowest_status": lowest_status}
-            raw_data = requests.post("http://" + ip + self.client_api_url + "get_uploaded.php", timeout = 5, data = d)
-            self.connect_attempts = 0
-            return raw_data
-        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
-            rt.logging.exception(e)
-            time.sleep(10)
-            if self.connect_attempts < self.max_connect_attempts:
-                self.get_uploaded(ip, start_time, end_time, duration, unit, lowest_status)
-            else:
-                exit(-1)
-
-
-
-class GetDBDataJson(HttpMaint):
+class GetDBDataJson(ap.HttpMaint):
 
 
     def __init__(self, start_delay = None, transmit_rate = None, ip_list = None, maint_api_url = None, max_connect_attempts = None, table_label = None, id_range = None, config_filepath = None, config_filename = None):
@@ -246,11 +33,11 @@ class GetDBDataJson(HttpMaint):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        HttpMaint.__init__(self)
+        ap.HttpMaint.__init__(self)
 
 
 
-class DirectUpload(HttpHost, HttpClient):
+class DirectUpload(ap.HttpHost, ap.HttpClient):
 
 
     def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
@@ -266,12 +53,12 @@ class DirectUpload(HttpHost, HttpClient):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        HttpClient.__init__(self)
-        HttpHost.__init__(self)
+        ap.HttpClient.__init__(self)
+        ap.HttpHost.__init__(self)
 
 
 
-class SqlHttp(HttpHost, HttpClient):
+class SqlHttp(ap.HttpHost, ap.HttpClient):
 
 
     def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, max_age = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
@@ -289,8 +76,8 @@ class SqlHttp(HttpHost, HttpClient):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        HttpClient.__init__(self)
-        HttpHost.__init__(self)
+        ap.HttpClient.__init__(self)
+        ap.HttpHost.__init__(self)
 
         self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
@@ -332,7 +119,7 @@ class SqlHttp(HttpHost, HttpClient):
 
 
 
-class Replicate(HttpHost):
+class Replicate(ap.HttpHost):
 
 
     def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
@@ -348,7 +135,7 @@ class Replicate(HttpHost):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        HttpHost.__init__(self)
+        ap.HttpHost.__init__(self)
 
         self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
@@ -402,7 +189,7 @@ class Replicate(HttpHost):
 
 
 
-class HttpSql(HttpClient):
+class HttpSql(ap.HttpClient):
 
 
     def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
@@ -418,7 +205,7 @@ class HttpSql(HttpClient):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        HttpClient.__init__(self)
+        ap.HttpClient.__init__(self)
 
         self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
@@ -443,79 +230,29 @@ class HttpSql(HttpClient):
                         rt.logging.debug("Decoding JSON has failed", e)
                 rt.logging.debug("data_string", data_string)
 
-                channel_list, times_list, values_list, byte_string_list = tr.parse_delimited_string(data_string)
-                rt.logging.debug("channel_list", channel_list, "times_list", times_list, "values_list", values_list, "byte_string_list", byte_string_list)
-                try:
-                    self.sql.connect_db()
-                    for channel, times, values, byte_strings in zip(channel_list, times_list, values_list, byte_string_list) :
-                        channel= channel[0]
-                        for timestamp, value, byte_string in zip(times, values, byte_strings) :
-                            replaced_byte_string = tr.de_armor_separators(byte_string)
-                            rt.logging.debug("replaced_byte_string", replaced_byte_string)
-                            with self.sql.conn.cursor() as cursor :
-                                # TODO: precede by SELECT to avoid INSERT attempts causing primary key violations
-                                sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,CHANNEL_INDEX,ACQUIRED_VALUE,ACQUIRED_BASE64,STATUS) VALUES (" + str(timestamp) + "," + str(channel) + "," + str(value) + ",'" + replaced_byte_string + "',0)"
-                                rt.logging.debug("sql", sql)
-                                try:
-                                    cursor.execute(sql)
-                                except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
-                                    rt.logging.exception(e)
-                                result = cursor.rowcount
-                                rt.logging.debug("result", result)
-
-                except (pymysql.err.OperationalError, pymysql.err.Error) as e:
-
-                    rt.logging.exception(e)
-
-                finally:
-
-                    try:
-                        self.sql.close_db_connection()
-                    except pymysql.err.Error as e:
-                        rt.logging.exception(e)
+                channel_list, times_list, values_list, byte_string_lists = tr.parse_delimited_string(data_string)
+                rt.logging.debug("channel_list", channel_list, "times_list", times_list, "values_list", values_list, "byte_string_lists", byte_string_lists)
+                rt.logging.debug("byte_string_lists", byte_string_lists)
+                de_armored_byte_string_lists = []
+                for byte_string_list in byte_string_lists :
+                    de_armored_byte_string_list = []
+                    for byte_string in byte_string_list :
+                        de_armored_byte_string = tr.de_armor_separators(byte_string)
+                        de_armored_byte_string_list.append(de_armored_byte_string)
+                    de_armored_byte_string_lists.append(de_armored_byte_string_list)
+                rt.logging.debug("de_armored_byte_string_lists", de_armored_byte_string_lists)
+                no_of_inserted_rows = self.sql.store_new_acquired_list(channel_list, times_list, values_list, de_armored_byte_string_lists)
 
             time.sleep(1/self.transmit_rate)
 
 
 
-class Udp(Link):
+class SqlUdp(ap.UdpSend):
 
 
     def __init__(self) :
 
-        Link.__init__(self)
-
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
-
-
-
-class UdpReceive(Udp):
-
-
-    def __init__(self):
-
-        Udp.__init__(self)
-
-        server_address = ('', self.port)
-        self.socket.bind(server_address)
-
-
-
-class UdpSend(Udp):
-
-
-    def __init__(self):
-
-        Udp.__init__(self)
-
-
-
-class SqlUdp(UdpSend):
-
-
-    def __init__(self) :
-
-        UdpSend.__init__(self)
+        ap.UdpSend.__init__(self)
 
         self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
@@ -763,7 +500,7 @@ class SqlUdpAivdmStatic(SqlUdp):
 
         try :
             rt.logging.debug("self.mmsi", self.mmsi, "self.call_sign", self.call_sign, "self.vessel_name", self.vessel_name, "self.ship_type", self.ship_type)
-            aivdm_payload = self.nmea.from_static_to_aivdm(mmsi = self.mmsi, call_sign = self.call_sign, vessel_name = self.vessel_name, ship_type = self.ship_type)
+            aivdm_payload = self.nmea.aivdm_from_static(mmsi = self.mmsi, call_sign = self.call_sign, vessel_name = self.vessel_name, ship_type = self.ship_type)
             rt.logging.debug("aivdm_payload", aivdm_payload)
         except ValueError as e :
             aivdm_payload += ''
@@ -853,7 +590,7 @@ class SqlUdpAtonReport(SqlUdp):
 
 
     def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, length_offset = None, width_offset = None, mmsi = None, aid_type = None, name = None, virtual_aid = None, config_filepath = None, config_filename = None) :
-        #repeat = 0, mmsi = 0, aid_type = 0, name = 0, accuracy = 0, lon = 181000, lat = 91000, to_bow = 0, to_stern = 0, to_port = 0, to_starboard = 0, epfd = 0, ts = 60, off_position = 0, raim = 0, virtual_aid = 0, assigned = 0)
+
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
@@ -910,7 +647,6 @@ class SqlFileAtonReport(SqlFile):
 
 
     def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, length_offset = None, width_offset = None, mmsi = None, aid_type = None, name = None, virtual_aid = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
-        #repeat = 0, mmsi = 0, aid_type = 0, name = 0, accuracy = 0, lon = 181000, lat = 91000, to_bow = 0, to_stern = 0, to_port = 0, to_starboard = 0, epfd = 0, ts = 60, off_position = 0, raim = 0, virtual_aid = 0, assigned = 0)
 
         self.channels = channels
         self.start_delay = start_delay
@@ -945,23 +681,28 @@ class SqlFileAtonReport(SqlFile):
 
         while True:
 
-            self.sql.connect_db()
-            channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
-            rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
-            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
-            rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
-            aivdm_aton_payloads = None
-            if len(values) > 0 :
-                aivdm_aton_payloads = self.nmea.aivdm_atons_from_pos(self.mmsi, values[0], values[1], self.aid_type, self.name, self.virtual_aid, self.length_offset, self.width_offset)
-            rt.logging.debug('aivdm_aton_payloads', aivdm_aton_payloads)
-            nmea_data_array = self.nmea.decode_to_channels(char_data = aivdm_aton_payloads, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ' )
-            rt.logging.debug('nmea_data_array', nmea_data_array)
-            for nmea_data in nmea_data_array :
-                rt.logging.debug('nmea_data', nmea_data)
-                if nmea_data is not None :
-                    (selected_tag, data_array), = nmea_data.items()
-                    rt.logging.debug("self.target_channels", self.target_channels, "data_array", data_array, "selected_tag", selected_tag)
-                    self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+            try :
+                self.sql.connect_db()
+                channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
+                rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
+                timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+                rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
+                aivdm_aton_payloads = None
+                if len(values) > 0 :
+                    aivdm_aton_payloads = self.nmea.aivdm_atons_from_pos(self.mmsi, values[0], values[1], self.aid_type, self.name, self.virtual_aid, self.length_offset, self.width_offset)
+                rt.logging.debug('aivdm_aton_payloads', aivdm_aton_payloads)
+                nmea_data_array = self.nmea.decode_to_channels(char_data = aivdm_aton_payloads, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ' )
+                rt.logging.debug('nmea_data_array', nmea_data_array)
+                for nmea_data in nmea_data_array :
+                    rt.logging.debug('nmea_data', nmea_data)
+                    if nmea_data is not None :
+                        (selected_tag, data_array), = nmea_data.items()
+                        rt.logging.debug("self.target_channels", self.target_channels, "data_array", data_array, "selected_tag", selected_tag)
+                        self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+            except (pymysql.err.OperationalError, pymysql.err.Error) as e :
+                rt.logging.exception(e)
+            finally :
+                self.sql.close_db_connection()
 
             time.sleep(1/self.transmit_rate)
 
@@ -970,7 +711,7 @@ class SqlFileAtonReport(SqlFile):
 class SqlFileAisData(SqlFile):
 
 
-    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, message_formats = None, ip_list = None, host_api_url = None, max_connect_attempts = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, message_formats = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -989,7 +730,7 @@ class SqlFileAisData(SqlFile):
 
         SqlFile.__init__(self)
 
-        self.nmea = tr.Nmea()
+        self.nmea = tr.Nmea(message_formats = self.message_formats)
 
 
     def run(self):
@@ -999,35 +740,37 @@ class SqlFileAisData(SqlFile):
 
         while True:
 
-            self.sql.connect_db()
-            channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
-            rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
-            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
-            rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
-            nmea_data_array = self.nmea.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ' )
-            rt.logging.debug("nmea_data_array", nmea_data_array) 
-            for nmea_data in nmea_data_array :
-                rt.logging.debug('nmea_data', nmea_data)
-                if nmea_data is not None :
-                    (selected_tag, data_array), = nmea_data.items()
-                    rt.logging.debug("self.target_channels", self.target_channels, "data_array", data_array, "selected_tag", selected_tag)
-                    self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+            try :
+                self.sql.connect_db()
+                channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
+                rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings)
+                timestamp = None
+                if times not in [None, []] and type(times) is list :
+                    timestamp = times[0]
+                timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(timestamp = timestamp, sample_rate = self.sample_rate)
+                rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
+                nmea_data_array = self.nmea.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ' )
+                rt.logging.debug("nmea_data_array", nmea_data_array) 
+                rt.logging.debug(" ") 
+                for nmea_data in nmea_data_array :
+                    rt.logging.debug('nmea_data', nmea_data)
+                    if nmea_data is not None :
+                        (selected_tag, data_array), = nmea_data.items()
+                        rt.logging.debug("self.target_channels", self.target_channels, "data_array", data_array, "selected_tag", selected_tag)
+                        self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+            except (pymysql.err.OperationalError, pymysql.err.Error) as e :
+                rt.logging.exception(e)
+            finally :
+                self.sql.close_db_connection()
 
-            if len(byte_strings) > 0 :
-                pass
-                #mmsis, message_types, message_format_ids, ais_datasets, latitudes, longitudes = self.nmea.data_from_ais(byte_strings)
-                #print("mmsis", mmsis, "message_types", message_types, "message_format_ids", message_format_ids, "ais_datasets", ais_datasets, "latitudes", latitudes, "longitudes", longitudes)
-                #for mmsi, message_type, message_format_id, ais_dataset, latitude, longitude in zip(mmsis, message_types, message_format_ids, ais_datasets, latitudes, longitudes) :
-                #    print("mmsi", mmsi, "message_type", message_type, "message_format_id", message_format_id, "ais_dataset", ais_dataset, "latitude", latitude, "longitude", longitudes)
-                #    self.write(target_channels = self.target_channels, data_array = [json.dumps(ais_dataset)], selected_tag = ais_dataset['sentence'], timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
             time.sleep(1/self.transmit_rate)
 
 
 
-class SqlHttpUpdateStatic(HttpHost):
+class SqlFilePosAisData(SqlFile):
 
 
-    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, message_formats = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, length_offset = None, width_offset = None, mmsi = None, vessel_name = None, call_sign = None, ship_type = None, speed = None, course = None, nav_status = None, destination = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -1036,9 +779,89 @@ class SqlHttpUpdateStatic(HttpHost):
         self.gateway_database_connection = gateway_database_connection
         self.max_age = max_age
         self.target_channels = target_channels
+
+        self.length_offset = length_offset
+        self.width_offset = width_offset
+
+        self.mmsi = mmsi
+        self.vessel_name = vessel_name
+        self.call_sign = call_sign
+        self.ship_type = ship_type
+        self.speed = speed
+        self.course = course
+        self.nav_status = nav_status
+        self.destination = destination
+
+        self.file_path = file_path
+        self.archive_file_path = archive_file_path
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        SqlFile.__init__(self)
+
+        self.nmea = tr.Nmea()
+
+
+    def run(self):
+
+        time.sleep(self.start_delay)
+
+        while True:
+
+            try :
+                self.sql.connect_db()
+                channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
+                rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
+
+                timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+                rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
+
+                nmea_data_array = []
+                aivdm_static_payload = aivdm_pos_payload = None
+                try :
+                    rt.logging.debug("self.mmsi", self.mmsi, "self.call_sign", self.call_sign, "self.vessel_name", self.vessel_name, "self.speed", self.speed, "self.course", self.course, "self.ship_type", self.ship_type)
+                    aivdm_static_payload = self.nmea.aivdm_from_static(mmsis = self.mmsi, call_signs = self.call_sign, vessel_names = self.vessel_name, ship_types = self.ship_type, destinations = self.destination)
+                    rt.logging.debug("aivdm_static_payload", aivdm_static_payload)
+                    aivdm_pos_payload = self.nmea.aivdm_from_pos(mmsis = self.mmsi, speeds = self.speed, courses = self.course, statuses = self.nav_status, length_offsets = self.length_offset, width_offsets = self.width_offset, timestamp = times[0], latitude = values[0], longitude = values[1])
+                    rt.logging.debug("aivdm_pos_payload", aivdm_pos_payload)
+                    nmea_data_array = self.nmea.decode_to_channels(char_data = aivdm_static_payload + aivdm_pos_payload, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ' )
+                except (ValueError, IndexError, TypeError) as e :
+                    rt.logging.debug(e)
+
+                rt.logging.debug('nmea_data_array', nmea_data_array)
+                for nmea_data in nmea_data_array :
+                    rt.logging.debug('nmea_data', nmea_data)
+                    if nmea_data is not None :
+                        (selected_tag, data_array), = nmea_data.items()
+                        rt.logging.debug("self.target_channels", self.target_channels, "data_array", data_array, "selected_tag", selected_tag)
+                        self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+
+            except (pymysql.err.OperationalError, pymysql.err.Error) as e :
+                rt.logging.exception(e)
+            finally :
+                self.sql.close_db_connection()
+
+            time.sleep(1/self.transmit_rate)
+
+
+
+class SqlHttpUpdateStatic(ap.HttpHost):
+
+
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, message_formats = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None) :
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+        self.transmit_rate = transmit_rate
+        self.gateway_database_connection = gateway_database_connection
+        self.max_age = max_age
+
         #target_channels = {'VDM':{'mmsi|t_device/DEVICE_HARDWARE_ID':'json'}},
+        #self.target_channels = target_channels
+        self.target_channels = {'VDM':{0:'txt', 1:'json'}}
         self.message_formats = message_formats
-        #print("self.message_formats[0]['type']", self.message_formats[0]['type'])
 
         self.ip_list = ip_list
         self.host_api_url = host_api_url
@@ -1050,7 +873,7 @@ class SqlHttpUpdateStatic(HttpHost):
         self.config_filename = config_filename
 
         #SqlFile.__init__(self)
-        HttpHost.__init__(self)
+        ap.HttpHost.__init__(self)
 
         self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
         self.nmea = tr.Nmea(message_formats = self.message_formats)
@@ -1063,50 +886,195 @@ class SqlHttpUpdateStatic(HttpHost):
 
         while True:
 
-            self.sql.connect_db()
-            channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
-            #print("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
-            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
-            rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
-            #for selected_line in byte_strings :
-            #    print(tr.locations_of_substring(selected_line, b'VDM'))
-            nmea_data_array = self.nmea.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ')
-            #print('nmea_data_array', nmea_data_array)
-            aivdm_array = []
             try :
-                aivdm_array = nmea_data_array[0]['VDM'][0][149]
-            except IndexError as e :
+                self.sql.connect_db()
+                channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
+                rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
+                timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+                rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
+                nmea_data_array = self.nmea.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ')
+                rt.logging.debug('nmea_data_array', nmea_data_array)
+
+                aivdm_array = []
+                try :
+                    aivdm_array = nmea_data_array[0]['VDM'][0][1]
+                except IndexError as e :
+                    rt.logging.exception(e)
+                rt.logging.debug("aivdm_array", aivdm_array)
+
+                for aivdm_dataset in aivdm_array :
+
+                    rt.logging.debug("aivdm_dataset", aivdm_dataset)
+                    reduced_aivdm_dataset = dict([(k,r) for k,r in aivdm_dataset[3].items() if r is not None])
+                    rt.logging.debug("reduced_aivdm_dataset", reduced_aivdm_dataset)
+
+                    # imo = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "imo"))
+                    # ship_name = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "shipname"))
+                    call_sign = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "callsign"))
+                    mmsi = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "mmsi"))
+                    # host_hardware_id = imo
+                    # if host_hardware_id is None :
+                        # if ship_name is not None :
+                            # host_hardware_id = ship_name
+                    # if imo is None and ship_name is None and call_sign is None :
+                        # host_hardware_id = mmsi
+
+                    host_hardware_id = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "host_hardware_id"))
+                    host_text_id = mmsi
+                    rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id)
+
+                    #device_hardware_id = device_text_id = mmsi
+                    device_hardware_id = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "device_hardware_id"))
+                    device_text_id = mmsi
+                    rt.logging.debug("device_hardware_id", device_hardware_id, "device_text_id", device_text_id)
+
+                    common_address = None
+                    if call_sign is not None :
+                        common_address = call_sign
+                    rt.logging.debug("common_address", common_address)
+
+                    common_description = ""
+
+                    for ip in self.ip_list :
+
+                        existing_aivdm_dataset = {}
+
+                        r_post = self.get_host_data(ip, host_hardware_id = host_hardware_id, host_text_id = host_text_id)
+
+                        if r_post is not None :
+
+                            response_json = None
+                            try :
+                                response_json = r_post.json()
+                            except json.decoder.JSONDecodeError as e :
+                                rt.logging.exception(e)
+                            rt.logging.debug("response_json", response_json)
+
+                            existing_description = ut.safe_get(response_json, "common_description")
+
+                            if existing_description is not None :
+                                try :
+                                    existing_aivdm_dataset = json.loads(existing_description)
+                                except json.decoder.JSONDecodeError as e :
+                                    rt.logging.exception(e)
+
+                            existing_address = ut.safe_get(response_json, "common_address")
+                            if common_address is None and existing_address is not None :
+                                common_address = existing_address
+                            #device_address = common_address
+
+                            existing_host_id = ut.safe_get(response_json, "host_hardware_id")
+                            if host_hardware_id is None :
+                                host_hardware_id = existing_host_id
+
+                            reduced_aivdm_dataset |= {"host_hardware_id": host_hardware_id}
+                            existing_aivdm_dataset |= reduced_aivdm_dataset
+                            rt.logging.debug("existing_aivdm_dataset", existing_aivdm_dataset)
+
+                            common_description += json.dumps(existing_aivdm_dataset)
+                            #device_description = common_description
+
+                        rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id, "common_address", common_address, "common_description", common_description)
+                        if host_hardware_id is not None and host_hardware_id != "" :
+                            r_post = self.update_static_data(ip, host_hardware_id = host_hardware_id, host_text_id = host_text_id, device_hardware_id = device_hardware_id, device_text_id = device_text_id, common_address = common_address, common_description = common_description)
+
+            except (pymysql.err.OperationalError, pymysql.err.Error) as e :
                 rt.logging.exception(e)
+            finally :
+                self.sql.close_db_connection()
 
-            for aivdm_data in aivdm_array :
-                type = tr.safe_get(aivdm_data, 'type')
-                mmsi = tr.safe_get(aivdm_data, 'mmsi')
-                lat = tr.safe_get(aivdm_data, 'lat')
-                lon = tr.safe_get(aivdm_data, 'lon')
-                shipname = tr.safe_get(aivdm_data, 'shipname')
-                callsign = tr.safe_get(aivdm_data, 'callsign')
-                #print('type', type, 'mmsi', mmsi, 'lat', lat, 'lon', lon, 'shipname', shipname, 'callsign', callsign) 
+            time.sleep(1/self.transmit_rate)
 
-            # if len(byte_strings) > 0 :
-                # mmsis, message_types, message_format_ids, ais_datasets, latitudes, longitudes = self.nmea.data_from_ais(byte_strings)
-                # rt.logging.debug("mmsis", mmsis, "message_types", message_types, "message_format_ids", message_format_ids, "ais_datasets", ais_datasets, "latitudes", latitudes, "longitudes", longitudes)
-                # for mmsi, message_type, message_format_id, ais_dataset, latitude, longitude in zip(mmsis, message_types, message_format_ids, ais_datasets, latitudes, longitudes) :
-                    # #rt.logging.debug("mmsi", mmsi, "message_type", message_type, "message_format_id", message_format_id, "ais_dataset", ais_dataset, "latitude", latitude, "longitude", longitudes)
-                    # for current_ip in self.ip_list :
-                        # #if not None in [latitude, longitude] :
-                        # #    description += '-' + str("%.4f" % latitude) + '-' + str("%.4f" % longitude)
-                        # if message_type in [5, 24, 4] :
-                            # description = ''
-                            # if message_type in [5, 24] :
-                                # try :
-                                    # description += ais_dataset["callsign"] + '-' + ais_dataset["shipname"]
-                                # except (KeyError) as e :
-                                    # pass #rt.logging.exception(e)
-                            # if message_type in [4] :
-                                # description += str("%.4f" % latitude) + '-' + str("%.4f" % longitude)
-                            # #res = self.update_devices(host_id = 0, hardware_id = mmsi, description = description)
-                        # else :
-                            # pass
-                            # #res = self.update_devices(host_id = 0, hardware_id = mmsi)
+
+
+class SqlHttpUpdateDevice(ap.HttpHost):
+
+
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, message_formats = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None) :
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+        self.transmit_rate = transmit_rate
+        self.gateway_database_connection = gateway_database_connection
+        self.max_age = max_age
+        self.target_channels = {'VDM':{0:'txt', 1:'json'}} # Create a channel (1) as a method-internal dummy target 
+        self.message_formats = message_formats
+
+        self.ip_list = ip_list
+        self.host_api_url = host_api_url
+        self.max_connect_attempts = max_connect_attempts
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        ap.HttpHost.__init__(self)
+
+        self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
+        self.nmea = tr.Nmea(message_formats = self.message_formats)
+
+
+    def run(self):
+
+        time.sleep(self.start_delay)
+        rt.logging.debug(self.target_channels)
+
+        while True:
+
+            try :
+                self.sql.connect_db()
+                channels, times, values, byte_strings = self.sql.get_stored(self.channels, self.max_age)
+                rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
+                timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+                rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
+                nmea_data_array = self.nmea.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ')
+                rt.logging.debug('nmea_data_array', nmea_data_array)
+
+                aivdm_array = []
+
+                try :
+                    aivdm_array = nmea_data_array[0]['VDM'][0][1]
+                except IndexError as e :
+                    rt.logging.exception(e)
+
+                for aivdm_dataset in aivdm_array :
+
+                    reduced_aivdm_dataset = dict([(k,r) for k,r in aivdm_dataset.items() if r is not None])
+
+                    mmsi = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "mmsi"))
+
+                    device_hardware_id = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "device_hardware_id"))
+
+                    device_text_id = mmsi
+                    device_description = ""
+
+                    for ip in self.ip_list :
+
+                        existing_aivdm_dataset = {}
+
+                        r_post = self.get_device_data(ip, device_hardware_id = device_hardware_id, device_text_id = device_text_id)
+                        if r_post is not None : 
+
+                            existing_description = ut.safe_get(r_post.json(), "device_description")
+                            if existing_description is not None :
+                                try :
+                                    existing_aivdm_dataset = json.loads(existing_description)
+                                except json.decoder.JSONDecodeError as e :
+                                    rt.logging.exception(e)
+
+                            existing_hardware_id = ut.safe_get(r_post.json(), "device_hardware_id")
+                            if device_hardware_id is None :
+                                device_hardware_id = existing_hardware_id
+
+                            reduced_aivdm_dataset |= {"device_hardware_id": device_hardware_id}
+                            existing_aivdm_dataset |= reduced_aivdm_dataset
+                            device_description += json.dumps(existing_aivdm_dataset)
+
+                        r_post = self.update_device_data(ip, device_hardware_id = device_hardware_id, device_text_id = device_text_id, device_description = device_description)
+
+            except (pymysql.err.OperationalError, pymysql.err.Error) as e :
+                rt.logging.exception(e)
+            finally :
+                self.sql.close_db_connection()
 
             time.sleep(1/self.transmit_rate)
