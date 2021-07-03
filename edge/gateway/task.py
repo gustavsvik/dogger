@@ -86,6 +86,18 @@ class LinkTask(ProcessDataTask):
 
 
 
+class IpTask(LinkTask):
+
+
+    def __init__(self):
+
+        self.env = self.get_env()
+        if self.ip_list is None: self.ip_list = self.env['IP_LIST']
+
+        LinkTask.__init__(self)
+
+
+
 class MaintenanceTask(Task):
 
 
