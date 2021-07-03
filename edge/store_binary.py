@@ -1,7 +1,7 @@
-import gateway.store
+import gateway.queue
 
 
-image_sql = gateway.store.ImageFile(
+image_sql = gateway.queue.ImageFile(
     channels = {140,141,160,161,180,181}, 
     start_delay = 0, 
     file_path = '/home/heta/Z/data/files/images/',
