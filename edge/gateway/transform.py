@@ -6,23 +6,38 @@ import math
 import numpy
 import tempfile
 import os
+import enum
+import openlocationcode.openlocationcode
+import bitstring
+try:
+    import bitarray
+except ImportError:
+    pass
 try:
     import pyais
 except ImportError:
     pass
+
 import gateway.runtime as rt
+import gateway.utils as ut
 import gateway.aislib as ai
 
 
-def number_convertible(value):
+
+def number_convertible(value) :
 
     return str(value).lstrip('-').replace('.','',1).replace('e-','',1).replace('e','',1).isdigit()
 
 
-def locations_of_substring(string, substring):
+def hex_characters(value) :
+
+    return (ch in string.hexdigits for ch in str(value) )
+
+
+def locations_of_substring(string, substring) :
     """Return a list of locations of a substring. ( https://stackoverflow.com/a/19720214 )"""
     substring_length = len(substring)    
-    def recurse(locations_found, start):
+    def recurse(locations_found, start) :
         location = string.find(substring, start)
         if location != -1:
             return recurse(locations_found + [location], location+substring_length)
@@ -126,23 +141,84 @@ def twos_comp(val, bits):
     return val                         # return positive value as is
 
 
-def safe_get(dict_like_object, key, default_value = None) :
-    value = default_value
-    try :
-        value = dict_like_object[key]
-    except (KeyError, TypeError) as e :
-        pass
-    return value
+
+class Callbacks :
 
 
-def safe_index(list_like_object, value, non_exist_index = None) :
-    index = non_exist_index
-    if (type(value) is list) :
-        common_values = list( set(value).intersection(set(list_like_object)) )
-        value = common_values[0]
-    if list_like_object is not None and value in list_like_object :
-        index = list_like_object.index(value)
-    return index
+    def get_open_location_code(lat = None, lon = None) :
+
+        length = 7
+
+        olc = None
+        if not None in [lat, lon] and number_convertible(lat) and number_convertible(lon) :
+            olc = openlocationcode.openlocationcode.encode(latitude = float(lat), longitude = float(lon), codeLength = 11)
+
+        if length is None and olc is not None : 
+            length = len(olc)
+
+        return olc[0:length]
+
+
+    def create_key(mmsi = None, part_2 = None, part_3 = None) :
+
+        composite_key = ut.safe_str(mmsi)
+        #composite_key = ut.safe_append(composite_key, ut.safe_append("-", ut.safe_str(part_2)))
+        #composite_key = ut.safe_append(composite_key, ut.safe_append("-", ut.safe_str(part_3))
+
+        return composite_key
+
+
+    def create_location_key(mmsi = None, olc = None, part_3 = None) :
+
+        composite_key = ut.safe_str(mmsi)
+        composite_key = ut.safe_append(composite_key, ut.safe_append("-", ut.safe_str(olc)))
+        #composite_key = ut.safe_append(composite_key, ut.safe_append("-", ut.safe_str(part_3))
+
+        return composite_key
+
+
+    def create_location_message_key(mmsi = None, olc = None, fid = None) :
+
+        composite_key = ut.safe_str(mmsi)
+        composite_key = ut.safe_append(composite_key, ut.safe_append("-", ut.safe_str(olc)))
+        composite_key = ut.safe_append(composite_key, ut.safe_append("-", ut.safe_str(fid)))
+
+        return composite_key
+
+
+    def get_host_hardware_id(imo = None, shipname = None, callsign = None, mmsi = None) :
+
+        host_hardware_id = imo
+        if host_hardware_id is None :
+            if shipname is not None :
+                host_hardware_id = shipname
+
+        if imo is None and shipname is None and callsign is None :
+            host_hardware_id = mmsi
+
+        return host_hardware_id
+
+
+    def get_png_name_by_key(mmsi = None, part_2 = None, part_3 = None) :
+
+        png_name = ut.safe_str(mmsi)
+        #png_name = ut.safe_append(png_name, ut.safe_append("-", ut.safe_str(part_2)))
+        #png_name = ut.safe_append(png_name, ut.safe_append("-", ut.safe_str(part_3)))
+        png_name = ut.safe_append(png_name, ".png")
+
+        return png_name
+
+
+    def get_name_plus_extension(name = None, name_extension = None) :
+
+        name_plus_extension = None
+        if name is not None :
+            name_plus_extension = name
+        if name_extension is not None :
+            name_plus_extension += name_extension
+
+        return name_plus_extension
+
 
 
 class TextNumeric :
@@ -192,8 +268,9 @@ class TextNumeric :
         data_arrays = []
 
         for selected_tag, channels in channel_data.items() :
+
             rt.logging.debug("channel_data", channel_data, "selected_tag", selected_tag, "channels", channels)
-            channels_list = sorted(list(channels))
+            channels_list = list(channels) #sorted(list(channels))
             rt.logging.debug("channels_list", channels_list)
 
             dict_string = ''
@@ -209,70 +286,53 @@ class TextNumeric :
 
             if len(dict_string) > 0 :
 
-                #data_array = []
-                data_list = []
+                data_list = [ dict_string ]
 
                 if selected_tag == 'MMB' :
                     value = self.to_float(dict_string, 1)
-                    #data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [value]) ] ) ]
                     data_list = [ dict_string, [ value ] ]
 
                 if selected_tag == 'VDM' :
                     ais_datasets = self.data_from_ais([dict_string], line_end)
-                    #mmsis = [ safe_get(dataset, "mmsi") for dataset in ais_datasets ]
-                    #message_format_ids = [ safe_get(dataset, "fid") for dataset in ais_datasets ]
-                    #message_types = [ safe_get(dataset, "type") for dataset in ais_datasets ]
-                    #latitudes = [ safe_get(dataset, "lat") for dataset in ais_datasets ]
-                    #longitudes = [ safe_get(dataset, "lon") for dataset in ais_datasets ]
-                    #print('mmsis', mmsis, 'message_types', message_types, 'message_format_ids', message_format_ids, 'latitudes', latitudes, 'longitudes', longitudes)
-                    rt.logging.debug("ais_datasets", ais_datasets)
-                    #data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], ais_datasets) ] ) ]
-                    data_list = [ dict_string, ais_datasets ]
+                    ais_datasets_list = []
+                    for ais_dataset in ais_datasets :
+                        ais_datasets_list.append( [ None, None, ut.safe_get(ais_dataset, "mmsi") , ais_dataset ] )
+                    rt.logging.debug("dict_string", dict_string, "ais_datasets_list", ais_datasets_list, "len(ais_datasets_list)", len(ais_datasets_list))
+                    data_list = [ dict_string, ais_datasets_list ]
 
                 if selected_tag == 'VDO' :
                     latitude, longitude = self.aivdo_to_pos(dict_string.split(line_end)[0])
-                    #data_array = [ dict( [ (channels_list[0], dict_string) , (channels_list[1], [latitude]) , (channels_list[2], [longitude]) ] ) ]
                     data_list = [ dict_string, [latitude], [longitude] ]
 
                 if selected_tag == 'ALV' :
-                    #data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
-                    data_list = [ dict_string ]
+                    pass
 
                 if selected_tag == 'ALR' :
-                    #data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
-                    data_list = [ dict_string ]
+                    pass
 
                 if selected_tag == 'TTM' :
-                    #data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
-                    data_list = [ dict_string ]
+                    pass
 
                 if selected_tag == 'GGA' :
                     rt.logging.debug("channels_list", channels_list, "dict_string", dict_string, "time_tuple", time_tuple)
                     validated_timestamp, timestamp_microsecs, latitude, longitude = self.gga_to_time_pos(dict_string, time_tuple)
                     rt.logging.debug("[latitude]", [latitude], "[longitude]", [longitude])
-                    #data_dict = None
                     if not ( None in [latitude, longitude] ) :
                         gga_string_valid_time = self.gga_from_time_pos_float(validated_timestamp, latitude, longitude)
                         rt.logging.debug("gga_string_valid_time", gga_string_valid_time)
-                        #data_dict = channel_value_dict(channels_list, [ gga_string_valid_time, [latitude], [longitude] ])
                         data_list = [ gga_string_valid_time, [latitude], [longitude] ]
-                    #data_array = [data_dict]
 
                 if selected_tag == 'GLL' :
-                    #data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
-                    data_list = [ dict_string ]
+                    pass
 
                 if selected_tag == 'VTG' :
-                    #data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
-                    data_list = [ dict_string ]
+                    pass
 
                 if selected_tag == 'RSA' :
-                    #data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
-                    data_list = [ dict_string ]
+                    pass
 
                 if selected_tag == 'XDR' :
-                    #data_array = [ dict( [ (channels_list[0], dict_string) ] ) ]
-                    data_list = [ dict_string ]
+                    pass
 
                 data_array = [ channel_value_dict( channels_list, data_list ) ]
 
@@ -459,7 +519,6 @@ class Nmea(TextNumeric) :
 
     def gga_to_time_pos(self, nmea_string, current_timetuple) :
 
-        #rt.logging.debug("nmea_string", nmea_string)
         nmea_fields = nmea_string.split(',')
         rt.logging.debug("nmea_fields", nmea_fields)
 
@@ -504,58 +563,70 @@ class Nmea(TextNumeric) :
         return latitude, latitude
 
 
-    def aivdm_from_static(self, mmsi, call_sign, vessel_name, ship_type) :
+    def aivdm_from_static(self, mmsis, call_signs, vessel_names, ship_types, destinations) :
 
-        aivdm_payload = self.prepend
+        aivdm_payloads = []
 
         try :
-            rt.logging.debug(mmsi, call_sign, vessel_name, ship_type)
-            aivdm_message = ai.AISStaticAndVoyageReportMessage(mmsi = mmsi, callsign = call_sign, shipname = vessel_name, shiptype = ship_type, imo = 0)
-            aivdm_instance = ai.AIS(aivdm_message)
-            aivdm_payload += aivdm_instance.build_payload(False)
-            rt.logging.debug("aivdm_payload", aivdm_payload)
-        except ValueError as e :
-            aivdm_payload += ''
+
+            rt.logging.debug("mmsis", mmsis, "call_signs", call_signs, "vessel_names", vessel_names, "ship_types", ship_types, "destinations", destinations)
+
+            for mmsi, call_sign, vessel_name, ship_type, destination in zip(mmsis, call_signs, vessel_names, ship_types, destinations) :
+
+                aivdm_message = ai.AISStaticAndVoyageReportMessage(mmsi = mmsi, imo = 0, callsign = call_sign, shipname = vessel_name, shiptype = ship_type, destination = destination)
+                aivdm_instance = ai.AIS(aivdm_message)
+                aivdm_payload = aivdm_instance.build_payload(False)
+                rt.logging.debug("aivdm_payload", aivdm_payload)
+
+                aivdm_payloads.append(aivdm_payload)
+
+        except(ValueError, bitstring.CreationError) as e :
+
             rt.logging.exception(e)
-        finally :
-            aivdm_payload += self.append
 
-        return aivdm_payload
+        return aivdm_payloads
 
 
-    def aivdm_from_pos(self, mmsi, timestamp, latitude, longitude, status) :
+    def aivdm_from_pos(self, mmsis, speeds, courses, statuses, length_offsets, width_offsets, timestamp, latitude, longitude) :
 
-        aivdm_payload = self.prepend
+        aivdm_payloads = []
 
         try :
 
-            latitude_degs = float(latitude)
-            rt.logging.debug("latitude_degs", latitude_degs)
-            latitude_min_fraction = int(latitude_degs * 60 * 10000)
-
-            longitude_degs = float(longitude)
-            rt.logging.debug("longitude_degs", longitude_degs)
-            longitude_min_fraction = int(longitude_degs * 60 * 10000)
-
+            rt.logging.debug("mmsis", mmsis, "speeds", speeds, "courses", courses, "statuses", statuses, "length_offsets", length_offsets, "width_offsets", width_offsets)
             datetime_origin = datetime.datetime.fromtimestamp(int(timestamp))
             origin_timestamp = datetime_origin.timetuple()
             sec = origin_timestamp.tm_sec
-            
-            aivdm_message = ai.AISPositionReportMessage(mmsi = mmsi, lon = longitude_min_fraction, lat = latitude_min_fraction, ts = sec, status = status)
-            aivdm_instance = ai.AIS(aivdm_message)
-            aivdm_payload += aivdm_instance.build_payload(False)
-            rt.logging.debug("aivdm_payload", aivdm_payload)
 
-        except ValueError as e :
+            for mmsi, speed, course, status, length_offset, width_offset in zip(mmsis, speeds, courses, statuses, length_offsets, width_offsets) :
 
-            aivdm_payload += ''
-            rt.logging.exception(e)
+                latitude_degs = float(latitude)
+                longitude_degs = float(longitude)
 
-        finally :
+                latitude_degs += float ( length_offset / ( 1 * 1852 ) * 1/60 )
+                latitude_min_fraction = int(latitude_degs * 60 * 10000)
+                rt.logging.debug("latitude_degs", latitude_degs, "latitude_min_fraction", latitude_min_fraction)
 
-            aivdm_payload += self.append
+                latitude_factor = math.cos(latitude_degs/180 * math.pi)
+                longitude_degs += float ( width_offset / ( latitude_factor * 1852 ) * 1/60 )
+                longitude_min_fraction = int(longitude_degs * 60 * 10000)
+                rt.logging.debug("longitude_degs", longitude_degs, "longitude_min_fraction", longitude_min_fraction)
 
-        return aivdm_payload
+                speed_deci_kts = int(speed * 10)
+                course_deci_degs = int(course * 10)
+
+                aivdm_message = ai.AISPositionReportMessage(mmsi = mmsi, lon = longitude_min_fraction, lat = latitude_min_fraction, sog = speed_deci_kts, cog = course_deci_degs, ts = sec, status = status)
+                aivdm_instance = ai.AIS(aivdm_message)
+                aivdm_payload = aivdm_instance.build_payload(False)
+                rt.logging.debug("aivdm_payload", aivdm_payload)
+
+                aivdm_payloads.append(aivdm_payload)
+
+        except(ValueError, bitstring.CreationError) as e :
+
+            rt.logging.debug(e)
+
+        return aivdm_payloads
 
 
     def aivdm_area_notice_circle_from_pos(self, mmsi, latitude, longitude) :
@@ -580,7 +651,6 @@ class Nmea(TextNumeric) :
 
         except ValueError as e :
 
-            aivdm_payload += ''
             rt.logging.exception(e)
 
         finally :
@@ -613,20 +683,45 @@ class Nmea(TextNumeric) :
                 rt.logging.debug("longitude_degs", longitude_degs, "longitude_min_fraction", longitude_min_fraction)
 
                 rt.logging.debug("mmsi", mmsi, "aid_type", aid_type, "name", name, "longitude_min_fraction", longitude_min_fraction, "latitude_min_fraction", latitude_min_fraction, "virtual_aid", virtual_aid)
-                aivdm_message = ai.AISAtonReport(mmsi = mmsi, aid_type = aid_type, name = name, lon = longitude_min_fraction, lat = latitude_min_fraction, virtual_aid = virtual_aid)
+                name_ext = ''
+                name_ext_length = len(name) - 20
+                rt.logging.debug("name_ext_length", name_ext_length)
+                if name_ext_length > 0 : 
+                    if name_ext_length > 14 : name_ext_length = 14
+                    name_ext = name[ 20 : 20 + name_ext_length ]
+                    rt.logging.debug("name_ext", name_ext)
+                aivdm_message = ai.AISAtonReport(mmsi = mmsi, aid_type = aid_type, name = name, lon = longitude_min_fraction, lat = latitude_min_fraction, virtual_aid = virtual_aid, name_ext = name_ext)
                 aivdm_instance = ai.AIS(aivdm_message)
                 aivdm_payload = aivdm_instance.build_payload(False)
                 rt.logging.debug("aivdm_payload", aivdm_payload)
 
                 aivdm_payloads.append(aivdm_payload)
 
-        except ValueError as e :
+        except(ValueError, bitstring.CreationError) as e :
 
             rt.logging.exception(e)
 
-        finally :
+        return aivdm_payloads
 
-            pass
+
+    def aivdm_atons_from_methyd_asm(self, methyd_asm_messages = None) :
+
+        aivdm_payloads = []
+
+        try :
+
+            for methyd_asm_message in methyd_asm_messages :
+
+                #aivdm_message = ai.AISAtonReport(mmsi = mmsi, aid_type = aid_type, name = name, lon = longitude_min_fraction, lat = latitude_min_fraction, virtual_aid = virtual_aid)
+                #aivdm_instance = ai.AIS(aivdm_message)
+                aivdm_payload = b''
+                #aivdm_payload = aivdm_instance.build_payload(False)
+
+                aivdm_payloads.append(aivdm_payload)
+
+        except(ValueError, bitstring.CreationError) as e :
+
+            rt.logging.exception(e)
 
         return aivdm_payloads
 
@@ -636,14 +731,14 @@ class Nmea(TextNumeric) :
         message_ids = []
         if message_formats is not None :
             for format_index in range(0, len(message_formats)) :
-                message_id = safe_get(message_formats[format_index], 'message')
+                message_id = ut.safe_get(message_formats[format_index], 'message')
                 if message_id is not None :
-                    message_types = safe_get(message_id, 'type')
+                    message_types = ut.safe_get(message_id, 'type')
                     if (type(message_types) is list) :
                         for message_type in message_types :
-                            message_ids.append( [ message_type, safe_get(message_id, 'fid'), safe_get(message_id, 'start_pos'), format_index ] )
+                            message_ids.append( [ message_type, ut.safe_get(message_id, 'fid'), ut.safe_get(message_id, 'start_pos'), format_index ] )
                     else :
-                        message_ids.append( [ message_types, safe_get(message_id, 'fid'), safe_get(message_id, 'start_pos'), format_index ] )
+                        message_ids.append( [ message_types, ut.safe_get(message_id, 'fid'), ut.safe_get(message_id, 'start_pos'), format_index ] )
                 else :
                     message_ids.append( [ None, None, None, format_index ] )
 
@@ -659,51 +754,61 @@ class Nmea(TextNumeric) :
         for structure_tag, structure_item in message_structure.items() :
 
             if structure_tag in ['message'] :
-                bit_offset = safe_get(structure_item, 'start_pos')
+                bit_offset = ut.safe_get(structure_item, 'start_pos')
 
             if structure_tag not in ['message'] :
 
-                bits_arg = safe_get(structure_item, 'bits')
-                type_arg = safe_get(structure_item, 'type')
+                bits_arg = ut.safe_get(structure_item, 'bits')
+
+                type_arg = ut.safe_get(structure_item, 'type')
                 if type_arg is not None : type_arg = str(type_arg)
 
-                add_arg = safe_get(structure_item, 'add')
+                add_arg = ut.safe_get(structure_item, 'add')
                 if add_arg is not None : add_arg = float(add_arg)
-                div_arg = safe_get(structure_item, 'div')
+                div_arg = ut.safe_get(structure_item, 'div')
                 if div_arg is not None : div_arg = float(div_arg)
-                round_arg = safe_get(structure_item, 'round')
+                round_arg = ut.safe_get(structure_item, 'round')
                 if round_arg is not None : round_arg = int(round_arg)
 
-                underflow_arg = safe_get(structure_item, 'underflow')
+                underflow_arg = ut.safe_get(structure_item, 'underflow')
                 if underflow_arg is not None : underflow_arg = int(underflow_arg)
-                overflow_arg = safe_get(structure_item, 'overflow')
+                overflow_arg = ut.safe_get(structure_item, 'overflow')
                 if overflow_arg is not None : overflow_arg = int(overflow_arg)
-                overflow_var_flag_pos = safe_get(structure_item, 'overflow_var_flag')
+                overflow_var_flag_pos = ut.safe_get(structure_item, 'overflow_var_flag')
                 overflow_var_flag_arg = None
 
-                nosensor_arg = safe_get(structure_item, 'nosensor')
+                nosensor_arg = ut.safe_get(structure_item, 'nosensor')
                 if nosensor_arg is not None : nosensor_arg = int(nosensor_arg)
-                novalue_arg = safe_get(structure_item, 'novalue')
+
+                novalue_arg = ut.safe_get(structure_item, 'novalue')
+                values_arg = ut.safe_get(structure_item, 'values')
+                function_arg = ut.safe_get(structure_item, 'function')
 
                 return_val = None
 
                 if bits_arg is not None and not None in bits_arg :
 
+                    bits_arg_start = bits_arg[0]
+                    bits_arg_end = bits_arg[1]
                     if overflow_var_flag_pos is not None : 
                         overflow_var_flag_field_string = data_field_binary_string(message_string, bit_offset, overflow_var_flag_pos[0], overflow_var_flag_pos[1])
                         overflow_var_flag_arg = bool(overflow_var_flag_field_string)
-                        bits_arg[0] += overflow_var_flag_pos[1] - overflow_var_flag_pos[0] + 1
-                    return_val = data_field_binary_string(message_string, bit_offset, bits_arg[0], bits_arg[1])
+                        bits_arg_start += overflow_var_flag_pos[1] - overflow_var_flag_pos[0] + 1
+                    return_val = data_field_binary_string(message_string, bit_offset, bits_arg_start, bits_arg_end)
 
-                    if return_val is not None and number_convertible(return_val) and type_arg is not None and type_arg not in ["int", "float", "bool"] :
-
-                        if type_arg[0] in ['u','U','e'] :
+                    if return_val is not None and type_arg is not None and type_arg not in ['int', 'float', 'bool', 'str'] :
+                        if type_arg[0] in ['u','U','e'] and number_convertible(return_val) :
                             return_val = int(return_val, 2)
-                        elif type_arg[0] in ['i','I'] :
+                        if type_arg[0] in ['i','I'] and number_convertible(return_val) :
                             return_val = twos_comp( int(return_val, 2), len(return_val) )
+                        if type_arg[0] in ['t'] :
+                            return_val = pyais.util.encode_bin_as_ascii6(bitarray.bitarray(return_val))
+                            rt.logging.debug("return_val (result of encode_bin_as_ascii6)", return_val)
 
                 if return_val is None : 
-                    return_val = safe_get(message_string, structure_tag)
+                    return_val = ut.safe_get(message_string, structure_tag)
+                    if isinstance(return_val, enum.Enum) :
+                        return_val = return_val.value
 
                 if return_val is not None and number_convertible(return_val) :
                     int_return_val = None
@@ -735,21 +840,32 @@ class Nmea(TextNumeric) :
                         if add_arg is not None : 
                             return_val += add_arg
 
-                if return_val is not None and number_convertible(return_val) and type_arg is not None and ( type_arg in ["int", "float"] or type_arg[0] in ['U','I'] ) :
+                if return_val is not None and number_convertible(return_val) and type_arg is not None and ( type_arg in ['int', 'float'] or type_arg[0] in ['U','I'] ) :
 
                     if round_arg is not None :
                         return_val = round(float(return_val), round_arg)
 
-                    if type_arg == "int" : 
+                    if type_arg == 'int' : 
                         return_val = int(round(float(return_val)))
-                    elif type_arg == "float" :
+                    elif type_arg == 'float' :
                         return_val = float(return_val)
 
-                if return_val is not None and type_arg is not None and type_arg not in ["bool"] and type_arg[0] in ['b'] :
+                if return_val is not None and type_arg is not None and type_arg not in ['bool'] and type_arg[0] in ['b'] :
 
                     return_val = bool(return_val)
 
-                return_dict[structure_tag] = return_val
+#                if return_val is None and function_arg is not None :
+#
+#                    struct_name = ut.safe_get(function_arg, 'name')
+#                    struct_args = ut.safe_get(function_arg, 'args')
+#                    if struct_name is not None and struct_args is not None :
+#                        args = { arg : ut.safe_get(return_dict, arg) for arg in struct_args }
+#                        func = getattr(Callbacks, struct_name)
+#                        return_val = ut.instance_from_dict(func, args)
+
+                if values_arg is None or ( values_arg is not None and return_val in values_arg ) :
+                    rt.logging.debug("structure_tag", structure_tag, "return_val", return_val)
+                    return_dict[structure_tag] = return_val
 
         return return_dict
 
@@ -763,135 +879,132 @@ class Nmea(TextNumeric) :
         latitudes = []
         longitudes = []
 
-        #for ais_message_string in ais_message_strings :
-        #    ais_message_string = str(ais_message_string)
-        #    print("ais_message_string", ais_message_string)
-        #    ais_messages = ais_message_string.split(separator)
-        #    f = tempfile.NamedTemporaryFile(mode='w+', delete=False)
-        #    for ais_message in ais_messages :
-        #        f.write(ais_message + '\n')
-        #    f.close()
-        #    for msg in pyais.stream.FileReaderStream(f.name):
-        #        decoded_message = msg.decode()
-        #        ais_content = decoded_message.content
-        #        print('ais_content', ais_content)
-        #    os.unlink(f.name) # delete the file after
-
         for ais_message_string in ais_message_strings :
 
             ais_message_string = str(ais_message_string)
-            print("ais_message_string", ais_message_string)
+            rt.logging.debug("ais_message_string", ais_message_string)
             ais_messages = ais_message_string.split(separator)
-            rt.logging.debug("ais_messages", ais_messages)
 
             ais_messages_temp_file = tempfile.NamedTemporaryFile(mode = 'w+', delete = False)
+
             for ais_message in ais_messages :
+
+                # Talker ID has been found to be occasionally missing from beginning of sentences. Add whole or part of it if necessary.
+                sentence_id_start = locations_of_substring(ais_message, 'VDM')[0]
+                talker_id_start = sentence_id_start - 3
+                if talker_id_start < 0 :
+                    talker_id = '!AI'
+                    ais_message = talker_id[0:-talker_id_start] + ais_message
+                # If checksum is missing or in an obviously incorrect format, it is recalculated and replaced/appended
+                correct_checksum_form = ( ais_message[-3] == '*' and hex_characters(ais_message[-2:]) )
+                if not correct_checksum_form :
+                    checksum_start_index = ais_message.find('*')
+                    if checksum_start_index == -1 :
+                        ais_message += '*' + self.get_checksum(ais_message[1:])
+                    else :
+                        ais_message = ais_message[:checksum_start_index] + '*' + self.get_checksum(ais_message[1:checksum_start_index])
+                rt.logging.debug('ais_message', ais_message)
                 ais_messages_temp_file.write(ais_message + '\n')
+
             ais_messages_temp_file.close()
 
             try :
 
                 for ais_message in pyais.stream.FileReaderStream(ais_messages_temp_file.name) :
 
-                    #try :
-                    #    ais_message = ais_message.decode()
-                    #except (UnicodeDecodeError, AttributeError) :
-                    #    pass
-
+                    rt.logging.debug('    ais_message', ais_message)
                     ais_data = {}
 
                     try :
-                        #try :
-                        #    ais_message = ais_message.encode('UTF-8')
-                        #except (UnicodeDecodeError, AttributeError) :
-                        #    pass
-                        #ais_data = pyais.NMEAMessage(ais_message).decode()
                         ais_data = ais_message.decode().content
-                    except (ValueError, IndexError, pyais.exceptions.InvalidNMEAMessageException) as e :
-                        pass #rt.logging.exception(e)
-                    print('ais_data', ais_data)
+                    except (ValueError, IndexError, pyais.exceptions.InvalidNMEAMessageException, pyais.exceptions.InvalidChecksumException) as e :
+                        rt.logging.exception(e)
+                    rt.logging.debug('    ais_data', ais_data)
 
-                    message_id_data = self.parse_ais_struct(ais_data, { "mmsi":{"type":"str"}, "type":{"type":"int"} } )
+                    message_id_data = self.parse_ais_struct(ais_data, { "mmsi":{"type":"str"}, "type":{"type":"int"}, "fid":{"type":"int"} } )
+                    rt.logging.debug('message_id_data', message_id_data)
+                    current_mmsi = ut.safe_get(message_id_data, 'mmsi')
+                    current_message_type = ut.safe_get(message_id_data, 'type')
+                    rt.logging.debug("current_message_type", current_message_type)
+                    current_binary_message_format = ut.safe_get(message_id_data, 'fid')
 
                     ais_dataset = None
 
-                    current_message_type = safe_get(message_id_data, 'type')
-                    if current_message_type is not None and number_convertible(current_message_type) :
-                        
-                        current_message_type = int(current_message_type)
-
-                        ais_dataset = {}
-
-                        #ais_sentence = None
-                        #if b'VDM' in ais_message : ais_sentence = 'VDM'
-                        #elif b'VDO' in ais_message : ais_sentence = 'VDO'
-                        #ais_dataset["sentence"] = ais_sentence
-
-                        ais_dataset |= message_id_data
-
                     message_types = [ message_id[0] for message_id in self.message_ids ]
+                    rt.logging.debug("    message_types", message_types)
+                    binary_message_formats = [ message_id[1] for message_id in self.message_ids ]
+                    rt.logging.debug("    binary_message_formats", binary_message_formats)
                     format_indices = [ message_id[3] for message_id in self.message_ids ]
-                    current_message_type_index = safe_index(message_types, current_message_type)
-                    current_format_index = safe_get(format_indices, current_message_type_index)
-                    if current_format_index is not None :
-                        message_format = self.message_formats[current_format_index]
-                        message_data = None
+                    rt.logging.debug("    format_indices", format_indices)
+                    message_type_indices = ut.safe_index(message_types, [current_message_type])
+                    rt.logging.debug("    message_type_indices", message_type_indices)
+                    current_format_indices = ut.safe_get(format_indices, message_type_indices)
+                    rt.logging.debug("    current_format_indices", current_format_indices)
+
+                    if current_format_indices not in [None, []] and not None in current_format_indices :
+
+                        if current_message_type is not None and number_convertible(current_message_type) :
+                            current_message_type = int(current_message_type)
+                            ais_dataset = {}
+                            ais_dataset |= message_id_data
+
+                        current_format_index = None
+
                         if current_message_type in [6,8] :
-                            binary_message_data = self.parse_ais_struct(ais_data, { "data":{"type":"struct"} } )
-                            message_data = self.parse_ais_struct( safe_get(binary_message_data, 'data'), message_format )
+                            current_message_type_index = None
+                            for message_type_index in message_type_indices :
+                                rt.logging.debug("binary_message_formats[message_type_index]", binary_message_formats[message_type_index])
+                                rt.logging.debug("current_binary_message_format", current_binary_message_format)
+                                if binary_message_formats[message_type_index] == current_binary_message_format :
+                                    current_message_type_index = message_type_index
+                                    rt.logging.debug("current_message_type_index", current_message_type_index)
+                            if current_message_type_index is not None :
+                                current_format_index = format_indices[current_message_type_index]
+                            rt.logging.debug("current_format_index", current_format_index)
                         else :
-                            message_data = self.parse_ais_struct( ais_data, message_format )
-                        ais_dataset |= message_data
+                            current_format_index = current_format_indices[0]
+                        message_format = {}
+                        if current_format_index is not None :
+                            message_format = self.message_formats[current_format_index]
+                        rt.logging.debug("message_format", message_format)
+                        message_header_format = ut.safe_get(message_format, 'message')
+                        mmsi_include_only = ut.safe_get(message_header_format, "mmsi_include_only")
+                        mmsi_exclude_only = ut.safe_get(message_header_format, "mmsi_exclude_only")
+                        if mmsi_include_only in [None, []] or ( mmsi_include_only not in [None, []] and current_mmsi in mmsi_include_only ) or ( mmsi_exclude_only in [None, []] or (mmsi_exclude_only not in [None, []] and current_mmsi not in mmsi_exclude_only ) ):
+                            rt.logging.debug("mmsi_include_only", mmsi_include_only, "current_mmsi", current_mmsi)
+                            message_data = None
+                            if current_message_type in [6,8] :
+                                rt.logging.debug("ais_data", ais_data)
+                                binary_message_data = self.parse_ais_struct(ais_data, { "data":{"type":"struct"} } )
+                                message_data = self.parse_ais_struct( ut.safe_get(binary_message_data, 'data'), message_format )
+                            else :
+                                message_data = self.parse_ais_struct( ais_data, message_format )
+                            ais_dataset |= message_data
+                            rt.logging.debug("ais_dataset", ais_dataset, "message_format", message_format)
+                            function_items = { structure_tag : ut.safe_get(structure_item, 'function') for structure_tag, structure_item in message_format.items() if ut.safe_get(structure_item, 'function') is not None }
+                            for function_member, function_struct in function_items.items() :
+                                rt.logging.debug("function_member", function_member, "function_struct", function_struct)
+                                struct_name = ut.safe_get(function_struct, 'name')
+                                struct_args = ut.safe_get(function_struct, 'args')
+                                rt.logging.debug("struct_name", struct_name, "struct_args", struct_args)
+                                if struct_name is not None and struct_args is not None :
+                                    args = { arg : ut.safe_get(ais_dataset, arg) for arg in struct_args }
+                                    rt.logging.debug("args", args)
+                                    func = getattr(Callbacks, struct_name)
+                                    return_val = ut.instance_from_dict(func, args)
+                                    function_eval_data = {function_member:return_val} 
+                                    rt.logging.debug("function_eval_data", function_eval_data)
+                                    ais_dataset |= function_eval_data
 
-                    # if message_id_data['type'] is not None and int(message_id_data['type']) in [1,2,3,9,4,5,18,19,20,24,6,8] :
+                            if current_mmsi is not None : # ut.safe_get(message_id_data, 'mmsi') is not None :
+                                ais_datasets.append(ais_dataset)
+                        
 
-                        # if int(message_id_data['type']) in [4,5] :
+            except (ValueError, pyais.exceptions.InvalidNMEAMessageException, pyais.exceptions.InvalidChecksumException) as e :     #IndexError, 
 
-                            # ais_dataset |= self.parse_ais_struct(ais_data, { "minute":{"type":"int", "novalue":60}, "hour":{"type":"int", "novalue":24}, "day":{"type":"int", "novalue":0}, "month":{"type":"int", "novalue":0} } )
-
-                        # if int(message_id_data['type']) in [6,8] :
-
-                            # ais_dataset |= self.parse_ais_struct(ais_data, { "fid":{"type":"int"} } )
-                            # for i in range(0, len(self.message_ids) ) :
-                                # message_id = self.message_ids[i]
-                                # if message_id[1] == safe_get(ais_dataset,"fid") :
-                                    # message_format = self.message_formats[i]
-                                    # message_data = self.parse_ais_struct(ais_data, { "data":{"type":"struct"} } )
-                                    # ais_dataset |= self.parse_ais_struct(message_data['data'], message_format)
-
-                        # if message_id_data['type'] is not None and int(message_id_data['type']) in [1,2,3,9,4,18,19] :
-
-                            # ais_dataset |= self.parse_ais_struct(ais_data, { "second":{"type":"int", "novalue":[61,62,63], "nosensor":60},  "lon":{"type":"int", "div":1/600000, "novalue":181}, "lat":{"type":"int", "div":1/600000, "novalue":91}, "accuracy":{"type":"bool"} } )
-
-                            # if int(message_id_data['type']) in [4] :
-
-                                # ais_dataset |= self.parse_ais_struct(ais_data, { "year":{"type":"int", "novalue":0} } )
-
-                            # if int(message_id_data['type']) in [1,2,3,9,18,19] :
-
-                                # ais_dataset |= self.parse_ais_struct(ais_data, { "course":{"type":"float", "round": 1, "novalue":360}, "speed":{"type":"float", "round": 1, "novalue":1023, "overflow":1022} } )
-
-                                # if int(message_id_data['type']) in [1,2,3,18,19] :
-
-                                    # ais_dataset |= self.parse_ais_struct(ais_data, { "heading":{"type":"float", "round": 1, "novalue":511} } )
-
-                                    # if int(message_id_data['type']) in [1,2,3] :
-
-                                        # ais_dataset |= self.parse_ais_struct(ais_data, { "turn":{"type":"float", "round": 1, "novalue":-128, "underflow":-127, "overflow":127} } )
-
-                        # if message_id_data['type'] is not None and int(message_id_data['type']) in [5,24] :
-
-                            # ais_dataset |= self.parse_ais_struct(ais_data, { "callsign":{"type":"str"}, "shipname":{"type":"str"} } )
-
-                    if message_id_data['mmsi'] is not None :
-
-                        ais_datasets.append(ais_dataset)
-
-            except (ValueError, pyais.exceptions.InvalidNMEAMessageException) as e :
-
-                    rt.logging.exception(e)
+                rt.logging.exception(e)
 
         for ais_dataset in ais_datasets :
-            print("ais_dataset", dict([(k,r) for k,r in ais_dataset.items() if r is not None]) )
+            rt.logging.debug("ais_dataset", dict([(k,r) for k,r in ais_dataset.items() if r is not None]) )
 
-        return ais_datasets  #, mmsis, message_types, message_format_ids, latitudes, longitudes
+        return ais_datasets
