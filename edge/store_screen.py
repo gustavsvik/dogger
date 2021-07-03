@@ -1,7 +1,7 @@
-import gateway.store
+import gateway.queue
 
 
-image_sql = gateway.store.ScreenshotFile(
+image_sql = gateway.queue.ScreenshotFile(
     channels = {600}, 
     start_delay = 0, 
     file_path = '/home/heta/Z/data/files/screenshots/',
