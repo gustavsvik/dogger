@@ -5,28 +5,85 @@ import yaml
 
 
 
-def instance_from_dict(cls, argument_dict) :
-
-    return cls(**argument_dict)
-
-
-def instance_from_dict_string(cls, dict_string) :
-
-    return instance_from_dict(cls, eval(dict_string))
-
-
-def instance_from_argument_string(cls, argument_string) :
-
-    return instance_from_dict_string(cls, "dict({})".format(argument_string))
+def safe_str(obj, default_value = None) :
+    value = default_value
+    if obj is not None :
+        try :
+            value = str(obj)
+        except UnicodeEncodeError as e :
+            pass
+    return value
 
 
-def instance_from_json_string(cls, json_string) :
+def safe_append(string, appendix, default_value = None) :
+    value = default_value
+    if not None in [string, appendix] :
+        try :
+            value = str(string) + str(appendix)
+        except UnicodeEncodeError as e :
+            pass
+    return value
+
+
+def safe_get(dict_like_obj, keys, default_value = None) :
+    values = default_value
+    if dict_like_obj is not None :
+        if (type(keys) is list) :
+            values = []
+            for key in keys :
+                value = None
+                try :
+                    value = dict_like_obj[key]
+                except (KeyError, TypeError) as e :
+                    pass
+                values.append(value)
+        else :
+            try :
+                values = dict_like_obj[keys]
+            except (KeyError, TypeError) as e :
+                pass
+
+    return values
+
+def safe_index(list_like_obj, values, non_exist_index = None) :
+    index = non_exist_index
+    if list_like_obj is not None :
+        indices = []
+        if (type(values) is list) :
+            #common_values = list( set(value).intersection(set(list_like_obj)) )
+            #index = common_values  #[0]
+            #index = [ list_like_obj.index(value) for value in values ]
+            for value in values :
+                value_indices = [i for i,item in enumerate(list_like_obj) if item == value]
+                indices.extend(value_indices)
+        elif values in list_like_obj :
+            indices = list_like_obj.index(values)
+
+    return indices
+
+
+def instance_from_dict(obj, argument_dict) :
+
+    return obj(**argument_dict)
+
+
+def instance_from_dict_string(obj, dict_string) :
+
+    return instance_from_dict(obj, eval(dict_string))
+
+
+def instance_from_argument_string(obj, argument_string) :
+
+    return instance_from_dict_string(obj, "dict({})".format(argument_string))
+
+
+def instance_from_json_string(obj, json_string) :
 
     json_object = json.loads(json_string)
-    return instance_from_dict(cls, dict(json_object))
+    return instance_from_dict(obj, dict(json_object))
 
     
-def instance_from_yaml_string(cls, yaml_string) :
+def instance_from_yaml_string(obj, yaml_string) :
 
     yaml_object = yaml.safe_load(yaml_string)
-    return instance_from_dict(cls, dict(yaml_object))
+    return instance_from_dict(obj, dict(yaml_object))
