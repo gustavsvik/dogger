@@ -6,6 +6,7 @@ import json
 import datetime
 import time
 import pymysql
+import math
 import numpy
 
 import gateway.runtime as rt
@@ -93,17 +94,21 @@ def get_file_channel(current_file = None) :
     return channel
 
 
-def load_text_string_file(current_file = None):
+def load_text_json_file(current_file = None):
 
     acquired_microsecs = 9999
     acquired_value = -9999.0
-    acquired_subsamples = ''
-    acquired_base64 = b''
+    acquired_text = ''
+    acquired_bytes = b''
 
     try :
         with open(current_file, "r") as text_file :
             text_string = text_file.read()
-            acquired_base64 = text_string.encode("utf-8") # base64.b64encode(
+            try :
+                rt.logging.debug("json.loads(text_string)", json.loads(text_string) )
+            except json.decoder.JSONDecodeError as e :
+                rt.logging.exception(e)
+            acquired_bytes = text_string.encode("utf-8")
     except OSError as e :
         rt.logging.exception(e)
         try:
@@ -111,7 +116,28 @@ def load_text_string_file(current_file = None):
         except (PermissionError, FileNotFoundError, OSError) as e:
             rt.logging.exception(e)
 
-    return acquired_microsecs, acquired_value, acquired_subsamples, acquired_base64
+    return acquired_microsecs, acquired_value, acquired_text, acquired_bytes
+
+
+def load_text_string_file(current_file = None):
+
+    acquired_microsecs = 9999
+    acquired_value = -9999.0
+    acquired_text = ''
+    acquired_bytes = b''
+
+    try :
+        with open(current_file, "r") as text_file :
+            text_string = text_file.read()
+            acquired_bytes = text_string.encode("utf-8") # base64.b64encode(
+    except OSError as e :
+        rt.logging.exception(e)
+        try:
+            os.remove(current_file)
+        except (PermissionError, FileNotFoundError, OSError) as e:
+            rt.logging.exception(e)
+
+    return acquired_microsecs, acquired_value, acquired_text, acquired_bytes
 
 
 
@@ -164,7 +190,7 @@ class LoadFile(ProcessFile):
         self.acquired_time = acquired_time
         self.current_file = current_file
 
-        self.acquired_microsecs, self.acquired_value, self.acquired_subsamples, self.acquired_base64 = self.load_file(current_file)
+        self.acquired_microsecs, self.acquired_value, self.acquired_text, self.acquired_bytes = self.load_file(current_file)
 
 
 
@@ -205,30 +231,34 @@ class IngestFile(AcquireControlFile) :
 
                 try :
 
+                    channel_array = data_array[0][channel]
+
                     if file_type == 'npy' :
-                        float_array = data_array[0][channel]
-                        float_avg = tr.downsample(numpy.float64(float_array), 1)
-                        float_array = numpy.concatenate(([0.0], timestamp_microsecs, float_array), axis = None)
-                        float_array[0] = float_avg
-                        rt.logging.debug("float_array", float_array)
+
+                        float_avg = tr.downsample(numpy.float64(channel_array), 1)
+                        channel_array = numpy.concatenate(([0.0], timestamp_microsecs, channel_array), axis = None)
+                        channel_array[0] = float_avg
+                        rt.logging.debug("channel_array", channel_array)
                         try :
-                            numpy.save(store_filename, float_array)
+                            numpy.save(store_filename, channel_array)
                         except PermissionError as e:
                             rt.logging.exception(e)
 
-                    if file_type == 'txt' and data_array[0][channel] != '' :
+                    if file_type == 'txt' and channel_array != '' :
                         try :
                             with open(store_filename, 'w') as text_file :
                                 rt.logging.debug("data_array", data_array)
                                 rt.logging.debug("channel", channel)
-                                text_file.write(data_array[0][channel])
+                                text_file.write(channel_array)
                         except PermissionError as e:
                             rt.logging.exception(e)
 
-                    if file_type == 'json' and data_array[0][channel] != '' :
+                    if file_type == 'json' and len(channel_array) > 0 :
                         try :
                             with open(store_filename, 'w') as text_file :
-                                text_file.write( json.dumps(data_array[0][channel]) )
+                                channel_array_string = json.dumps(channel_array)
+                                rt.logging.debug("channel_array_string", channel_array_string)
+                                text_file.write(channel_array_string)
                         except PermissionError as e:
                             rt.logging.exception(e)
 
@@ -304,7 +334,7 @@ class SQL:
             current_timestamp = int(time.time())
             back_timestamp = current_timestamp - max_age
 
-            sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + str(channel) + " AND AD.ACQUIRED_TIME BETWEEN " + str(back_timestamp) + " AND " + str(current_timestamp) + " AND AD.STATUS>=0 ORDER BY AD.ACQUIRED_TIME DESC" 
+            sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_TEXT,AD.ACQUIRED_BYTES FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + str(channel) + " AND AD.ACQUIRED_TIME BETWEEN " + str(back_timestamp) + " AND " + str(current_timestamp) + " AND AD.STATUS>=0 ORDER BY AD.ACQUIRED_TIME DESC" 
             rt.logging.debug("sql_get_values",sql_get_values)
 
             with self.conn.cursor() as cursor :
@@ -319,16 +349,16 @@ class SQL:
                     row = results[0]
                     acquired_time = row[0]
                     acquired_value = row[1]
-                    acquired_subsamples = row[2]
-                    acquired_base64 = row[3]
-                    base64_string = ''
-                    if acquired_base64 is not None :
-                        base64_string = acquired_base64.decode('utf-8')
-                    rt.logging.debug("Channel: ", str(channel), ", Value: ", acquired_value, ", Timestamp: ", acquired_time) #, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
+                    acquired_text = row[2]
+                    acquired_bytes = row[3]
+                    bytes_string = ''
+                    if acquired_bytes is not None :
+                        bytes_string = acquired_bytes.decode('utf-8')
+                    rt.logging.debug("Channel: ", str(channel), ", Value: ", acquired_value, ", Timestamp: ", acquired_time) #, ", Sub-samples: ", acquired_text, ", bytes: ", acquired_bytes)
                     channels.append(channel)
                     timestamps.append(acquired_time)
                     values.append(acquired_value)
-                    byte_strings.append(acquired_base64)
+                    byte_strings.append(acquired_bytes)
 
         return channels, timestamps, values, byte_strings
 
@@ -355,7 +385,7 @@ class SQL:
                     else :
                         sql_timestamps = '(' + ','.join([str(ts) for ts in requested_timestamps]) + ')'
 
-                        sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_SUBSAMPLES,AD.ACQUIRED_BASE64 FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + channel_string + " AND AD.ACQUIRED_TIME IN " + sql_timestamps + " AND AD.STATUS>=0"
+                        sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_TEXT,AD.ACQUIRED_BYTES FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + channel_string + " AND AD.ACQUIRED_TIME IN " + sql_timestamps + " AND AD.STATUS>=0"
                         rt.logging.debug("sql_get_values",sql_get_values)
 
                         return_string += channel_string + ';'
@@ -369,13 +399,13 @@ class SQL:
                             for row in results:
                                 acquired_time = row[0]
                                 acquired_value = row[1]
-                                acquired_subsamples = row[2]
-                                acquired_base64 = row[3]
-                                base64_string = acquired_base64.decode('utf-8')
-                                rt.logging.debug("Channel: ", channel_string, ", Value: ", acquired_value, ", Timestamp: ", acquired_time, ", Sub-samples: ", acquired_subsamples, ", base64: ", acquired_base64)
+                                acquired_text = row[2]
+                                acquired_bytes = row[3]
+                                bytes_string = acquired_bytes.decode('utf-8')
+                                rt.logging.debug("Channel: ", channel_string, ", Value: ", acquired_value, ", Timestamp: ", acquired_time, ", Sub-samples: ", acquired_text, ", bytes: ", acquired_bytes)
                                 if acquired_time in requested_timestamps:
                                     requested_timestamps.remove(acquired_time)
-                                return_string += str(acquired_time) + ',' + str(acquired_value) + ',' + str(acquired_subsamples) + ',' + str(base64_string) + ','
+                                return_string += str(acquired_time) + ',' + str(acquired_value) + ',' + str(acquired_text) + ',' + str(bytes_string) + ','
                         return_string += ';'
 
                         if len(requested_timestamps) > 0:
@@ -390,6 +420,88 @@ class SQL:
                 self.close_db_connection()
                 
         return return_string
+
+
+    def store_acquired_record(self, channel, acquired_time, acquired_microsecs, acquired_value, acquired_text, acquired_bytes):
+
+        channel_string = repr(channel)
+        acquired_time_string = repr(acquired_time)
+        acquired_microsecs_string = repr(acquired_microsecs)
+        acquired_value_string = repr(acquired_value)
+
+        insert_result = -1
+
+        try:
+
+            with self.conn.cursor() as cursor :
+
+                try:
+                    delete_sql = "DELETE FROM t_acquired_data WHERE ACQUIRED_TIME=%s AND CHANNEL_INDEX=%s"
+                    cursor.execute(delete_sql, (acquired_time_string, channel_string) )
+                except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
+                    rt.logging.exception(e)
+
+            if not math.isnan(float(acquired_value)):
+                with self.conn.cursor() as cursor :
+                    try:
+                        rt.logging.debug(acquired_time_string + channel_string + acquired_value_string + str(acquired_text) + str(acquired_bytes))
+                        insert_sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,ACQUIRED_MICROSECS,CHANNEL_INDEX,ACQUIRED_VALUE,ACQUIRED_TEXT,ACQUIRED_BYTES,STATUS) VALUES (%s,%s,%s,%s,%s,%s,0)"
+                        cursor.execute(insert_sql, (acquired_time_string, acquired_microsecs_string, channel_string, acquired_value_string, acquired_text, acquired_bytes))
+                    except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
+                        rt.logging.exception(e)
+                    insert_result = cursor.rowcount
+
+        except (pymysql.err.OperationalError, pymysql.err.Error) as e:
+            rt.logging.exception(e)
+
+        return insert_result
+
+
+    def store_new_acquired_list(self, channel_list, times_list, values_list, byte_string_list):
+    
+        no_of_inserted_rows = 0
+
+        try:
+            self.connect_db()
+            for channel, times, values, byte_strings in zip(channel_list, times_list, values_list, byte_string_list) :
+                rt.logging.debug("channel", channel, "times", times, "values", values, "byte_strings", byte_strings)
+                channel= channel[0]
+                for timestamp, value, byte_string in zip(times, values, byte_strings) :
+                    replaced_byte_string = tr.de_armor_separators(byte_string)
+                    rt.logging.debug("replaced_byte_string", replaced_byte_string)
+                    check_present_sql = "SELECT AD.UNIQUE_INDEX FROM t_acquired_data AD WHERE AD.ACQUIRED_TIME=" + str(timestamp) + " AND AD.CHANNEL_INDEX=" + str(channel) + " AND AD.STATUS>=0"
+                    with self.conn.cursor() as cursor :
+                        rows_already_present = []
+                        try:
+                            cursor.execute(check_present_sql)
+                            rows_already_present = cursor.fetchall()
+                        except (pymysql.err.IntegrityError, pymysql.err.InternalError, pymysql.err.OperationalError, pymysql.err.ProgrammingError) as e :
+                            rt.logging.exception(e)
+                        rt.logging.debug(rows_already_present)
+                        if len(rows_already_present) == 0 :
+                            with self.conn.cursor() as cursor :
+                                # TODO: precede by SELECT to avoid INSERT attempts causing primary key violations
+                                sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,CHANNEL_INDEX,ACQUIRED_VALUE,ACQUIRED_BYTES,STATUS) VALUES (" + str(timestamp) + "," + str(channel) + "," + str(value) + ",'" + replaced_byte_string + "',0)"
+                                rt.logging.debug("sql", sql)
+                                try:
+                                    cursor.execute(sql)
+                                except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
+                                    rt.logging.exception(e)
+                                no_of_inserted_rows = cursor.rowcount
+                                rt.logging.debug("no_of_inserted_rows", no_of_inserted_rows)
+
+        except (pymysql.err.OperationalError, pymysql.err.Error) as e:
+
+            rt.logging.exception(e)
+
+        finally:
+
+            #try:
+            self.close_db_connection()
+            #except pymysql.err.Error as e:
+            #    rt.logging.exception(e)
+
+        return no_of_inserted_rows
 
 
     def close_db_connection(self) :
@@ -449,7 +561,7 @@ class Accumulate(ta.ProcessDataTask) :
                     accumulated_hour_samples = 0
                     accumulated_hour_value = 0.0
                     accumulated_text = ''
-                    accumulated_binary = b''
+                    accumulated_bytes = b''
                     
                     try :
 
@@ -474,10 +586,10 @@ class Accumulate(ta.ProcessDataTask) :
                         if accumulated_min_samples > 0 :
                             accumulated_min_mean = accumulated_min_value / accumulated_min_samples
 
-                        sql_insert_accumulated_60 = "INSERT INTO t_accumulated_data (CHANNEL_INDEX,ACCUMULATED_BIN_END_TIME,ACCUMULATED_BIN_SIZE,ACCUMULATED_NO_OF_SAMPLES,ACCUMULATED_VALUE,ACCUMULATED_TEXT,ACCUMULATED_BINARY) VALUES (%s,%s,%s,%s,%s,%s,%s)"
+                        sql_insert_accumulated_60 = "INSERT INTO t_accumulated_data (CHANNEL_INDEX,ACCUMULATED_BIN_END_TIME,ACCUMULATED_BIN_SIZE,ACCUMULATED_NO_OF_SAMPLES,ACCUMULATED_VALUE,ACCUMULATED_TEXT,ACCUMULATED_BYTES) VALUES (%s,%s,%s,%s,%s,%s,%s)"
                         with self.sql.conn.cursor() as cursor :
                             try:
-                                cursor.execute(sql_insert_accumulated_60, [channel_index, accumulated_bin_end_time, accumulated_bin_size, accumulated_min_samples, accumulated_min_mean, accumulated_text, accumulated_binary] )
+                                cursor.execute(sql_insert_accumulated_60, [channel_index, accumulated_bin_end_time, accumulated_bin_size, accumulated_min_samples, accumulated_min_mean, accumulated_text, accumulated_bytes] )
                             except pymysql.err.IntegrityError as e:
                                 rt.logging.exception(e)
 
@@ -503,10 +615,10 @@ class Accumulate(ta.ProcessDataTask) :
                             if accumulated_hour_samples > 0 :
                                 accumulated_hour_mean = accumulated_hour_value / accumulated_hour_samples
                                 
-                            sql_insert_accumulated_3600 = "INSERT INTO t_accumulated_data (CHANNEL_INDEX,ACCUMULATED_BIN_END_TIME,ACCUMULATED_BIN_SIZE,ACCUMULATED_NO_OF_SAMPLES,ACCUMULATED_VALUE,ACCUMULATED_TEXT,ACCUMULATED_BINARY) VALUES (%s,%s,%s,%s,%s,%s,%s)"
+                            sql_insert_accumulated_3600 = "INSERT INTO t_accumulated_data (CHANNEL_INDEX,ACCUMULATED_BIN_END_TIME,ACCUMULATED_BIN_SIZE,ACCUMULATED_NO_OF_SAMPLES,ACCUMULATED_VALUE,ACCUMULATED_TEXT,ACCUMULATED_BYTES) VALUES (%s,%s,%s,%s,%s,%s,%s)"
                             with self.sql.conn.cursor() as cursor :
                                 try:
-                                    cursor.execute(sql_insert_accumulated_3600, [channel_index, accumulated_bin_end_time,accumulated_bin_size, accumulated_hour_samples, accumulated_hour_mean, accumulated_text, accumulated_binary] )
+                                    cursor.execute(sql_insert_accumulated_3600, [channel_index, accumulated_bin_end_time,accumulated_bin_size, accumulated_hour_samples, accumulated_hour_mean, accumulated_text, accumulated_bytes] )
                                 except pymysql.err.IntegrityError as e:
                                     rt.logging.exception(e)
 
