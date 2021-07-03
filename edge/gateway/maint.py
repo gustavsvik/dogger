@@ -10,13 +10,14 @@ from socket import gaierror, socket, AF_INET, SOCK_DGRAM
 import pymysql
 
 import gateway.task as ta
-import gateway.link as li
+
 import gateway.persist as ps
 import gateway.runtime as rt
+import gateway.api as ap
 
 
 
-class CloudDBPartition(li.HttpMaint):
+class CloudDBPartition(ap.HttpMaint):
 
 
     def __init__(self, start_delay = None, ip_list = None, maint_api_url = None, max_connect_attempts = None, new_partition_name_date = None, new_partition_timestamp = None, oldest_kept_partition_name_date = None, config_filepath = None, config_filename = None):
@@ -35,7 +36,7 @@ class CloudDBPartition(li.HttpMaint):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        li.HttpMaint.__init__(self)
+        ap.HttpMaint.__init__(self)
 
 
 
@@ -178,13 +179,14 @@ class PartitionCloudDatabase(PartitionDatabase) :
 class NetworkTime(ta.MaintenanceTask) :
 
 
-    def __init__(self, start_delay = None, ip_list = None, ntp_url = None, ntp_port = None, adjust_interval = None, config_filepath = None, config_filename = None) :
+    def __init__(self, start_delay = None, ip_list = None, ntp_url = None, ntp_port = None, adjust_interval = None, max_connect_attempts = None, config_filepath = None, config_filename = None) :
 
         self.start_delay = start_delay
         self.ip_list = ip_list
         self.ntp_url = ntp_url
         self.ntp_port = ntp_port
         self.adjust_interval = adjust_interval
+        self.max_connect_attempts = max_connect_attempts
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
