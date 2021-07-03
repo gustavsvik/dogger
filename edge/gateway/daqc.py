@@ -14,22 +14,24 @@ import serial.tools.list_ports
 import socket
 import struct
 import pyscreenshot as ImageGrab
+from cryptography.fernet import Fernet
 
 import gateway.transform as tr
 import gateway.device as dv
 import gateway.runtime as rt
-import gateway.task as ta
+
 import gateway.link as li
 import gateway.persist as ps
+import gateway.api as ap
 
 
 
-class UdpHttp(li.UdpReceive) :
+class UdpHttp(ap.UdpReceive) :
 
 
     def __init__(self):
 
-        li.UdpReceive.__init__(self)
+        ap.UdpReceive.__init__(self)
 
 
     def upload_data(self, channel, sample_secs, data_value, byte_string) :
@@ -109,9 +111,14 @@ class UdpBytesHttp(UdpHttp) :
             data, address = self.socket.recvfrom(4096)
             rt.logging.debug("data", data, "len(data)", len(data))
             values = struct.unpack_from('>HI', data, offset = 0)
-            rt.logging.debug("values", values)
             byte_string = struct.unpack_from( '{}s'.format(len(data) - 6), data[6:len(data)], offset = 0)
-            replaced_byte_string = tr.armor_separators(byte_string[0])
+            rt.logging.debug("channel", int(values[0]), "timestamp", int(values[1]), "encrypted_string", byte_string[0])
+            crypto_key = b'XUFA58vllD2n41e7NZDZkyPiUCECkxFsBjF_HaKlIrI='
+            fernet = Fernet(crypto_key)
+            decrypted_string = fernet.decrypt(byte_string[0])
+            rt.logging.debug("decrypted_string", decrypted_string)
+            rt.logging.debug(" ")
+            replaced_byte_string = tr.armor_separators(decrypted_string)
             rt.logging.debug("replaced_byte_string", replaced_byte_string)
             self.upload_data(int(values[0]), int(values[1]), -9999.0, replaced_byte_string)
 
@@ -340,12 +347,12 @@ class SerialNmeaFile(SerialFile) :
 
 
 
-class UdpFile(li.UdpReceive, ps.IngestFile):
+class UdpFile(ap.UdpReceive, ps.IngestFile):
 
 
     def __init__(self):
 
-        li.UdpReceive.__init__(self)
+        ap.UdpReceive.__init__(self)
         ps.IngestFile.__init__(self)
 
 
