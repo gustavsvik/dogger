@@ -8,6 +8,6 @@ screenshot = gateway.daqc.TempFileUpload(
     client_api_url = '/client/',
     file_extension = 'jpg',
     config_filepath = '/home/heta/Z/app/python/dogger/', 
-    config_filename = 'conf_local.ini')
+    config_filename = 'conf_all_webservers.ini')
 
 screenshot.run()
