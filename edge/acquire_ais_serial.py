@@ -13,6 +13,7 @@ usb_serial = gateway.daqc.SerialNmeaFile(
     stopbits = 1,
     bytesize = 8,
     file_path = '/home/heta/Z/data/files/', 
+    ctrl_file_path = '/home/heta/Z/data/files/others/',
     archive_file_path = '/home/heta/Z/data/files/',
     delay_waiting_check = 0,
     config_filepath = '/home/heta/Z/app/python/dogger/', 
