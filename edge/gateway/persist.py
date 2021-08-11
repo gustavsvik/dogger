@@ -228,7 +228,7 @@ class IngestFile(AcquireControlFile) :
 
                 capture_file_timestamp = timestamp_secs 
                 store_filename = self.file_path + str(channel) + '_' + str(capture_file_timestamp) + '.' + file_type
-
+                rt.logging.debug("store_filename", store_filename)
                 try :
 
                     channel_array = data_array[0][channel]
@@ -247,7 +247,7 @@ class IngestFile(AcquireControlFile) :
                     if file_type == 'txt' and channel_array != '' :
                         try :
                             with open(store_filename, 'w') as text_file :
-                                rt.logging.debug("data_array", data_array)
+                                rt.logging.debug("channel_array", channel_array)
                                 rt.logging.debug("channel", channel)
                                 text_file.write(channel_array)
                         except PermissionError as e:
@@ -308,7 +308,7 @@ class SQL:
         try:
             conn_data = self.gateway_database_connection
             self.conn = pymysql.connect(host = conn_data['host'], user = conn_data['user'], passwd = conn_data['passwd'], db = conn_data['db'], autocommit = True)
-        except (pymysql.err.OperationalError, pymysql.err.Error) as e :
+        except pymysql.err.Error as e : #(pymysql.err.Error, pymysql.err.OperationalError)
             rt.logging.exception(e)
 
         return self.conn
@@ -318,31 +318,42 @@ class SQL:
 
         try:
             self.conn.commit()
-        except (pymysql.err.OperationalError, pymysql.err.Error) as e :
+        except pymysql.err.Error as e : #(pymysql.err.Error, pymysql.err.OperationalError)
             rt.logging.exception(e)
 
 
-    def get_stored(self, selected_channels, max_age) :
+    def get_stored(self, from_channels, max_age = None, max_number = None) :
 
         channels = []
         timestamps = []
         values = []
         byte_strings = []
 
-        for channel in selected_channels :
+        for channel in from_channels :
 
-            current_timestamp = int(time.time())
-            back_timestamp = current_timestamp - max_age
+            sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_TEXT,AD.ACQUIRED_BYTES FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + str(channel)
 
-            sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_TEXT,AD.ACQUIRED_BYTES FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + str(channel) + " AND AD.ACQUIRED_TIME BETWEEN " + str(back_timestamp) + " AND " + str(current_timestamp) + " AND AD.STATUS>=0 ORDER BY AD.ACQUIRED_TIME DESC" 
-            rt.logging.debug("sql_get_values",sql_get_values)
+            sql_status_order_clause = "AND AD.STATUS>=0 ORDER BY AD.ACQUIRED_TIME DESC" 
+
+            if max_age is not None :
+                current_timestamp = int(time.time())
+                back_timestamp = current_timestamp - int(max_age)
+                sql_get_values += " AND AD.ACQUIRED_TIME BETWEEN " + str(back_timestamp) + " AND " + str(current_timestamp) + " " + sql_status_order_clause
+
+            if max_age is None and max_number is None :
+                max_number = 0
+
+            if max_number is not None and max_age is None :
+                sql_get_values += " " + sql_status_order_clause + " LIMIT " + str(int(max_number))
+
+            rt.logging.debug("sql_get_values", sql_get_values)
 
             with self.conn.cursor() as cursor :
                 results = []
                 try:
                     cursor.execute(sql_get_values)
                     results = cursor.fetchall()
-                except (pymysql.err.IntegrityError, pymysql.err.InternalError, pymysql.err.OperationalError, pymysql.err.ProgrammingError) as e :
+                except pymysql.err.Error as e : #(pymysql.err.IntegrityError, pymysql.err.InternalError, pymysql.err.OperationalError, pymysql.err.ProgrammingError, pymysql.err.InterfaceError)
                     rt.logging.exception(e)
                 rt.logging.debug(results)
                 if len(results) > 0 :
@@ -394,7 +405,7 @@ class SQL:
                             try:
                                 cursor.execute(sql_get_values)
                                 results = cursor.fetchall()
-                            except (pymysql.err.IntegrityError, pymysql.err.InternalError, pymysql.err.OperationalError, pymysql.err.ProgrammingError) as e:
+                            except pymysql.err.Error as e : #(pymysql.err.IntegrityError, pymysql.err.InternalError, pymysql.err.OperationalError, pymysql.err.ProgrammingError)
                                 rt.logging.exception(e)
                             for row in results:
                                 acquired_time = row[0]
@@ -412,7 +423,7 @@ class SQL:
                             if min(requested_timestamps) < int(time.time()) - 3600:
                                 r_clear = self.clear_data_requests(ip)
 
-            except (pymysql.err.OperationalError, pymysql.err.Error) as e:
+            except pymysql.err.Error as e : #(pymysql.err.OperationalError, pymysql.err.Error)
                 rt.logging.exception(e)
 
             finally:
@@ -438,7 +449,7 @@ class SQL:
                 try:
                     delete_sql = "DELETE FROM t_acquired_data WHERE ACQUIRED_TIME=%s AND CHANNEL_INDEX=%s"
                     cursor.execute(delete_sql, (acquired_time_string, channel_string) )
-                except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
+                except pymysql.err.Error as e : #(pymysql.err.IntegrityError, pymysql.err.InternalError)
                     rt.logging.exception(e)
 
             if not math.isnan(float(acquired_value)):
@@ -447,11 +458,11 @@ class SQL:
                         rt.logging.debug(acquired_time_string + channel_string + acquired_value_string + str(acquired_text) + str(acquired_bytes))
                         insert_sql = "INSERT INTO t_acquired_data (ACQUIRED_TIME,ACQUIRED_MICROSECS,CHANNEL_INDEX,ACQUIRED_VALUE,ACQUIRED_TEXT,ACQUIRED_BYTES,STATUS) VALUES (%s,%s,%s,%s,%s,%s,0)"
                         cursor.execute(insert_sql, (acquired_time_string, acquired_microsecs_string, channel_string, acquired_value_string, acquired_text, acquired_bytes))
-                    except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
+                    except pymysql.err.Error as e : #(pymysql.err.IntegrityError, pymysql.err.InternalError)
                         rt.logging.exception(e)
                     insert_result = cursor.rowcount
 
-        except (pymysql.err.OperationalError, pymysql.err.Error) as e:
+        except pymysql.err.Error as e : #(pymysql.err.OperationalError, pymysql.err.Error)
             rt.logging.exception(e)
 
         return insert_result
@@ -467,7 +478,7 @@ class SQL:
                 rt.logging.debug("channel", channel, "times", times, "values", values, "byte_strings", byte_strings)
                 channel= channel[0]
                 for timestamp, value, byte_string in zip(times, values, byte_strings) :
-                    replaced_byte_string = tr.de_armor_separators(byte_string)
+                    replaced_byte_string = tr.de_armor_separators_csv(byte_string)
                     rt.logging.debug("replaced_byte_string", replaced_byte_string)
                     check_present_sql = "SELECT AD.UNIQUE_INDEX FROM t_acquired_data AD WHERE AD.ACQUIRED_TIME=" + str(timestamp) + " AND AD.CHANNEL_INDEX=" + str(channel) + " AND AD.STATUS>=0"
                     with self.conn.cursor() as cursor :
@@ -475,7 +486,7 @@ class SQL:
                         try:
                             cursor.execute(check_present_sql)
                             rows_already_present = cursor.fetchall()
-                        except (pymysql.err.IntegrityError, pymysql.err.InternalError, pymysql.err.OperationalError, pymysql.err.ProgrammingError) as e :
+                        except pymysql.err.Error as e : #(pymysql.err.IntegrityError, pymysql.err.InternalError, pymysql.err.OperationalError, pymysql.err.ProgrammingError) 
                             rt.logging.exception(e)
                         rt.logging.debug(rows_already_present)
                         if len(rows_already_present) == 0 :
@@ -485,12 +496,12 @@ class SQL:
                                 rt.logging.debug("sql", sql)
                                 try:
                                     cursor.execute(sql)
-                                except (pymysql.err.IntegrityError, pymysql.err.InternalError) as e:
+                                except pymysql.err.Error as e : #(pymysql.err.IntegrityError, pymysql.err.InternalError)
                                     rt.logging.exception(e)
                                 no_of_inserted_rows = cursor.rowcount
                                 rt.logging.debug("no_of_inserted_rows", no_of_inserted_rows)
 
-        except (pymysql.err.OperationalError, pymysql.err.Error) as e:
+        except pymysql.err.Error as e : #(pymysql.err.OperationalError, pymysql.err.Error)
 
             rt.logging.exception(e)
 
@@ -509,7 +520,7 @@ class SQL:
         try:
             if self.conn is not None :
                 self.conn.close()
-        except (pymysql.err.OperationalError, pymysql.err.Error, NameError) as e :
+        except (pymysql.err.Error, NameError) as e : #(pymysql.err.OperationalError, pymysql.err.Error)
             rt.logging.exception(e)
 
 
@@ -590,7 +601,7 @@ class Accumulate(ta.ProcessDataTask) :
                         with self.sql.conn.cursor() as cursor :
                             try:
                                 cursor.execute(sql_insert_accumulated_60, [channel_index, accumulated_bin_end_time, accumulated_bin_size, accumulated_min_samples, accumulated_min_mean, accumulated_text, accumulated_bytes] )
-                            except pymysql.err.IntegrityError as e:
+                            except pymysql.err.Error as e : #pymysql.err.IntegrityError
                                 rt.logging.exception(e)
 
                         accumulated_min_samples = 0
@@ -619,7 +630,7 @@ class Accumulate(ta.ProcessDataTask) :
                             with self.sql.conn.cursor() as cursor :
                                 try:
                                     cursor.execute(sql_insert_accumulated_3600, [channel_index, accumulated_bin_end_time,accumulated_bin_size, accumulated_hour_samples, accumulated_hour_mean, accumulated_text, accumulated_bytes] )
-                                except pymysql.err.IntegrityError as e:
+                                except pymysql.err.Error as e : #pymysql.err.IntegrityError
                                     rt.logging.exception(e)
 
                             accumulated_hour_samples = 0
