@@ -14,7 +14,10 @@ import serial.tools.list_ports
 import socket
 import struct
 import pyscreenshot as ImageGrab
-from cryptography.fernet import Fernet
+try:
+    from cryptography.fernet import Fernet
+except ImportError:
+    pass
 
 import gateway.transform as tr
 import gateway.device as dv
@@ -111,6 +114,7 @@ class UdpBytesHttp(UdpHttp) :
             data, address = self.socket.recvfrom(4096)
             rt.logging.debug("data", data, "len(data)", len(data))
             values = struct.unpack_from('>HI', data, offset = 0)
+            rt.logging.debug("values", values)
             byte_string = struct.unpack_from( '{}s'.format(len(data) - 6), data[6:len(data)], offset = 0)
             rt.logging.debug("channel", int(values[0]), "timestamp", int(values[1]), "encrypted_string", byte_string[0])
             crypto_key = b'XUFA58vllD2n41e7NZDZkyPiUCECkxFsBjF_HaKlIrI='
@@ -118,7 +122,7 @@ class UdpBytesHttp(UdpHttp) :
             decrypted_string = fernet.decrypt(byte_string[0])
             rt.logging.debug("decrypted_string", decrypted_string)
             rt.logging.debug(" ")
-            replaced_byte_string = tr.armor_separators(decrypted_string)
+            replaced_byte_string = tr.armor_separators_csv(decrypted_string)
             rt.logging.debug("replaced_byte_string", replaced_byte_string)
             self.upload_data(int(values[0]), int(values[1]), -9999.0, replaced_byte_string)
 
@@ -232,7 +236,7 @@ class SerialFile(ps.IngestFile, ps.LoadFile) :
 class SerialNmeaFile(SerialFile) :
 
 
-    def __init__(self, channels = None, ctrl_channels = None, port = None, start_delay = None, sample_rate = None, location = None, baudrate = None, timeout = None, parity = None, stopbits = None, bytesize = None, delay_waiting_check = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, ctrl_channels = None, port = None, start_delay = None, sample_rate = None, location = None, baudrate = None, timeout = None, parity = None, stopbits = None, bytesize = None, delay_waiting_check = None, file_path = None, ctrl_file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.ctrl_channels = ctrl_channels
@@ -247,6 +251,7 @@ class SerialNmeaFile(SerialFile) :
         self.bytesize = bytesize
         self.delay_waiting_check = delay_waiting_check
         self.file_path = file_path
+        self.ctrl_file_path = ctrl_file_path
         self.archive_file_path = archive_file_path
 
         self.config_filepath = config_filepath
@@ -257,7 +262,7 @@ class SerialNmeaFile(SerialFile) :
         self.nmea = tr.Nmea(prepend = '', append = '')
 
 
-    def get_filenames(self, channel_data = None) :
+    def get_filenames(self, channel_data = None, file_path = None) :
 
         channel_list = []
         filetype_list = []
@@ -275,7 +280,7 @@ class SerialNmeaFile(SerialFile) :
         rt.logging.debug("channels", channels, "file_types", file_types)
         files = []
         for channel in channels :
-            new_files = ps.get_all_files(path = self.file_path, extensions = file_types, channel = channel)
+            new_files = ps.get_all_files(path = file_path, extensions = file_types, channel = channel)
             rt.logging.debug("new_files", new_files)
             files.extend(new_files)
 
@@ -292,15 +297,17 @@ class SerialNmeaFile(SerialFile) :
 
             while self.serial_conn.isOpen():
 
-                files = self.get_filenames(channel_data = self.ctrl_channels)
+                files = self.get_filenames(channel_data = self.ctrl_channels, file_path = self.ctrl_file_path)
                 rt.logging.debug('self.ctrl_channels', self.ctrl_channels)
                 rt.logging.debug('files', files)
 
                 for current_file in files :
                     rt.logging.debug("current_file", current_file)
                     self.retrieve_file_data(current_file)
-                    #store_result = self.store_file_data()
-                    rt.logging.debug("self.acquire_base64", self.acquired_base64)
+
+                    #print("self.acquired_bytes", self.acquired_bytes)
+                    #self.serial_conn.write(self.acquired_bytes)
+                    #self.serial_conn.write(b'$GPGGA,121328.00,6237.6000000,N,01757.4000000,E,1,9,0.91,44.7,M,24.4,M,,*55\r\n')
                     try :
                         os.remove(self.current_file)
                     except (PermissionError, FileNotFoundError) as e :
@@ -308,7 +315,7 @@ class SerialNmeaFile(SerialFile) :
                     #timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
                     #nmea_data_array = self.nmea.decode_to_channels(char_data = self.acquire_base64, channel_data = self.ctrl_channels, time_tuple = current_timetuple, line_end = ' ')
                     #from_time_pos(timestamp, latitude, longitude)
-                #self.serial_conn.write(b'$GPGGA,204000.000,6237.8000,N,01757.0000,E,1,9,0.91,44.7,M,24.4,M,,*62\r\n')
+                self.serial_conn.write(b'$GPGGA,204000.000,6237.8000,N,01757.0000,E,1,9,0.91,44.7,M,24.4,M,,*62\r\n')
 
                 response = ''
                 while self.serial_conn.in_waiting:
@@ -456,10 +463,89 @@ class RawUdpFile(UdpFile):
 
 
 
-class Image(ps.IngestFile):
+class HttpFile(ap.HttpClient, ps.IngestFile) :
 
 
     def __init__(self):
+
+        ap.HttpClient.__init__(self)
+        ps.IngestFile.__init__(self)
+
+
+
+class HttpAishubAivdmFile(HttpFile) :
+
+
+    def __init__(self, channels = None, ip_list = None, start_delay = None, sample_rate = None, transmit_rate = None, client_api_url = None, max_connect_attempts = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
+
+        self.channels = channels
+        self.ip_list = ip_list
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+        self.transmit_rate = transmit_rate
+        self.client_api_url = client_api_url
+        self.max_connect_attempts = max_connect_attempts
+        self.file_path = file_path
+        self.archive_file_path = archive_file_path
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        HttpFile.__init__(self)
+
+        self.ais = tr.Ais()
+
+
+    def run(self) :
+
+        time.sleep(self.start_delay)
+
+        #channel = list(self.channels.keys())[0]
+        #selected_tag = 'AISHUB'
+        #self.channels = {selected_tag: self.channels}
+
+        while True :
+
+            result = self.get_external()
+            data_lines = result.text
+            first_line_break_index = data_lines.find('\n')
+            data_lines_list_no_header = []
+            if first_line_break_index > 0 :
+                data_lines_list_no_header.append( data_lines[first_line_break_index + 1 : ] )
+            rt.logging.debug("data_lines_list_no_header", data_lines_list_no_header)
+
+            for char_data in data_lines_list_no_header :
+
+                rt.logging.debug("char_data", char_data)
+                tagged_char_data = ['AISHUB\n' + char_data]
+                rt.logging.debug("tagged_char_data", tagged_char_data)
+
+                ais_data_array = self.ais.decode_to_channels(char_data = tagged_char_data, channel_data = self.channels)
+
+                rt.logging.debug("ais_data_array", ais_data_array)
+                timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+                for ais_data in ais_data_array :
+                    rt.logging.debug('ais_data', ais_data)
+                    if ais_data is not None :
+                        (selected_tag, data_array), = ais_data.items()
+                        rt.logging.debug("selected_tag", selected_tag, "data_array", data_array)
+                        self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+
+#                time.sleep(1/self.sample_rate)
+#            data_array =  [ { channel: result_text} ]
+#            rt.logging.debug("data_array", data_array)
+#            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+#            self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs) 
+
+            time.sleep(1/self.sample_rate)
+
+
+
+
+class Image(ps.IngestFile) :
+
+
+    def __init__(self) :
 
         self.env = self.get_env()
         if self.video_res is None: self.video_res = self.env['VIDEO_RES']
