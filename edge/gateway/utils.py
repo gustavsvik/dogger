@@ -45,6 +45,7 @@ def safe_get(dict_like_obj, keys, default_value = None) :
 
     return values
 
+
 def safe_index(list_like_obj, values, non_exist_index = None) :
     index = non_exist_index
     if list_like_obj is not None :
