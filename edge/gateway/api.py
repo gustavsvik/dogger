@@ -112,7 +112,7 @@ class HttpExternal(Http):
         Http.__init__(self)
 
 
-    def get_external(self, ip = '127.0.0.1'):
+    def send_request(self, ip = '127.0.0.1'):
 
         self.connect_attempts += 1
         if self.connect_attempts > 1:
@@ -125,7 +125,7 @@ class HttpExternal(Http):
             rt.logging.exception(e)
             time.sleep(10)
             if self.connect_attempts < self.max_connect_attempts:
-                self.get_external(ip)
+                self.send_request(ip)
             else:
                 exit(-1)
         # https://data.aishub.net/ws.php?username=AH_3265_FB8EB51C&format=0&output=csv&compress=0&latmin=59.717918&latmax=66.396283&lonmin=16.595076&lonmax=27.064446
@@ -346,6 +346,26 @@ class HttpClient(Http):
                 self.get_uploaded(ip, start_time, end_time, duration, unit, lowest_status)
             else:
                 exit(-1)
+
+
+    def get_external(self, ip = ''):
+
+        self.connect_attempts += 1
+        if self.connect_attempts > 1:
+            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
+        try:
+            raw_data = requests.get("http://" + ip + self.client_api_url, timeout = 5)
+
+            self.connect_attempts = 0
+            return raw_data
+        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
+            rt.logging.exception(e)
+            time.sleep(10)
+            if self.connect_attempts < self.max_connect_attempts:
+                self.get_external(ip)
+            else:
+                exit(-1)
+        # https://data.aishub.net/ws.php?username=AH_3265_FB8EB51C&format=0&output=csv&compress=0&latmin=59.717918&latmax=66.396283&lonmin=16.595076&lonmax=27.064446
 
 #    def get_static_records(self, ip = '127.0.0.1', start_time = -9999, end_time = -9999, duration = 600, unit = 1, lowest_status = 0):
 #
