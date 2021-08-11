@@ -23,7 +23,7 @@ udp_upload_ais = gateway.link.SqlHttpUpdateStatic(
                      "complete_name":{ "function":{"name":"get_name_plus_extension", "args":{"name", "name_extension"}} },
                      "device_hardware_id": { "function":{"name":"create_key", "args":{"mmsi"}} },
                      "host_hardware_id":{ "function":{"name":"create_key", "args":{"mmsi"}} },
-                     "icon_filename":{ "function":{"name":"get_png_name_by_key", "args":{"mmsi"}} },
+                     "icon_filename":{ "function":{"name":"get_png_name_by_aton_type", "args":{"aid_type", "virtual_aid"}} },
                      "image_filename":{ "function":{"name":"get_png_name_by_key", "args":{"mmsi"}} } } ],
     config_filepath = '/srv/dogger/', 
     config_filename = 'conf_cloud_db.ini')
