@@ -72,8 +72,8 @@ class HttpMaint(ta.MaintenanceTask):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            rt.logging.debug("http://" + ip + self.maint_api_url + "partition_database.php")
-            raw_data = requests.post("http://" + ip + self.maint_api_url + "partition_database.php", timeout = 5, data = {"new_partition_name_date": self.new_partition_name_date, "new_partition_timestamp": self.new_partition_timestamp, "oldest_kept_partition_name_date": self.oldest_kept_partition_name_date})
+            rt.logging.debug("https://" + ip + self.maint_api_url + "partition_database.php")
+            raw_data = requests.post("https://" + ip + self.maint_api_url + "partition_database.php", timeout = 5, data = {"new_partition_name_date": self.new_partition_name_date, "new_partition_timestamp": self.new_partition_timestamp, "oldest_kept_partition_name_date": self.oldest_kept_partition_name_date})
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
@@ -91,7 +91,7 @@ class HttpMaint(ta.MaintenanceTask):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            raw_data = requests.post("http://" + ip + self.maint_api_url + "get_db_rows.php", timeout = 5, data = {"table_label": self.table_label, "id_range": self.id_range})
+            raw_data = requests.post("https://" + ip + self.maint_api_url + "get_db_rows.php", timeout = 5, data = {"table_label": self.table_label, "id_range": self.id_range})
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
@@ -118,7 +118,7 @@ class HttpExternal(Http):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            raw_data = requests.get("http://" + ip + self.external_api_url, timeout = 5)
+            raw_data = requests.get("https://" + ip + self.external_api_url, timeout = 5)
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
@@ -148,7 +148,7 @@ class HttpHost(Http):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            raw_data = requests.post("http://" + ip + self.host_api_url + "get_requested.php", timeout = 5, data = {"channelrange": tr.get_channel_range_string(self.channels), "duration": 10, "unit": 1})
+            raw_data = requests.post("https://" + ip + self.host_api_url + "get_requested.php", timeout = 5, data = {"channelrange": tr.get_channel_range_string(self.channels), "duration": 10, "unit": 1})
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
@@ -167,7 +167,7 @@ class HttpHost(Http):
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
             rt.logging.debug("data_string", data_string)
-            raw_data = requests.post("http://" + ip + self.host_api_url + "set_requested.php", timeout = 5, data = {"returnstring": data_string})
+            raw_data = requests.post("https://" + ip + self.host_api_url + "set_requested.php", timeout = 5, data = {"returnstring": data_string})
             rt.logging.debug("raw_data", raw_data)
             self.connect_attempts = 0
             return raw_data
@@ -186,7 +186,7 @@ class HttpHost(Http):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            raw_data = requests.post("http://" + ip + self.host_api_url + "clear_data_requests.php", timeout = 5, data = {"channelrange": tr.get_channel_range_string(self.channels)})
+            raw_data = requests.post("https://" + ip + self.host_api_url + "clear_data_requests.php", timeout = 5, data = {"channelrange": tr.get_channel_range_string(self.channels)})
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
@@ -204,7 +204,7 @@ class HttpHost(Http):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            raw_data = requests.post("http://" + ip + self.host_api_url + "update_devices.php", timeout = 5, data = {"host_id": host_id, "hardware_id": hardware_id, "description": description})
+            raw_data = requests.post("https://" + ip + self.host_api_url + "update_devices.php", timeout = 5, data = {"host_id": host_id, "hardware_id": hardware_id, "description": description})
             rt.logging.debug("raw_data", raw_data)
             self.connect_attempts = 0
             return raw_data
@@ -224,7 +224,7 @@ class HttpHost(Http):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            raw_data = requests.post("http://" + ip + self.host_api_url + "get_host_data.php", timeout = 5, data = {"host_hardware_id": host_hardware_id, "host_text_id": host_text_id})
+            raw_data = requests.post("https://" + ip + self.host_api_url + "get_host_data.php", timeout = 5, data = {"host_hardware_id": host_hardware_id, "host_text_id": host_text_id})
             rt.logging.debug("raw_data", raw_data)
             self.connect_attempts = 0
             return raw_data
@@ -238,13 +238,13 @@ class HttpHost(Http):
                 exit(-1)
 
 
-    def update_static_data(self, ip = '127.0.0.1', host_hardware_id = None, host_text_id = None, device_hardware_id = None, device_text_id = None, module_text_id = None, channel_text_id = None, common_address = None, common_description = None):
+    def update_static_data(self, ip = '127.0.0.1', host_hardware_id = None, host_text_id = None, device_hardware_id = None, device_text_id = None, module_hardware_id = None, module_text_id = None, module_address = None, channel_text_id = None, common_address = None, common_description = None):
 
         self.connect_attempts += 1
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            raw_data = requests.post("http://" + ip + self.host_api_url + "update_static_data.php", timeout = 5, data = {"host_hardware_id": host_hardware_id, "host_text_id": host_text_id, "common_address": common_address, "common_description": common_description, "device_hardware_id": device_hardware_id, "device_text_id": device_text_id, "module_text_id": module_text_id, "channel_text_id": channel_text_id})
+            raw_data = requests.post("https://" + ip + self.host_api_url + "update_static_data.php", timeout = 5, data = {"host_hardware_id": host_hardware_id, "host_text_id": host_text_id, "common_address": common_address, "common_description": common_description, "device_hardware_id": device_hardware_id, "device_text_id": device_text_id, "module_hardware_id": module_hardware_id, "module_text_id": module_text_id, "module_address": module_address, "channel_text_id": channel_text_id})
             rt.logging.debug("raw_data", raw_data)
             self.connect_attempts = 0
             return raw_data
@@ -253,7 +253,7 @@ class HttpHost(Http):
             rt.logging.exception(e)
             time.sleep(10)
             if self.connect_attempts < self.max_connect_attempts:
-                self.update_static_data(ip, host_hardware_id, host_text_id, device_hardware_id, device_text_id, module_text_id, channel_text_id, common_address, common_description)
+                self.update_static_data(ip, host_hardware_id, host_text_id, device_hardware_id, device_text_id, module_hardware_id, module_text_id, module_address, channel_text_id, common_address, common_description)
             else:
                 exit(-1)
 
@@ -264,7 +264,7 @@ class HttpHost(Http):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            raw_data = requests.post("http://" + ip + self.host_api_url + "get_device_data.php", timeout = 5, data = {"device_hardware_id": device_hardware_id, "device_text_id": device_text_id})
+            raw_data = requests.post("https://" + ip + self.host_api_url + "get_device_data.php", timeout = 5, data = {"device_hardware_id": device_hardware_id, "device_text_id": device_text_id})
             rt.logging.debug("raw_data", raw_data)
             self.connect_attempts = 0
             return raw_data
@@ -284,7 +284,7 @@ class HttpHost(Http):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            raw_data = requests.post("http://" + ip + self.host_api_url + "update_device_data.php", timeout = 5, data = {"host_hardware_id": host_hardware_id, "host_text_id": host_text_id, "host_address": host_address, "host_description": host_description, "device_hardware_id": device_hardware_id, "device_text_id": device_text_id, "module_text_id": module_text_id, "channel_text_id": channel_text_id})
+            raw_data = requests.post("https://" + ip + self.host_api_url + "update_device_data.php", timeout = 5, data = {"host_hardware_id": host_hardware_id, "host_text_id": host_text_id, "host_address": host_address, "host_description": host_description, "device_hardware_id": device_hardware_id, "device_text_id": device_text_id, "module_text_id": module_text_id, "channel_text_id": channel_text_id})
             rt.logging.debug("raw_data", raw_data)
             self.connect_attempts = 0
             return raw_data
@@ -317,7 +317,7 @@ class HttpClient(Http):
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
             d = {"channels": tr.get_channel_range_string(self.channels), "start_time": start_time, "end_time": end_time, "duration": duration, "unit": unit, "delete_horizon": delete_horizon}
-            raw_data = requests.post("http://" + ip + self.client_api_url + "send_request.php", timeout = 5, data = d)
+            raw_data = requests.post("https://" + ip + self.client_api_url + "send_request.php", timeout = 5, data = d)
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
@@ -336,7 +336,7 @@ class HttpClient(Http):
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
             d = {"channels": tr.get_channel_range_string(self.channels), "start_time": start_time, "end_time": end_time, "duration": duration, "unit": unit, "lowest_status": lowest_status}
-            raw_data = requests.post("http://" + ip + self.client_api_url + "get_uploaded.php", timeout = 5, data = d)
+            raw_data = requests.post("https://" + ip + self.client_api_url + "get_uploaded.php", timeout = 5, data = d)
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
@@ -354,7 +354,7 @@ class HttpClient(Http):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            raw_data = requests.get("http://" + ip + self.client_api_url, timeout = 5)
+            raw_data = requests.get("https://" + ip + self.client_api_url, timeout = 5)
 
             self.connect_attempts = 0
             return raw_data
@@ -374,7 +374,7 @@ class HttpClient(Http):
 #            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
 #        try:
 #            d = {"start_time": start_time, "end_time": end_time, "duration": duration, "unit": unit, "lowest_status": lowest_status}
-#            raw_data = requests.post("http://" + ip + self.client_api_url + "get_static_records.php", timeout = 5, data = d)
+#            raw_data = requests.post("https://" + ip + self.client_api_url + "get_static_records.php", timeout = 5, data = d)
 #            self.connect_attempts = 0
 #            return raw_data
 #
