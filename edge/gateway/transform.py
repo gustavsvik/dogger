@@ -202,11 +202,11 @@ class Callbacks :
         return composite_key
 
 
-    def create_location_message_key(mmsi = None, olc = None, fid = None) :
+    def create_location_message_key(mmsi = None, fid = None, olc = None) :
 
         composite_key = ut.safe_str(mmsi)
-        composite_key = ut.safe_append(composite_key, ut.safe_append("-", ut.safe_str(olc)))
         composite_key = ut.safe_append(composite_key, ut.safe_append("-", ut.safe_str(fid)))
+        composite_key = ut.safe_append(composite_key, ut.safe_append("-", ut.safe_str(olc)))
 
         return composite_key
 
@@ -1231,7 +1231,7 @@ class Ais(Nmea) :
                             include_current_mmsi = False
                             if current_mmsi in mmsi_include_only :
                                 include_current_mmsi = True
-
+                        #if current_mmsi == "002655619" : print("message_format", message_format, "current_mmsi", current_mmsi, "include_current_mmsi", include_current_mmsi, "mmsi_include_only", mmsi_include_only, "mmsi_exclude_only", mmsi_exclude_only)
                         #if mmsi_include_only in [None, []] or ( mmsi_include_only not in [None, []] and current_mmsi in mmsi_include_only ) or ( mmsi_exclude_only in [None, []] or (mmsi_exclude_only not in [None, []] and current_mmsi not in mmsi_exclude_only ) ):
                         if include_current_mmsi :
 
