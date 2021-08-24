@@ -35,18 +35,19 @@ CREATE TABLE `t_acquired_data` (
   KEY `ACQUIRED_TIME_CHANNEL_INDEX_IDX` (`ACQUIRED_TIME`,`CHANNEL_INDEX`),
   KEY `CHANNEL_INDEX_STATUS_IDX` (`CHANNEL_INDEX`,`STATUS`),
   KEY `UNIQUE_INDEX_IDX` (`UNIQUE_INDEX`)
-) ENGINE=InnoDB AUTO_INCREMENT=751724967 DEFAULT CHARSET=utf8
+) ENGINE=InnoDB AUTO_INCREMENT=922546096 DEFAULT CHARSET=utf8
 /*!50100 PARTITION BY RANGE (ACQUIRED_TIME)
-(PARTITION acquired_time_20210623 VALUES LESS THAN (1624492800) ENGINE = InnoDB,
- PARTITION acquired_time_20210624 VALUES LESS THAN (1624579200) ENGINE = InnoDB,
- PARTITION acquired_time_20210625 VALUES LESS THAN (1624665600) ENGINE = InnoDB,
- PARTITION acquired_time_20210626 VALUES LESS THAN (1624752000) ENGINE = InnoDB,
- PARTITION acquired_time_20210627 VALUES LESS THAN (1624838400) ENGINE = InnoDB,
- PARTITION acquired_time_20210628 VALUES LESS THAN (1624924800) ENGINE = InnoDB,
- PARTITION acquired_time_20210629 VALUES LESS THAN (1625011200) ENGINE = InnoDB,
- PARTITION acquired_time_20210630 VALUES LESS THAN (1625097600) ENGINE = InnoDB,
- PARTITION acquired_time_20210701 VALUES LESS THAN (1625184000) ENGINE = InnoDB,
- PARTITION acquired_time_20210703 VALUES LESS THAN (1625356800) ENGINE = InnoDB,
+(PARTITION acquired_time_20210814 VALUES LESS THAN (1628985600) ENGINE = InnoDB,
+ PARTITION acquired_time_20210815 VALUES LESS THAN (1629072000) ENGINE = InnoDB,
+ PARTITION acquired_time_20210816 VALUES LESS THAN (1629158400) ENGINE = InnoDB,
+ PARTITION acquired_time_20210817 VALUES LESS THAN (1629244800) ENGINE = InnoDB,
+ PARTITION acquired_time_20210818 VALUES LESS THAN (1629331200) ENGINE = InnoDB,
+ PARTITION acquired_time_20210819 VALUES LESS THAN (1629417600) ENGINE = InnoDB,
+ PARTITION acquired_time_20210820 VALUES LESS THAN (1629504000) ENGINE = InnoDB,
+ PARTITION acquired_time_20210821 VALUES LESS THAN (1629590400) ENGINE = InnoDB,
+ PARTITION acquired_time_20210822 VALUES LESS THAN (1629676800) ENGINE = InnoDB,
+ PARTITION acquired_time_20210823 VALUES LESS THAN (1629763200) ENGINE = InnoDB,
+ PARTITION acquired_time_20210824 VALUES LESS THAN (1629849600) ENGINE = InnoDB,
  PARTITION acquired_time_max VALUES LESS THAN MAXVALUE ENGINE = InnoDB) */;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -70,89 +71,64 @@ CREATE TABLE `t_accumulated_data` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `t_ports`
+-- Table structure for table `t_task_channel`
 --
 
-DROP TABLE IF EXISTS `t_ports`;
+DROP TABLE IF EXISTS `t_task_channel`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `t_ports` (
-  `PORT_UNIQUE_INDEX` smallint(5) unsigned NOT NULL,
-  `PORT_TEXT_ID` varchar(50) DEFAULT NULL,
-  `PORT_DESCRIPTION` varchar(200) DEFAULT NULL,
-  `HOST_INDEX` smallint(5) unsigned DEFAULT NULL,
-  `DEVICE_INDEX` smallint(5) unsigned DEFAULT NULL,
-  PRIMARY KEY (`PORT_UNIQUE_INDEX`)
+CREATE TABLE `t_task_channel` (
+  `TASK_CHANNEL_UNIQUE_INDEX` smallint(5) unsigned NOT NULL,
+  `TASK_CHANNEL_TEXT_ID` varchar(50) DEFAULT NULL,
+  `TASK_CHANNEL_DESCRIPTION` varchar(200) DEFAULT NULL,
+  `CHANNEL_INDEX` smallint(5) unsigned DEFAULT NULL,
+  `TASK_INDEX` smallint(5) unsigned DEFAULT NULL,
+  PRIMARY KEY (`TASK_CHANNEL_UNIQUE_INDEX`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping data for table `t_ports`
+-- Dumping data for table `t_task_channel`
 --
 
-LOCK TABLES `t_ports` WRITE;
-/*!40000 ALTER TABLE `t_ports` DISABLE KEYS */;
-INSERT INTO `t_ports` VALUES (1,'169.254.254.254','cDAQ-9188 main chassis address',3,1),(2,'169.254.254.253','cDAQ-9188 aux chassis addres',3,2),(3,'video0','Raspicam on heta_rpi_01',2,3),(5,'0000.001a.0007.004.000.000.000.000.000','USB camera on WAN gateway host',1,10);
-/*!40000 ALTER TABLE `t_ports` ENABLE KEYS */;
+LOCK TABLES `t_task_channel` WRITE;
+/*!40000 ALTER TABLE `t_task_channel` DISABLE KEYS */;
+INSERT INTO `t_task_channel` VALUES (1,NULL,NULL,20,4),(2,NULL,NULL,21,4),(3,NULL,NULL,22,4),(4,NULL,NULL,23,4),(5,NULL,NULL,24,4),(6,NULL,NULL,161,4),(7,NULL,NULL,162,4),(8,NULL,NULL,163,4),(9,NULL,NULL,164,4),(10,NULL,NULL,160,2),(11,NULL,NULL,160,3),(12,NULL,NULL,10002,1);
+/*!40000 ALTER TABLE `t_task_channel` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
--- Table structure for table `t_device`
+-- Table structure for table `t_device_channels`
 --
 
-DROP TABLE IF EXISTS `t_device`;
+DROP TABLE IF EXISTS `t_device_channels`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `t_device` (
-  `DEVICE_UNIQUE_INDEX` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
-  `DEVICE_TEXT_ID` varchar(50) DEFAULT NULL,
-  `DEVICE_HARDWARE_ID` varchar(50) NOT NULL,
-  `DEVICE_DESCRIPTION` varchar(200) DEFAULT NULL,
-  `HOST_INDEX` smallint(5) unsigned DEFAULT NULL,
-  PRIMARY KEY (`DEVICE_HARDWARE_ID`),
-  UNIQUE KEY `t_devices_UN` (`DEVICE_UNIQUE_INDEX`),
-  KEY `t_devices_t_hosts_FK` (`HOST_INDEX`)
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
+CREATE TABLE `t_device_channels` (
+  `CHANNEL_UNIQUE_INDEX` smallint(5) unsigned NOT NULL,
+  `CHANNEL_SAMPLE_RATE` float unsigned DEFAULT NULL,
+  `CHANNEL_MIN_VALUE` float unsigned DEFAULT NULL,
+  `CHANNEL_MAX_VALUE` float unsigned DEFAULT NULL,
+  `CHANNEL_TEXT_ID` varchar(50) DEFAULT NULL,
+  `CHANNEL_DESCRIPTION` varchar(1000) DEFAULT NULL,
+  `CHANNEL_FUNCTION` varchar(200) DEFAULT NULL,
+  `CHANNEL_LOOKUP` varchar(2000) DEFAULT NULL,
+  `CHANNEL_OFFSET` smallint(5) unsigned NOT NULL,
+  `DEVICE_INDEX` smallint(5) unsigned NOT NULL,
+  PRIMARY KEY (`DEVICE_INDEX`,`CHANNEL_OFFSET`),
+  UNIQUE KEY `t_device_channels_UN` (`CHANNEL_UNIQUE_INDEX`),
+  CONSTRAINT `t_device_channels_t_devices_FK` FOREIGN KEY (`DEVICE_INDEX`) REFERENCES `t_device` (`DEVICE_UNIQUE_INDEX`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping data for table `t_device`
+-- Dumping data for table `t_device_channels`
 --
 
-LOCK TABLES `t_device` WRITE;
-/*!40000 ALTER TABLE `t_device` DISABLE KEYS */;
-INSERT INTO `t_device` VALUES (0,NULL,'0','No specified device',0),(1,NULL,'1','NI cDAQ-9188 main chassis (upper floor)',3),(2,NULL,'2','NI cDAQ-9188 aux chassis (control room)',3),(3,NULL,'3','Raspicam on rpi_heta_01',2),(4,NULL,'4','Raspicam on rpi_heta_02',5),(5,NULL,'5','USB camera on LAN gateway host',4),(6,NULL,'6','Arduino on rpi_heta_02',5),(7,NULL,'7','USB camera on storage/uplink host',1),(8,NULL,'8','USB camera on rpi_heta_02',5),(9,NULL,'9','PureThermal USB thermal camera on storage/uplink host',1);
-/*!40000 ALTER TABLE `t_device` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `t_host`
---
-
-DROP TABLE IF EXISTS `t_host`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `t_host` (
-  `HOST_UNIQUE_INDEX` smallint(5) unsigned NOT NULL,
-  `HOST_TEXT_ID` varchar(50) DEFAULT NULL,
-  `HOST_HARDWARE_ID` varchar(50) NOT NULL,
-  `HOST_IP_ADDRESS` varchar(50) DEFAULT NULL,
-  `HOST_PERSISTENT_DATA_PATH` varchar(200) DEFAULT NULL,
-  `HOST_DATABASE_CONNECTION_STRING` varchar(200) DEFAULT NULL,
-  `HOST_DESCRIPTION` varchar(200) DEFAULT NULL,
-  PRIMARY KEY (`HOST_HARDWARE_ID`),
-  UNIQUE KEY `t_hosts_UN` (`HOST_UNIQUE_INDEX`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `t_host`
---
-
-LOCK TABLES `t_host` WRITE;
-/*!40000 ALTER TABLE `t_host` DISABLE KEYS */;
-INSERT INTO `t_host` VALUES (0,'','0','','','','No specified host'),(1,'dogger','1','192.168.1.194','/home/heta/Z/data/files','server=dogger;port=3306;database=test;uid=root;password=admin','LAN storage host'),(2,'rpi_heta_01','2','192.168.1.226','/home/pi/LS220D5EC/data/files/',NULL,'RPi HETA 01'),(3,'nidaq-daqc','3','192.168.1.193','Z:/data/files/',NULL,'NI CompactDAQ acquisition host'),(5,'rpi_heta_02','5','192.168.1.42','/home/pi/LS220D5EC/data/files/',NULL,'RPi HETA 02'),(4,'PC20843795','64-31-50-20-40-25','192.168.1.103',NULL,'','LAN server host (control room)');
-/*!40000 ALTER TABLE `t_host` ENABLE KEYS */;
+LOCK TABLES `t_device_channels` WRITE;
+/*!40000 ALTER TABLE `t_device_channels` DISABLE KEYS */;
+INSERT INTO `t_device_channels` VALUES (140,NULL,NULL,NULL,NULL,'RPi HETA 01 Raspicam',NULL,NULL,0,3),(160,NULL,NULL,NULL,NULL,'RPi HETA 02 Raspicam',NULL,NULL,0,4);
+/*!40000 ALTER TABLE `t_device_channels` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -198,31 +174,33 @@ INSERT INTO `t_channel` VALUES (20,NULL,NULL,NULL,NULL,'\\u00B0C',NULL,'Cooling 
 UNLOCK TABLES;
 
 --
--- Table structure for table `t_module`
+-- Table structure for table `t_host`
 --
 
-DROP TABLE IF EXISTS `t_module`;
+DROP TABLE IF EXISTS `t_host`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `t_module` (
-  `MODULE_UNIQUE_INDEX` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
-  `MODULE_TEXT_ID` varchar(50) DEFAULT NULL,
-  `MODULE_DESCRIPTION` varchar(200) DEFAULT NULL,
-  `SLOT_INDEX` smallint(5) unsigned NOT NULL,
-  `DEVICE_INDEX` smallint(5) unsigned NOT NULL,
-  PRIMARY KEY (`SLOT_INDEX`,`DEVICE_INDEX`),
-  UNIQUE KEY `t_modules_UN` (`MODULE_UNIQUE_INDEX`)
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
+CREATE TABLE `t_host` (
+  `HOST_UNIQUE_INDEX` smallint(5) unsigned NOT NULL,
+  `HOST_TEXT_ID` varchar(50) DEFAULT NULL,
+  `HOST_HARDWARE_ID` varchar(50) NOT NULL,
+  `HOST_IP_ADDRESS` varchar(50) DEFAULT NULL,
+  `HOST_PERSISTENT_DATA_PATH` varchar(200) DEFAULT NULL,
+  `HOST_DATABASE_CONNECTION_STRING` varchar(200) DEFAULT NULL,
+  `HOST_DESCRIPTION` varchar(200) DEFAULT NULL,
+  PRIMARY KEY (`HOST_HARDWARE_ID`),
+  UNIQUE KEY `t_hosts_UN` (`HOST_UNIQUE_INDEX`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping data for table `t_module`
+-- Dumping data for table `t_host`
 --
 
-LOCK TABLES `t_module` WRITE;
-/*!40000 ALTER TABLE `t_module` DISABLE KEYS */;
-INSERT INTO `t_module` VALUES (0,NULL,'No module specified',0,0),(1,NULL,NULL,1,1),(5,NULL,NULL,1,2),(2,NULL,NULL,2,1),(6,NULL,NULL,2,2),(3,NULL,NULL,3,1),(7,NULL,NULL,3,2),(4,NULL,NULL,4,1);
-/*!40000 ALTER TABLE `t_module` ENABLE KEYS */;
+LOCK TABLES `t_host` WRITE;
+/*!40000 ALTER TABLE `t_host` DISABLE KEYS */;
+INSERT INTO `t_host` VALUES (0,'','0','','','','No specified host'),(1,'dogger','1','192.168.1.194','/home/heta/Z/data/files','server=dogger;port=3306;database=test;uid=root;password=admin','LAN storage host'),(2,'rpi_heta_01','2','192.168.1.226','/home/pi/LS220D5EC/data/files/',NULL,'RPi HETA 01'),(3,'nidaq-daqc','3','192.168.1.193','Z:/data/files/',NULL,'NI CompactDAQ acquisition host'),(5,'rpi_heta_02','5','192.168.1.42','/home/pi/LS220D5EC/data/files/',NULL,'RPi HETA 02'),(4,'PC20843795','64-31-50-20-40-25','192.168.1.103',NULL,'','LAN server host (control room)');
+/*!40000 ALTER TABLE `t_host` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -279,30 +257,59 @@ INSERT INTO `t_servers` VALUES (0,NULL,'No specified server'),(1,'109.74.8.84','
 UNLOCK TABLES;
 
 --
--- Table structure for table `t_task_channel`
+-- Table structure for table `t_device`
 --
 
-DROP TABLE IF EXISTS `t_task_channel`;
+DROP TABLE IF EXISTS `t_device`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `t_task_channel` (
-  `TASK_CHANNEL_UNIQUE_INDEX` smallint(5) unsigned NOT NULL,
-  `TASK_CHANNEL_TEXT_ID` varchar(50) DEFAULT NULL,
-  `TASK_CHANNEL_DESCRIPTION` varchar(200) DEFAULT NULL,
-  `CHANNEL_INDEX` smallint(5) unsigned DEFAULT NULL,
-  `TASK_INDEX` smallint(5) unsigned DEFAULT NULL,
-  PRIMARY KEY (`TASK_CHANNEL_UNIQUE_INDEX`)
+CREATE TABLE `t_device` (
+  `DEVICE_UNIQUE_INDEX` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
+  `DEVICE_TEXT_ID` varchar(50) DEFAULT NULL,
+  `DEVICE_HARDWARE_ID` varchar(50) NOT NULL,
+  `DEVICE_DESCRIPTION` varchar(200) DEFAULT NULL,
+  `HOST_INDEX` smallint(5) unsigned DEFAULT NULL,
+  PRIMARY KEY (`DEVICE_HARDWARE_ID`),
+  UNIQUE KEY `t_devices_UN` (`DEVICE_UNIQUE_INDEX`),
+  KEY `t_devices_t_hosts_FK` (`HOST_INDEX`)
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `t_device`
+--
+
+LOCK TABLES `t_device` WRITE;
+/*!40000 ALTER TABLE `t_device` DISABLE KEYS */;
+INSERT INTO `t_device` VALUES (0,NULL,'0','No specified device',0),(1,NULL,'1','NI cDAQ-9188 main chassis (upper floor)',3),(2,NULL,'2','NI cDAQ-9188 aux chassis (control room)',3),(3,NULL,'3','Raspicam on rpi_heta_01',2),(4,NULL,'4','Raspicam on rpi_heta_02',5),(5,NULL,'5','USB camera on LAN gateway host',4),(6,NULL,'6','Arduino on rpi_heta_02',5),(7,NULL,'7','USB camera on storage/uplink host',1),(8,NULL,'8','USB camera on rpi_heta_02',5),(9,NULL,'9','PureThermal USB thermal camera on storage/uplink host',1);
+/*!40000 ALTER TABLE `t_device` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `t_ports`
+--
+
+DROP TABLE IF EXISTS `t_ports`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t_ports` (
+  `PORT_UNIQUE_INDEX` smallint(5) unsigned NOT NULL,
+  `PORT_TEXT_ID` varchar(50) DEFAULT NULL,
+  `PORT_DESCRIPTION` varchar(200) DEFAULT NULL,
+  `HOST_INDEX` smallint(5) unsigned DEFAULT NULL,
+  `DEVICE_INDEX` smallint(5) unsigned DEFAULT NULL,
+  PRIMARY KEY (`PORT_UNIQUE_INDEX`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping data for table `t_task_channel`
+-- Dumping data for table `t_ports`
 --
 
-LOCK TABLES `t_task_channel` WRITE;
-/*!40000 ALTER TABLE `t_task_channel` DISABLE KEYS */;
-INSERT INTO `t_task_channel` VALUES (1,NULL,NULL,20,4),(2,NULL,NULL,21,4),(3,NULL,NULL,22,4),(4,NULL,NULL,23,4),(5,NULL,NULL,24,4),(6,NULL,NULL,161,4),(7,NULL,NULL,162,4),(8,NULL,NULL,163,4),(9,NULL,NULL,164,4),(10,NULL,NULL,160,2),(11,NULL,NULL,160,3),(12,NULL,NULL,10002,1);
-/*!40000 ALTER TABLE `t_task_channel` ENABLE KEYS */;
+LOCK TABLES `t_ports` WRITE;
+/*!40000 ALTER TABLE `t_ports` DISABLE KEYS */;
+INSERT INTO `t_ports` VALUES (1,'169.254.254.254','cDAQ-9188 main chassis address',3,1),(2,'169.254.254.253','cDAQ-9188 aux chassis addres',3,2),(3,'video0','Raspicam on heta_rpi_01',2,3),(5,'0000.001a.0007.004.000.000.000.000.000','USB camera on WAN gateway host',1,10);
+/*!40000 ALTER TABLE `t_ports` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -332,6 +339,36 @@ LOCK TABLES `t_service` WRITE;
 /*!40000 ALTER TABLE `t_service` DISABLE KEYS */;
 INSERT INTO `t_service` VALUES (0,NULL,NULL,0,5);
 /*!40000 ALTER TABLE `t_service` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `t_task`
+--
+
+DROP TABLE IF EXISTS `t_task`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t_task` (
+  `TASK_UNIQUE_INDEX` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
+  `TASK_RATE` float unsigned DEFAULT NULL,
+  `TASK_STATE` tinyint(4) DEFAULT NULL,
+  `TASK_TEXT_ID` varchar(50) DEFAULT NULL,
+  `TASK_DESCRIPTION` varchar(1000) DEFAULT NULL,
+  `SERVER_INDEX` smallint(5) unsigned NOT NULL,
+  `HOST_INDEX` smallint(5) unsigned NOT NULL,
+  PRIMARY KEY (`SERVER_INDEX`,`HOST_INDEX`),
+  UNIQUE KEY `t_uplinks_UN` (`TASK_UNIQUE_INDEX`)
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `t_task`
+--
+
+LOCK TABLES `t_task` WRITE;
+/*!40000 ALTER TABLE `t_task` DISABLE KEYS */;
+INSERT INTO `t_task` VALUES (4,NULL,NULL,NULL,'store',0,1),(2,NULL,NULL,NULL,'upload',1,5),(1,NULL,NULL,NULL,'transform',2,0),(3,NULL,NULL,NULL,'upload',2,5);
+/*!40000 ALTER TABLE `t_task` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -365,67 +402,31 @@ LOCK TABLES `t_site` WRITE;
 UNLOCK TABLES;
 
 --
--- Table structure for table `t_device_channels`
+-- Table structure for table `t_module`
 --
 
-DROP TABLE IF EXISTS `t_device_channels`;
+DROP TABLE IF EXISTS `t_module`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `t_device_channels` (
-  `CHANNEL_UNIQUE_INDEX` smallint(5) unsigned NOT NULL,
-  `CHANNEL_SAMPLE_RATE` float unsigned DEFAULT NULL,
-  `CHANNEL_MIN_VALUE` float unsigned DEFAULT NULL,
-  `CHANNEL_MAX_VALUE` float unsigned DEFAULT NULL,
-  `CHANNEL_TEXT_ID` varchar(50) DEFAULT NULL,
-  `CHANNEL_DESCRIPTION` varchar(1000) DEFAULT NULL,
-  `CHANNEL_FUNCTION` varchar(200) DEFAULT NULL,
-  `CHANNEL_LOOKUP` varchar(2000) DEFAULT NULL,
-  `CHANNEL_OFFSET` smallint(5) unsigned NOT NULL,
+CREATE TABLE `t_module` (
+  `MODULE_UNIQUE_INDEX` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
+  `MODULE_TEXT_ID` varchar(50) DEFAULT NULL,
+  `MODULE_DESCRIPTION` varchar(200) DEFAULT NULL,
+  `SLOT_INDEX` smallint(5) unsigned NOT NULL,
   `DEVICE_INDEX` smallint(5) unsigned NOT NULL,
-  PRIMARY KEY (`DEVICE_INDEX`,`CHANNEL_OFFSET`),
-  UNIQUE KEY `t_device_channels_UN` (`CHANNEL_UNIQUE_INDEX`),
-  CONSTRAINT `t_device_channels_t_devices_FK` FOREIGN KEY (`DEVICE_INDEX`) REFERENCES `t_device` (`DEVICE_UNIQUE_INDEX`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  PRIMARY KEY (`SLOT_INDEX`,`DEVICE_INDEX`),
+  UNIQUE KEY `t_modules_UN` (`MODULE_UNIQUE_INDEX`)
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping data for table `t_device_channels`
+-- Dumping data for table `t_module`
 --
 
-LOCK TABLES `t_device_channels` WRITE;
-/*!40000 ALTER TABLE `t_device_channels` DISABLE KEYS */;
-INSERT INTO `t_device_channels` VALUES (140,NULL,NULL,NULL,NULL,'RPi HETA 01 Raspicam',NULL,NULL,0,3),(160,NULL,NULL,NULL,NULL,'RPi HETA 02 Raspicam',NULL,NULL,0,4);
-/*!40000 ALTER TABLE `t_device_channels` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `t_task`
---
-
-DROP TABLE IF EXISTS `t_task`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `t_task` (
-  `TASK_UNIQUE_INDEX` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
-  `TASK_RATE` float unsigned DEFAULT NULL,
-  `TASK_STATE` tinyint(4) DEFAULT NULL,
-  `TASK_TEXT_ID` varchar(50) DEFAULT NULL,
-  `TASK_DESCRIPTION` varchar(1000) DEFAULT NULL,
-  `SERVER_INDEX` smallint(5) unsigned NOT NULL,
-  `HOST_INDEX` smallint(5) unsigned NOT NULL,
-  PRIMARY KEY (`SERVER_INDEX`,`HOST_INDEX`),
-  UNIQUE KEY `t_uplinks_UN` (`TASK_UNIQUE_INDEX`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `t_task`
---
-
-LOCK TABLES `t_task` WRITE;
-/*!40000 ALTER TABLE `t_task` DISABLE KEYS */;
-INSERT INTO `t_task` VALUES (4,NULL,NULL,NULL,'store',0,1),(2,NULL,NULL,NULL,'upload',1,5),(1,NULL,NULL,NULL,'transform',2,0),(3,NULL,NULL,NULL,'upload',2,5);
-/*!40000 ALTER TABLE `t_task` ENABLE KEYS */;
+LOCK TABLES `t_module` WRITE;
+/*!40000 ALTER TABLE `t_module` DISABLE KEYS */;
+INSERT INTO `t_module` VALUES (0,NULL,'No module specified',0,0),(1,NULL,NULL,1,1),(5,NULL,NULL,1,2),(2,NULL,NULL,2,1),(6,NULL,NULL,2,2),(3,NULL,NULL,3,1),(7,NULL,NULL,3,2),(4,NULL,NULL,4,1);
+/*!40000 ALTER TABLE `t_module` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -466,4 +467,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2021-07-04  0:23:04
+-- Dump completed on 2021-08-24 13:10:32
