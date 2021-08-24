@@ -1000,6 +1000,19 @@ class SqlHttpUpdateStatic(ap.HttpHost):
                 device_text_id = mmsi
                 rt.logging.debug("device_hardware_id", device_hardware_id, "device_text_id", device_text_id)
 
+                module_hardware_id = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "module_hardware_id"))
+                module_text_id = 'VDM'
+                message_type_string = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "type"))
+                if message_type_string is not None : module_text_id += '-' + message_type_string.zfill(2)
+                format_id_string = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "fid"))
+                if format_id_string is not None : module_text_id += '-' + format_id_string.zfill(2)
+                area_code_string = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "dac"))
+                if area_code_string is not None : module_text_id += '-' + area_code_string.zfill(3)
+                module_address = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "module_address"))
+                if module_hardware_id is not None : module_hardware_id += '-' + module_text_id
+                if module_address is not None : module_hardware_id += '-' + module_address
+                rt.logging.debug("module_hardware_id", module_hardware_id)
+
                 common_address = None
                 if call_sign is not None :
                     common_address = call_sign
@@ -1048,7 +1061,7 @@ class SqlHttpUpdateStatic(ap.HttpHost):
 
                     rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id, "common_address", common_address, "common_description", common_description)
                     if host_hardware_id is not None and host_hardware_id != "" :
-                        r_post = self.update_static_data(ip, host_hardware_id = host_hardware_id, host_text_id = host_text_id, device_hardware_id = device_hardware_id, device_text_id = device_text_id, common_address = common_address, common_description = common_description)
+                        r_post = self.update_static_data(ip, host_hardware_id = host_hardware_id, host_text_id = host_text_id, device_hardware_id = device_hardware_id, device_text_id = device_text_id, module_hardware_id = module_hardware_id, module_text_id = module_text_id, module_address = module_address, common_address = common_address, common_description = common_description)
 
             #except (pymysql.err.OperationalError, pymysql.err.Error) as e :
             #    rt.logging.exception(e)
