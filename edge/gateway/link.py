@@ -24,11 +24,12 @@ import gateway.api as ap
 class GetDBDataJson(ap.HttpMaint):
 
 
-    def __init__(self, start_delay = None, transmit_rate = None, ip_list = None, maint_api_url = None, max_connect_attempts = None, table_label = None, id_range = None, config_filepath = None, config_filename = None):
+    def __init__(self, start_delay = None, transmit_rate = None, ip_list = None, http_scheme = None, maint_api_url = None, max_connect_attempts = None, table_label = None, id_range = None, config_filepath = None, config_filename = None):
 
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.maint_api_url = maint_api_url
         self.max_connect_attempts = max_connect_attempts
         self.table_label = table_label
@@ -44,12 +45,13 @@ class GetDBDataJson(ap.HttpMaint):
 class DirectUpload(ap.HttpHost, ap.HttpClient):
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, http_scheme = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.host_api_url = host_api_url
         self.client_api_url = client_api_url
         self.max_connect_attempts = max_connect_attempts
@@ -65,13 +67,14 @@ class DirectUpload(ap.HttpHost, ap.HttpClient):
 class SqlHttp(ap.HttpHost, ap.HttpClient):
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, max_age = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, max_age = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.max_age = max_age
         self.host_api_url = host_api_url
         self.client_api_url = client_api_url
@@ -126,13 +129,14 @@ class SqlHttp(ap.HttpHost, ap.HttpClient):
 class Replicate(ap.HttpHost):
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.host_api_url = host_api_url
         self.max_connect_attempts = max_connect_attempts
 
@@ -196,13 +200,14 @@ class Replicate(ap.HttpHost):
 class HttpSql(ap.HttpClient):
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.client_api_url = client_api_url
         self.max_connect_attempts = max_connect_attempts
 
@@ -222,6 +227,7 @@ class HttpSql(ap.HttpClient):
 
             for ip in self.ip_list :
 
+                rt.logging.debug("ip", ip)
                 data_string = ''
                 r_get = self.get_uploaded(ip)
                 rt.logging.debug("r_get", r_get)
@@ -273,7 +279,7 @@ class SqlUdp(ap.UdpSend):
             rt.logging.debug("channels", channels, "timestamps", timestamps, "values", values)
             for ip in self.ip_list :
                 rt.logging.debug(channels, timestamps, values, ip)
-                self.set_requested(channels, timestamps, values, byte_strings, ip)
+                self.set_requested(channels, timestamps, values, byte_strings, ip.split('/')[-1])
             #except (pymysql.err.OperationalError, pymysql.err.Error) as e :
             #    rt.logging.exception(e)
             #finally :
@@ -286,13 +292,14 @@ class SqlUdp(ap.UdpSend):
 class SqlUdpRawValue(SqlUdp) :
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.port = port
         self.max_age = max_age
 
@@ -323,13 +330,14 @@ class SqlUdpRawValue(SqlUdp) :
 class SqlUdpRawBytes(SqlUdp) :
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.port = port
         self.max_age = max_age
 
@@ -366,13 +374,14 @@ class SqlUdpRawBytes(SqlUdp) :
 class SqlUdpNmeaValue(SqlUdp) :
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, multiplier = None, decimals = None, nmea_prepend = None, nmea_append = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, port = None, multiplier = None, decimals = None, nmea_prepend = None, nmea_append = None, max_age = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.port = port
         self.multiplier = multiplier
         self.decimals = decimals
@@ -401,13 +410,14 @@ class SqlUdpNmeaValue(SqlUdp) :
 class SqlUdpBytes(SqlUdp) :
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.port = port
         self.max_age = max_age
 
@@ -429,13 +439,14 @@ class SqlUdpBytes(SqlUdp) :
 class SqlUdpNmeaLines(SqlUdp) :
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.port = port
         self.max_age = max_age
 
@@ -698,7 +709,7 @@ class SqlFileRawBytes(ps.IngestFile):
             #timestamp = None
             #if times not in [None, []] and type(times) is list :
             #    timestamp = times[0]
-            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate) # timestamp = timestamp, 
+            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate) # timestamp = timestamp,
             rt.logging.debug("self.target_channels", self.target_channels, "byte_strings", byte_strings)
             nmea_data_array = self.nmea.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels)
             rt.logging.debug("nmea_data_array", nmea_data_array)
@@ -706,7 +717,7 @@ class SqlFileRawBytes(ps.IngestFile):
                 if nmea_data is not None :
                     rt.logging.debug("nmea_data", nmea_data)
                     (selected_tag, data_array), = nmea_data.items()
-                    self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+                    self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
             self.sql.close_db_connection()
 
             time.sleep(1/self.transmit_rate)
@@ -754,9 +765,9 @@ class SqlFileAtonReport(SqlFile):
             #try :
             self.sql.connect_db()
             channels, times, values, byte_strings = self.sql.get_stored(from_channels = self.channels, max_age = self.max_age)
-            rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
+            rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings)
             timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
-            rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
+            rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs)
             aivdm_aton_payloads = None
             if len(values) > 0 :
                 aivdm_aton_payloads = self.ais.aivdm_atons_from_pos(self.mmsi, values[0], values[1], self.aid_type, self.name, self.virtual_aid, self.length_offset, self.width_offset)
@@ -768,7 +779,7 @@ class SqlFileAtonReport(SqlFile):
                 if nmea_data is not None :
                     (selected_tag, data_array), = nmea_data.items()
                     rt.logging.debug("self.target_channels", self.target_channels, "data_array", data_array, "selected_tag", selected_tag)
-                    self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+                    self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
             #except (pymysql.err.OperationalError, pymysql.err.Error) as e :
             #    rt.logging.exception(e)
             #finally :
@@ -818,16 +829,16 @@ class SqlFileAisData(SqlFile):
             if times not in [None, []] and type(times) is list :
                 timestamp = times[0]
             timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(timestamp = timestamp, sample_rate = self.sample_rate)
-            rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
+            rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs)
             nmea_data_array = self.ais.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ' )
-            rt.logging.debug("nmea_data_array", nmea_data_array) 
-            rt.logging.debug(" ") 
+            rt.logging.debug("nmea_data_array", nmea_data_array)
+            rt.logging.debug(" ")
             for nmea_data in nmea_data_array :
                 rt.logging.debug('nmea_data', nmea_data)
                 if nmea_data is not None :
                     (selected_tag, data_array), = nmea_data.items()
                     rt.logging.debug("selected_tag", selected_tag, "data_array", data_array)
-                    self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+                    self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
             #except (pymysql.err.OperationalError, pymysql.err.Error) as e :
             #    rt.logging.exception(e)
             #finally :
@@ -882,10 +893,10 @@ class SqlFilePosAisData(SqlFile):
             #try :
             self.sql.connect_db()
             channels, times, values, byte_strings = self.sql.get_stored(from_channels = self.channels, max_age = self.max_age)
-            rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
+            rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings)
 
             timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
-            rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
+            rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs)
 
             nmea_data_array = []
             aivdm_static_payload = aivdm_pos_payload = None
@@ -905,7 +916,7 @@ class SqlFilePosAisData(SqlFile):
                 if nmea_data is not None :
                     (selected_tag, data_array), = nmea_data.items()
                     rt.logging.debug("self.target_channels", self.target_channels, "data_array", data_array, "selected_tag", selected_tag)
-                    self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+                    self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
 
             #except (pymysql.err.OperationalError, pymysql.err.Error) as e :
             #    rt.logging.exception(e)
@@ -959,9 +970,9 @@ class SqlHttpUpdateStatic(ap.HttpHost):
             #try :
             self.sql.connect_db()
             channels, times, values, byte_strings = self.sql.get_stored(from_channels = self.channels, max_age = self.max_age)
-            rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
+            rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings)
             timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
-            rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
+            rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs)
             nmea_data_array = self.ais.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ')
             rt.logging.debug('nmea_data_array', nmea_data_array)
 
@@ -1083,7 +1094,7 @@ class SqlHttpUpdateStatic(ap.HttpHost):
         # self.transmit_rate = transmit_rate
         # self.gateway_database_connection = gateway_database_connection
         # self.max_age = max_age
-        # self.target_channels = {'VDM':{0:'txt', 1:'json'}} # Create a channel (1) as a method-internal dummy target 
+        # self.target_channels = {'VDM':{0:'txt', 1:'json'}} # Create a channel (1) as a method-internal dummy target
         # self.message_formats = message_formats
 
         # self.ip_list = ip_list
@@ -1109,9 +1120,9 @@ class SqlHttpUpdateStatic(ap.HttpHost):
             # #try :
             # self.sql.connect_db()
             # channels, times, values, byte_strings = self.sql.get_stored(from_channels = self.channels, max_age = self.max_age)
-            # rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings) 
+            # rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings)
             # timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
-            # rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs) 
+            # rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs)
             # nmea_data_array = self.nmea.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ')
             # rt.logging.debug('nmea_data_array', nmea_data_array)
 
@@ -1138,7 +1149,7 @@ class SqlHttpUpdateStatic(ap.HttpHost):
                     # existing_aivdm_dataset = {}
 
                     # r_post = self.get_device_data(ip, device_hardware_id = device_hardware_id, device_text_id = device_text_id)
-                    # if r_post is not None : 
+                    # if r_post is not None :
 
                         # existing_description = ut.safe_get(r_post.json(), "device_description")
                         # if existing_description is not None :
