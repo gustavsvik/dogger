@@ -37,7 +37,7 @@ def hex_characters(value) :
 
 def locations_of_substring(string, substring) :
     """Return a list of locations of a substring. ( https://stackoverflow.com/a/19720214 )"""
-    substring_length = len(substring)    
+    substring_length = len(substring)
     def recurse(locations_found, start) :
         location = string.find(substring, start)
         if location != -1:
@@ -60,14 +60,16 @@ def dict_from_lists(keys_list, values_list) :
 
 def get_channel_range_string(channels) :
 
-    return ';;'.join([str(ch) for ch in channels]) + ';;'
+    return ';'.join([str(ch) for ch in channels]) + ';'
 
 
 def parse_delimited_string(data_string) :
 
     channel_data = [channel_string.split(',') for channel_string in data_string.split(';')]
-    channel_list = channel_data[0::4][:-1]
-    data_list = channel_data[1::4]
+    #print('channel_data[0::2][:-1]', channel_data[0::2][:-1])
+    channel_list = channel_data[0::2][:-1]
+    #print('channel_data[1::2]', channel_data[1::2])
+    data_list = channel_data[1::2]
     rt.logging.debug("data_list", data_list)
     timestamp_list = [data[0::4][:-1] for data in data_list]
     values_list = [data[1::4] for data in data_list]
@@ -98,7 +100,7 @@ def timestamp_to_date_times(timestamp = None, sample_rate = None) :
 
     if timestamp is None : timestamp = time.time()
     if sample_rate is None : sample_rate = 1.0
-    
+
     divisor = numpy.int64(1/numpy.float64(sample_rate))
 
     current_time = numpy.float64(timestamp)
@@ -178,7 +180,7 @@ class Callbacks :
         if not None in [lat, lon] and number_convertible(lat) and number_convertible(lon) :
             olc = openlocationcode.openlocationcode.encode(latitude = float(lat), longitude = float(lon), codeLength = 11)
 
-        if length is None and olc is not None : 
+        if length is None and olc is not None :
             length = len(olc)
 
         return olc[0:length]
@@ -288,7 +290,7 @@ class TextNumeric :
                     rt.logging.debug("channels", channels)
                     channels_list = list(channels)
                     #TODO: Take into account that a single selected_line can contain several separated strings which potentially can be different NMEA/AIS sentences as identified by selected_tag. In current state, loss of data may occur.
-                    if selected_tag in selected_line : 
+                    if selected_tag in selected_line :
                         rt.logging.debug("selected_tag", selected_tag, "channels_list", channels_list)
                         current_string_value = ''
                         try :
@@ -438,7 +440,7 @@ class Nmea(TextNumeric) :
 
         latitude_string = None
         longitude_string = None
-        
+
         if not ( None in [latitude_float, longitude_float] ) :
 
             latitude_dir = 'N'
@@ -497,7 +499,7 @@ class Nmea(TextNumeric) :
         minute = ( int(float(time_string)) - hour * 10000 ) // 100
         second = int(float(time_string)) - hour * 10000 - minute * 100
         microsec = int ( ( float(time_string) - hour * 10000 - minute * 100 - second ) * 1000000 )
-        
+
         return hour, minute, second, microsec
 
 
@@ -553,10 +555,10 @@ class Nmea(TextNumeric) :
         second = current_timetuple[5]
         microsec = current_timetuple[6]
 
-        latitude = None 
+        latitude = None
         longitude = None
 
-        if len(nmea_fields) > 5 : 
+        if len(nmea_fields) > 5 :
             if int(float(nmea_fields[1])) >= 0 and int(float(nmea_fields[1])) <= 235959 :
                 hour, minute, second, microsec = self.time_to_time_members(nmea_fields[1])
             latitude, longitude = self.pos_to_float(nmea_fields[2], nmea_fields[3], nmea_fields[4], nmea_fields[5])
@@ -606,7 +608,7 @@ class Ais(Nmea) :
                     rt.logging.debug("channels", channels)
                     channels_list = list(channels)
                     #TODO: Take into account that a single selected_line can contain several separated strings which potentially can be different NMEA/AIS sentences as identified by selected_tag. In current state, loss of data may occur.
-                    if selected_tag in selected_line : 
+                    if selected_tag in selected_line :
                         rt.logging.debug("selected_tag", selected_tag, "channels_list", channels_list)
                         current_string_value = ''
                         try :
@@ -687,9 +689,9 @@ class Ais(Nmea) :
         try :
             rt.logging.debug("aivdo_string", aivdo_string)
             aivdo_data = aivdo_instance.decode(aivdo_string, ignore_crc = True)
-            rt.logging.debug("aivdo_data.mmsi.int", aivdo_data.mmsi.int) 
-            longitude = aivdo_data.lon.int / 10000 / 60 
-            latitude = aivdo_data.lat.int / 10000 / 60 
+            rt.logging.debug("aivdo_data.mmsi.int", aivdo_data.mmsi.int)
+            longitude = aivdo_data.lon.int / 10000 / 60
+            latitude = aivdo_data.lat.int / 10000 / 60
         except (KeyError, ValueError, UnboundLocalError) as e :
             rt.logging.exception(e)
 
@@ -925,7 +927,7 @@ class Ais(Nmea) :
                 name_ext = ''
                 name_ext_length = len(name) - 20
                 rt.logging.debug("name_ext_length", name_ext_length)
-                if name_ext_length > 0 : 
+                if name_ext_length > 0 :
                     if name_ext_length > 14 : name_ext_length = 14
                     name_ext = name[ 20 : 20 + name_ext_length ]
                     rt.logging.debug("name_ext", name_ext)
@@ -1030,7 +1032,7 @@ class Ais(Nmea) :
 
                     bits_arg_start = bits_arg[0]
                     bits_arg_end = bits_arg[1]
-                    if overflow_var_flag_pos is not None : 
+                    if overflow_var_flag_pos is not None :
                         overflow_var_flag_field_string = data_field_binary_string(message_string, bit_offset, overflow_var_flag_pos[0], overflow_var_flag_pos[1])
                         overflow_var_flag_arg = bool(overflow_var_flag_field_string)
                         bits_arg_start += overflow_var_flag_pos[1] - overflow_var_flag_pos[0] + 1
@@ -1045,14 +1047,14 @@ class Ais(Nmea) :
                             return_val = pyais.util.encode_bin_as_ascii6(bitarray.bitarray(return_val))
                             rt.logging.debug("return_val (result of encode_bin_as_ascii6)", return_val)
 
-                if return_val is None : 
+                if return_val is None :
                     return_val = ut.safe_get(message_string, structure_tag)
                     if isinstance(return_val, enum.Enum) :
                         return_val = return_val.value
 
                 if return_val is not None and number_convertible(return_val) :
                     int_return_val = None
-                    try : 
+                    try :
                         int_return_val = int(return_val)
                     except ValueError :
                         int_return_val = int(round(float(return_val)))
@@ -1067,17 +1069,17 @@ class Ais(Nmea) :
                             return_val = None
 
                 if div_arg is not None or add_arg is not None :
-                    if return_val is not None and number_convertible(return_val) : 
-                        if type(return_val) == str : 
+                    if return_val is not None and number_convertible(return_val) :
+                        if type(return_val) == str :
                             return_val = float(return_val)
                         if div_arg is not None :
                             return_val /= div_arg
                             if type_arg[0] in ['U','I'] and div_arg < 1.0 :
-                                try : 
+                                try :
                                     return_val = int(return_val)
                                 except ValueError :
                                     return_val = int(round(float(return_val)))
-                        if add_arg is not None : 
+                        if add_arg is not None :
                             return_val += add_arg
 
                 if return_val is not None and number_convertible(return_val) and type_arg is not None and ( type_arg in ['int', 'float'] or type_arg[0] in ['U','I'] ) :
@@ -1085,7 +1087,7 @@ class Ais(Nmea) :
                     if round_arg is not None :
                         return_val = round(float(return_val), round_arg)
 
-                    if type_arg == 'int' : 
+                    if type_arg == 'int' :
                         return_val = int(round(float(return_val)))
                     elif type_arg == 'float' :
                         return_val = float(return_val)
@@ -1235,7 +1237,7 @@ class Ais(Nmea) :
                         #if mmsi_include_only in [None, []] or ( mmsi_include_only not in [None, []] and current_mmsi in mmsi_include_only ) or ( mmsi_exclude_only in [None, []] or (mmsi_exclude_only not in [None, []] and current_mmsi not in mmsi_exclude_only ) ):
                         if include_current_mmsi :
 
-                            #if current_mmsi in ["002655619","002300059"] : 
+                            #if current_mmsi in ["002655619","002300059"] :
                             rt.logging.debug("message_header_format", message_header_format, "mmsi_include_only", mmsi_include_only, "mmsi_exclude_only", mmsi_exclude_only, "current_mmsi", current_mmsi)
                             message_data = None
                             if current_message_type in [6,8] :
@@ -1257,15 +1259,15 @@ class Ais(Nmea) :
                                     rt.logging.debug("args", args)
                                     func = getattr(Callbacks, struct_name)
                                     return_val = ut.instance_from_dict(func, args)
-                                    function_eval_data = {function_member:return_val} 
+                                    function_eval_data = {function_member:return_val}
                                     rt.logging.debug("function_eval_data", function_eval_data)
                                     ais_dataset |= function_eval_data
 
                             if current_mmsi is not None : # ut.safe_get(message_id_data, 'mmsi') is not None :
                                 ais_datasets.append(ais_dataset)
-                        
 
-            except (ValueError, pyais.exceptions.InvalidNMEAMessageException, pyais.exceptions.InvalidChecksumException) as e :     #IndexError, 
+
+            except (ValueError, pyais.exceptions.InvalidNMEAMessageException, pyais.exceptions.InvalidChecksumException) as e :     #IndexError,
 
                 rt.logging.exception(e)
 

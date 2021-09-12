@@ -215,3 +215,4 @@ class NidaqTemperatureIn(Nidaq):
     DAQmx_Val_Pt3851 = Nidaq.int32(10071)
     DAQmx_Val_DegC = Nidaq.int32(10143)
     DAQmx_Val_4Wire = Nidaq.int32(4)
+
