@@ -94,7 +94,24 @@ class IpTask(LinkTask):
         self.env = self.get_env()
         if self.ip_list is None: self.ip_list = self.env['IP_LIST']
 
+        #self.url_scheme = None
+        #url_prefix = self.ip_list.split(':')[0]
+        #if url_prefix in ["http", "https"] :
+        #    self.url_scheme = url_prefix
+
         LinkTask.__init__(self)
+
+
+
+class HttpTask(IpTask):
+
+
+    def __init__(self):
+
+        self.env = self.get_env()
+        if self.http_scheme is None: self.http_scheme = self.env['HTTP_SCHEME']
+
+        IpTask.__init__(self)
 
 
 
@@ -105,7 +122,13 @@ class MaintenanceTask(Task):
 
         self.env = self.get_env()
         if self.ip_list is None: self.ip_list = self.env['IP_LIST']
+        if self.http_scheme is None: self.http_scheme = self.env['HTTP_SCHEME']
         if self.max_connect_attempts is None: self.max_connect_attempts = self.env['MAX_CONNECT_ATTEMPTS']
+
+        #self.url_scheme = None
+        #url_prefix = self.ip_list.split(':')[0]
+        #if url_prefix in ["http", "https"] :
+        #    self.url_scheme = url_prefix
 
         Task.__init__(self)
 

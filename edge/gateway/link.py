@@ -1,16 +1,14 @@
 #
 
-#import requests
+
 import time
 import datetime
 import json
-#import pymysql
 import socket
 import struct
-try:
-    from cryptography.fernet import Fernet
-except ImportError:
-    pass
+
+try : from cryptography.fernet import Fernet
+except ImportError : pass
 
 import gateway.runtime as rt
 import gateway.utils as ut
@@ -930,7 +928,7 @@ class SqlFilePosAisData(SqlFile):
 class SqlHttpUpdateStatic(ap.HttpHost):
 
 
-    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, message_formats = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, message_formats = None, ip_list = None, http_scheme = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -945,6 +943,7 @@ class SqlHttpUpdateStatic(ap.HttpHost):
         self.message_formats = message_formats
 
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.host_api_url = host_api_url
         self.max_connect_attempts = max_connect_attempts
         #self.file_path = file_path
@@ -1086,7 +1085,7 @@ class SqlHttpUpdateStatic(ap.HttpHost):
 # class SqlHttpUpdateDevice(ap.HttpHost):
 
 
-    # def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, message_formats = None, ip_list = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None) :
+    # def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, message_formats = None, ip_list = None, http_scheme = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None) :
 
         # self.channels = channels
         # self.start_delay = start_delay
@@ -1098,6 +1097,7 @@ class SqlHttpUpdateStatic(ap.HttpHost):
         # self.message_formats = message_formats
 
         # self.ip_list = ip_list
+        # self.http_scheme = http_scheme
         # self.host_api_url = host_api_url
         # self.max_connect_attempts = max_connect_attempts
 

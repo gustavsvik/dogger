@@ -69,6 +69,7 @@ class Configure:
         windows_archive_file_path = strip_string(conf, top_label, 'windows_archive_file_path', '')
         gateway_database_connection = strip_string(conf, top_label, 'gateway_database_connection', '')
         ip_list = strip_string(conf, top_label, 'ip_list', '')
+        http_scheme = strip_string(conf, top_label, 'http_scheme', 'http')
         host_api_url = strip_string(conf, top_label, 'host_api_url', '')
         client_api_url = strip_string(conf, top_label, 'client_api_url', '')
         video_unit = strip_string(conf, top_label, 'video_unit', '')
@@ -133,6 +134,7 @@ class Configure:
             env['IP_LIST'] = json.loads(ip_list)
         except ValueError:
             env['IP_LIST'] = ip_list
+        env['HTTP_SCHEME'] = http_scheme
         env['HOST_API_URL'] = host_api_url
         env['CLIENT_API_URL'] = client_api_url
         env['MAX_CONNECT_ATTEMPTS'] = max_connect_attempts

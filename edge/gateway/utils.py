@@ -1,7 +1,9 @@
 #
 
 import json
-import yaml
+
+try : import yaml
+except ImportError: pass
 
 
 
@@ -83,7 +85,7 @@ def instance_from_json_string(obj, json_string) :
     json_object = json.loads(json_string)
     return instance_from_dict(obj, dict(json_object))
 
-    
+
 def instance_from_yaml_string(obj, yaml_string) :
 
     yaml_object = yaml.safe_load(yaml_string)

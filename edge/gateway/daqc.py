@@ -9,20 +9,20 @@ import sys
 import io
 import ctypes
 import base64
-import serial
-import serial.tools.list_ports
 import socket
 import struct
 import pyscreenshot as ImageGrab
-try:
-    from cryptography.fernet import Fernet
-except ImportError:
-    pass
+
+try : import serial
+except ImportError: pass
+try : import serial.tools.list_ports
+except ImportError: pass
+try : from cryptography.fernet import Fernet
+except ImportError: pass
 
 import gateway.transform as tr
 import gateway.device as dv
 import gateway.runtime as rt
-
 import gateway.link as li
 import gateway.persist as ps
 import gateway.api as ap
@@ -42,11 +42,11 @@ class UdpHttp(ap.UdpReceive) :
         if self.channels is not None and ( self.channels == set() or channel in self.channels ) :
 
             try :
-                http = li.DirectUpload(channels = [channel], start_delay = self.start_delay, max_connect_attempts = self.max_connect_attempts, config_filepath = self.config_filepath, config_filename = self.config_filename)
+                http = li.DirectUpload(channels = [channel], start_delay = self.start_delay, max_connect_attempts = self.max_connect_attempts, http_scheme = self.http_scheme, config_filepath = self.config_filepath, config_filename = self.config_filename)
                 for current_ip in self.ip_list :
                     res = http.send_request(start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
                     data_string = str(channel) + ';' + str(sample_secs) + ',' + str(data_value) + ',,' + byte_string.decode() + ',;'
-                    rt.logging.debug("data_string", data_string)
+                    rt.logging.debug("data_string", data_string, "current_ip", current_ip)
                     res = http.set_requested(data_string, ip = current_ip)
             except PermissionError as e :
                 rt.logging.exception(e)
@@ -56,12 +56,13 @@ class UdpHttp(ap.UdpReceive) :
 class UdpValueHttp(UdpHttp) :
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, port = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, http_scheme = None, port = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.port = port
         self.max_connect_attempts = max_connect_attempts
 
@@ -89,12 +90,13 @@ class UdpValueHttp(UdpHttp) :
 class UdpBytesHttp(UdpHttp) :
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, port = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, http_scheme = None, port = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.port = port
         self.max_connect_attempts = max_connect_attempts
 
@@ -170,13 +172,13 @@ class StaticFileNmeaFile(ps.IngestFile) :
         while True:
 
             char_data_lines = data_lines
-            if self.concatenate is not None and self.concatenate : 
+            if self.concatenate is not None and self.concatenate :
                 char_data_lines = [data_lines]
             rt.logging.debug("char_data_lines", char_data_lines)
 
             for char_data in char_data_lines :
 
-                if self.concatenate is None or not self.concatenate : 
+                if self.concatenate is None or not self.concatenate :
                     char_data = [char_data]
                 rt.logging.debug("char_data", char_data)
 
@@ -188,7 +190,7 @@ class StaticFileNmeaFile(ps.IngestFile) :
                     if nmea_data is not None :
                         (selected_tag, data_array), = nmea_data.items()
                         rt.logging.debug("selected_tag", selected_tag, "data_array", data_array)
-                        self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+                        self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
 
                 time.sleep(1/self.sample_rate)
 
@@ -216,7 +218,7 @@ class SerialFile(ps.IngestFile, ps.LoadFile) :
                     self.port = comport.device
                     rt.logging.debug("self.port", self.port)
 
-        self.serial_conn = None 
+        self.serial_conn = None
 
         try :
             self.serial_conn = serial.Serial(port = self.port, baudrate = self.baudrate, timeout = self.timeout, parity = serial.PARITY_EVEN, stopbits = serial.STOPBITS_ONE, bytesize = serial.SEVENBITS) #, write_timeout=1, , , , xonxoff=False, rtscts=False, dsrdtr=False)
@@ -292,7 +294,7 @@ class SerialNmeaFile(SerialFile) :
         while True:
 
             self.init_serial()
-        
+
             data_string = ''
 
             while self.serial_conn.isOpen():
@@ -342,7 +344,7 @@ class SerialNmeaFile(SerialFile) :
                     for nmea_data in nmea_data_array :
                         if nmea_data is not None :
                             (selected_tag, data_array), = nmea_data.items()
-                            self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+                            self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
 
                 data_string = ''
 
@@ -382,7 +384,7 @@ class NmeaUdpFile(UdpFile):
         self.config_filename = config_filename
 
         UdpFile.__init__(self)
-        
+
         self.nmea = tr.Nmea(prepend = '', append = '')
 
 
@@ -413,7 +415,7 @@ class NmeaUdpFile(UdpFile):
                     (selected_tag, data_array), = nmea_data.items()
                     rt.logging.debug("data_array", data_array)
                     if not ( None in data_array ) :
-                        self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+                        self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
 
 
 
@@ -435,7 +437,7 @@ class RawUdpFile(UdpFile):
         self.config_filename = config_filename
 
         UdpFile.__init__(self)
-        
+
         self.nmea = tr.Nmea()
 
 
@@ -459,7 +461,7 @@ class RawUdpFile(UdpFile):
             data_array =  [ { values[0]:[values[2]] } ]
             rt.logging.debug("data_array", data_array)
             rt.logging.debug("self.channels", self.channels)
-            self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = values[1]) 
+            self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = values[1])
 
 
 
@@ -476,10 +478,11 @@ class HttpFile(ap.HttpClient, ps.IngestFile) :
 class HttpAishubAivdmFile(HttpFile) :
 
 
-    def __init__(self, channels = None, ip_list = None, start_delay = None, sample_rate = None, transmit_rate = None, client_api_url = None, max_connect_attempts = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, ip_list = None, http_scheme = None, start_delay = None, sample_rate = None, transmit_rate = None, client_api_url = None, max_connect_attempts = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.start_delay = start_delay
         self.sample_rate = sample_rate
         self.transmit_rate = transmit_rate
@@ -529,13 +532,13 @@ class HttpAishubAivdmFile(HttpFile) :
                     if ais_data is not None :
                         (selected_tag, data_array), = ais_data.items()
                         rt.logging.debug("selected_tag", selected_tag, "data_array", data_array)
-                        self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs) 
+                        self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
 
 #                time.sleep(1/self.sample_rate)
 #            data_array =  [ { channel: result_text} ]
 #            rt.logging.debug("data_array", data_array)
 #            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
-#            self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs) 
+#            self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs)
 
             time.sleep(1/self.sample_rate)
 
@@ -623,7 +626,7 @@ class USBCam(Image):
 
             self.cam = cv2.VideoCapture( int(''.join(filter(str.isdigit, self.video_unit))), cv2.CAP_ANY )  # cv2.CAP_OPENCV_MJPEG
 
-            resolutions = [ (320,200), (320,240), (640,480), (720,480), (854,450), (800,480), (768,576), (800,600), (1024,768), (1152,768), (1280,720), (1280,800), (1280,768), (1280,1024), (1366,768), (1440,960), (1400,1050), (1680,1050), (1600,1200), (1920,1080), (1920,1200) ]			
+            resolutions = [ (320,200), (320,240), (640,480), (720,480), (854,450), (800,480), (768,576), (800,600), (1024,768), (1152,768), (1280,720), (1280,800), (1280,768), (1280,1024), (1366,768), (1440,960), (1400,1050), (1680,1050), (1600,1200), (1920,1080), (1920,1200) ]
             for res in resolutions :
                 self.cam.set(cv2.CAP_PROP_FRAME_WIDTH , res[0])
                 self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, res[1])
@@ -676,13 +679,13 @@ class USBCam(Image):
                 os.system('uvccapture -m -x' + str(self.video_res[0]) + ' -y' + str(self.video_res[1]) + ' -q' + str(self.video_quality) + ' -d' + self.video_unit + ' -o' + self.capture_filename)
 
             elif str.lower(self.video_capture_method) == 'ffmpeg' :
-                os.system('ffmpeg -y -f v4l2 -hide_banner -loglevel warning -i ' + self.video_unit + ' -s ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' -vframes 1 ' + self.capture_filename)  # -input_format mjpeg 
+                os.system('ffmpeg -y -f v4l2 -hide_banner -loglevel warning -i ' + self.video_unit + ' -s ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' -vframes 1 ' + self.capture_filename)  # -input_format mjpeg
 
             elif str.lower(self.video_capture_method) == 'raspicam' :
                 self.picam.capture(self.capture_filename, format='jpeg', quality=10)
 
             else : # fswebcam
-                os.system('fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 2 --jpeg ' + str(self.video_quality) + ' --no-banner --save ' + self.capture_filename) 
+                os.system('fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 2 --jpeg ' + str(self.video_quality) + ' --no-banner --save ' + self.capture_filename)
                 # --set "Brightness"=127 --set "Contrast"=63 --set "Saturation"=127 --set "Hue"=90 --set "Gamma"=250 --set "White Balance Temperature, Auto"=True
 
             rt.logging.debug("Capture time: ", time.time() - time_before)
@@ -696,7 +699,7 @@ class USBCam(Image):
 class ScreenshotUpload(Image):
 
 
-    def __init__(self, channels = None, sample_rate = None, host_api_url = None, client_api_url = None, crop = None, video_quality = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, ip_list = None, http_scheme = None, sample_rate = None, host_api_url = None, client_api_url = None, crop = None, video_quality = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
 
@@ -713,13 +716,16 @@ class ScreenshotUpload(Image):
         self.file_path = None
         self.archive_file_path = None
         self.video_res = None
-        self.ip_list = None
+
+        self.ip_list = ip_list
+        self.http_scheme = http_scheme
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
         self.env = self.get_env()
         if self.ip_list is None: self.ip_list = self.env['IP_LIST']
+        if self.http_scheme is None: self.http_scheme = self.env['HTTP_SCHEME']
 
         Image.__init__(self)
 
@@ -732,7 +738,7 @@ class ScreenshotUpload(Image):
             jpeg_image_buffer = io.BytesIO()
             img.save(jpeg_image_buffer, format="JPEG")
             img_str = base64.b64encode(jpeg_image_buffer.getvalue())
-            http = li.DirectUpload(channels = self.channels, start_delay = self.start_delay, host_api_url = self.host_api_url, client_api_url = self.client_api_url, max_connect_attempts = self.max_connect_attempts)
+            http = li.DirectUpload(channels = self.channels, start_delay = self.start_delay, host_api_url = self.host_api_url, client_api_url = self.client_api_url, max_connect_attempts = self.max_connect_attempts, http_scheme = self.http_scheme)
             (channel,) = self.channels
 
             for current_ip in self.ip_list :
@@ -768,7 +774,7 @@ class ScreenshotUpload(Image):
 class TempFileUpload(Image):
 
 
-    def __init__(self, channels = None, sample_rate = None, host_api_url = None, client_api_url = None, file_extension = 'jpg', config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, ip_list = None, http_scheme = None, sample_rate = None, host_api_url = None, client_api_url = None, file_extension = 'jpg', config_filepath = None, config_filename = None):
 
         self.channels = channels
 
@@ -785,13 +791,16 @@ class TempFileUpload(Image):
 
         self.video_res = None
         self.video_quality = None
-        self.ip_list = None
+
+        self.ip_list = ip_list
+        self.http_scheme = http_scheme
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
         self.env = self.get_env()
         if self.ip_list is None: self.ip_list = self.env['IP_LIST']
+        if self.http_scheme is None: self.http_scheme = self.env['HTTP_SCHEME']
 
         Image.__init__(self)
 
@@ -802,7 +811,7 @@ class TempFileUpload(Image):
             rt.logging.debug("self.capture_filename", self.capture_filename)
             with open(self.capture_filename, "rb") as image_file:
                 img_str = base64.b64encode(image_file.read())
-            http = li.DirectUpload(channels = self.channels, start_delay = self.start_delay, host_api_url = self.host_api_url, client_api_url = self.client_api_url, max_connect_attempts = self.max_connect_attempts)
+            http = li.DirectUpload(channels = self.channels, start_delay = self.start_delay, host_api_url = self.host_api_url, client_api_url = self.client_api_url, max_connect_attempts = self.max_connect_attempts, http_scheme = self.http_scheme)
             (channel,) = self.channels
 
             for current_ip in self.ip_list :
@@ -907,7 +916,7 @@ class AcquireCurrent(ps.IngestFile):
         ps.IngestFile.__init__(self)
 
         self.nidaq = None
-        if sys.platform.startswith('win32') : 
+        if sys.platform.startswith('win32') :
             self.nidaq = ctypes.windll.nicaiu
 
         self.uInt8 = ctypes.c_ubyte

@@ -20,10 +20,11 @@ import gateway.api as ap
 class CloudDBPartition(ap.HttpMaint):
 
 
-    def __init__(self, start_delay = None, ip_list = None, maint_api_url = None, max_connect_attempts = None, new_partition_name_date = None, new_partition_timestamp = None, oldest_kept_partition_name_date = None, config_filepath = None, config_filename = None):
+    def __init__(self, start_delay = None, ip_list = None, http_scheme = None, maint_api_url = None, max_connect_attempts = None, new_partition_name_date = None, new_partition_timestamp = None, oldest_kept_partition_name_date = None, config_filepath = None, config_filename = None):
 
         self.start_delay = start_delay
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.maint_api_url = maint_api_url
         self.max_connect_attempts = max_connect_attempts
         self.new_partition_name_date = new_partition_name_date
@@ -85,10 +86,11 @@ class PartitionDatabase(ta.MaintenanceTask) :
 class PartitionEdgeDatabase(PartitionDatabase) :
 
 
-    def __init__(self, start_delay = None, ip_list = None, keep_partitions_horizon = None, config_filepath = None, config_filename = None) :
+    def __init__(self, start_delay = None, ip_list = None, http_scheme = None, keep_partitions_horizon = None, config_filepath = None, config_filename = None) :
 
         self.start_delay = start_delay
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.keep_partitions_horizon = keep_partitions_horizon
 
         self.config_filepath = config_filepath
@@ -151,10 +153,11 @@ class PartitionEdgeDatabase(PartitionDatabase) :
 class PartitionCloudDatabase(PartitionDatabase) :
 
 
-    def __init__(self, start_delay = None, ip_list = None, maint_api_url = None, keep_partitions_horizon = None, config_filepath = None, config_filename = None) :
+    def __init__(self, start_delay = None, ip_list = None, http_scheme = None, maint_api_url = None, keep_partitions_horizon = None, config_filepath = None, config_filename = None) :
 
         self.start_delay = start_delay
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.maint_api_url = maint_api_url
         self.keep_partitions_horizon = keep_partitions_horizon
 
@@ -179,10 +182,11 @@ class PartitionCloudDatabase(PartitionDatabase) :
 class NetworkTime(ta.MaintenanceTask) :
 
 
-    def __init__(self, start_delay = None, ip_list = None, ntp_url = None, ntp_port = None, adjust_interval = None, max_connect_attempts = None, config_filepath = None, config_filename = None) :
+    def __init__(self, start_delay = None, ip_list = None, http_scheme = None, ntp_url = None, ntp_port = None, adjust_interval = None, max_connect_attempts = None, config_filepath = None, config_filename = None) :
 
         self.start_delay = start_delay
         self.ip_list = ip_list
+        self.http_scheme = http_scheme
         self.ntp_url = ntp_url
         self.ntp_port = ntp_port
         self.adjust_interval = adjust_interval

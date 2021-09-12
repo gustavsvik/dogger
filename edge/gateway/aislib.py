@@ -6,7 +6,7 @@ This library supports creating and decoding NMEA formatted AIS type 1,5,24 messa
 
 @author     Daniel Hong
 https://github.com/doodleincode/aislib
-This program is licensed under the GNU GENERAL PUBLIC LICENSE Version 2. 
+This program is licensed under the GNU GENERAL PUBLIC LICENSE Version 2.
 A LICENSE file should have accompanied this program.
 
 AtoN message (21) encoding capability added by Daniel Nilsson (https://gitlab.com/dannil10) 12/08/20
@@ -16,19 +16,21 @@ from __future__ import division
 
 from builtins import chr
 from builtins import range
-from past.utils import old_div
 from builtins import object
-
-import bitstring
 import binascii
 
-    
+try : from past.utils import old_div
+except ImportError: pass
+try : import bitstring
+except ImportError: pass
+
+
 # Create a character encoding and reversed character encoding map which
 # we will use to encode and decode, respectively, AIS bit streams
 
 encodingchars = [
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?',
-    '@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 
+    '@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
     'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', "`", 'a', 'b', 'c', 'd', 'e', 'f', 'g',
     'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w'
 ]
@@ -58,7 +60,7 @@ def int2bin6(num):
     """
     Converts the given integer to a 6-bit binary representation
     """
-    
+
     return "".join(num & (1 << i) and '1' or '0' for i in range(5, -1, -1))
 
 
@@ -72,11 +74,11 @@ class AISMessage(object):
 
     # Contain our AIS message elements
     _attrs = {}
-    
+
     # Map the number of bits for each element in the AIS message
     _bitmap = {}
 
-    
+
     def __init__(self, elements):
         # Init our bit mapping and load up default message values
         for key, arr in elements.items():
@@ -87,20 +89,20 @@ class AISMessage(object):
             # Set default value
             self.__setattr__(key, arr[2])
 
-            
+
     def __getattr__(self, name):
         """
         We are overriding the behavior of __getattr__ to implement dynamic class
         properties. This way we can do stuff like [class].[property] without
         requiring a "getter" method for each property.
-        
+
         If the AIS message element is not found in our attribute table, we'll
         revert to the default behavior of __getattr__
         """
-        
+
         if name in self._attrs:
             return self._attrs[name]
-        
+
         # Preserve the default behavior if our custom attributes were not found
         return super(AISMessage, self).__getattr__(name)
 
@@ -111,10 +113,10 @@ class AISMessage(object):
         """
         if type(value) not in [ int,int]:
             raise TypeError("Value must be an integer.")
-            
+
         if name == "_bitmap":
             super(AISMessage, self).__setattr__(name, value)
-            
+
         # Set attributes that are supported by the sub-classed AIS message type
         elif name in self._bitmap:
             # String format is: [datatype]:[num_bits]=[value]
@@ -126,9 +128,9 @@ class AISMessage(object):
 
     def get_attr(self, name):
         """
-        Returns an integer representation of the binary value for the given 
+        Returns an integer representation of the binary value for the given
         element name.
-        
+
         @param  name    Name of the AIS message element to retrieve
         @return         Human readable int value. If invalid element, returns None
         """
@@ -137,32 +139,32 @@ class AISMessage(object):
                 return self._attrs[name].int
             else:
                 return self._attrs[name].uint
-            
+
         return None
-        
+
     ## Sub-classes should implement the methods below ##
-    
+
     def build_bitstream(self):
         """
         Build the bitstream which we will be using to encode the payload. This will
         basically involve concatenating all the message elements into one bitstring.
-        
+
         Sub-classes that extend the AISMessage class are required to implement this
         method. Example implementation:
-        
+
             return bitstring.Bits().join([
                 self.element_1, self.element_2, [...]
             ])
         """
         pass
 
-        
+
     def unpack(self, bitstream):
         """
         Unpack a bitstream into AIS message elements. Sub-classes can optionally
         implement this method to support decoding of AIS messages. Example
         implementation:
-            
+
             self._attrs["element_1"] = bitstring.Bits(bin=bitstream[0:6])
             self._attrs["element_2"] = bitstring.Bits(bin=bitstream[6:8])
             [...]
@@ -175,32 +177,32 @@ class AISPositionReportMessage(AISMessage):
 
 
     def __init__(self, id=1, repeat=0, mmsi=0, status=15, rot=0, sog=1023, pa=0,
-                       lon=181, lat=91, cog=3600, heading=511, ts=60, smi=0, spare=0, 
+                       lon=181, lat=91, cog=3600, heading=511, ts=60, smi=0, spare=0,
                        raim=0, comm_state=0):
         """
         Returns an instance of an AIS Position Report Message class
         The parameters contain the default values, simply set the parameters
         who's value need to change. Ex:
-            
+
             aismsg = AISPositionReportMessage(mmsi=12345, lon=4567, lat=5432)
         """
         super(AISPositionReportMessage, self).__init__({
                     # message_element : ["data_type", num_bits, initial_value]
-                    'id'        : ["uint", 6, id], 
-                    'repeat'    : ["uint", 2, repeat], 
-                    'mmsi'      : ["uint", 30, mmsi], 
-                    'status'    : ["uint", 4, status], 
-                    'rot'       : ["int", 8, rot], 
-                    'sog'       : ["uint", 10, sog], 
-                    'pa'        : ["uint", 1, pa], 
-                    'lon'       : ["int", 28, lon], 
-                    'lat'       : ["int", 27, lat], 
-                    'cog'       : ["uint", 12, cog], 
-                    'heading'   : ["uint", 9, heading], 
-                    'ts'        : ["uint", 6, ts], 
-                    'smi'       : ["uint", 2, smi], 
-                    'spare'     : ["uint", 3, spare], 
-                    'raim'      : ["uint", 1, raim], 
+                    'id'        : ["uint", 6, id],
+                    'repeat'    : ["uint", 2, repeat],
+                    'mmsi'      : ["uint", 30, mmsi],
+                    'status'    : ["uint", 4, status],
+                    'rot'       : ["int", 8, rot],
+                    'sog'       : ["uint", 10, sog],
+                    'pa'        : ["uint", 1, pa],
+                    'lon'       : ["int", 28, lon],
+                    'lat'       : ["int", 27, lat],
+                    'cog'       : ["uint", 12, cog],
+                    'heading'   : ["uint", 9, heading],
+                    'ts'        : ["uint", 6, ts],
+                    'smi'       : ["uint", 2, smi],
+                    'spare'     : ["uint", 3, spare],
+                    'raim'      : ["uint", 1, raim],
                     'comm_state' : ["uint", 19, comm_state]
                 })
 
@@ -259,31 +261,31 @@ class AISStaticAndVoyageReportMessage(AISMessage):
         Returns an instance of an AIS Position Report Message class
         The parameters contain the default values, simply set the parameters
         who's value need to change. Ex:
-            
+
             aismsg = AISStaticAndVoyageReportMessage(mmsi=12345,shipname='ASIAN JADE')
         """
         super(AISStaticAndVoyageReportMessage, self).__init__({
                     # message_element : ["data_type", num_bits, initial_value]
-                    'id'           : ["uint", 6, id], 
-                    'repeat'       : ["uint", 2, repeat], 
-                    'mmsi'         : ["uint", 30, mmsi], 
-                    'ais_version'  : ["uint", 2, ais_version], 
-                    'imo'          : ["uint", 30, imo], 
-                    'callsign'     : ["int", 42, AISString2Bits(callsign,length=old_div(42,6)).int if type(callsign) == str else callsign], 
-                    'shipname'     : ["int", 120, AISString2Bits(shipname,length=old_div(120,6)).int if type(shipname) == str else shipname], 
-                    'shiptype'     : ["uint", 8, shiptype], 
-                    'to_bow'       : ["uint", 9, to_bow], 
-                    'to_stern'     : ["uint", 9, to_stern], 
-                    'to_port'      : ["uint", 6, to_port], 
-                    'to_starboard' : ["uint", 6, to_starboard], 
-                    'epfd'         : ["uint", 4, epfd], 
-                    'month'        : ["uint", 4, month], 
-                    'day'          : ["uint", 5, day], 
-                    'hour'         : ["uint", 5, hour], 
-                    'minute'       : ["uint", 6, minute], 
-                    'draught'      : ["uint", 8, draught], 
-                    'destination'  : ["int", 120, AISString2Bits(destination,length=old_div(120,6)).int if type(destination) == str else destination], 
-                    'dte'          : ["uint", 1, dte], 
+                    'id'           : ["uint", 6, id],
+                    'repeat'       : ["uint", 2, repeat],
+                    'mmsi'         : ["uint", 30, mmsi],
+                    'ais_version'  : ["uint", 2, ais_version],
+                    'imo'          : ["uint", 30, imo],
+                    'callsign'     : ["int", 42, AISString2Bits(callsign,length=old_div(42,6)).int if type(callsign) == str else callsign],
+                    'shipname'     : ["int", 120, AISString2Bits(shipname,length=old_div(120,6)).int if type(shipname) == str else shipname],
+                    'shiptype'     : ["uint", 8, shiptype],
+                    'to_bow'       : ["uint", 9, to_bow],
+                    'to_stern'     : ["uint", 9, to_stern],
+                    'to_port'      : ["uint", 6, to_port],
+                    'to_starboard' : ["uint", 6, to_starboard],
+                    'epfd'         : ["uint", 4, epfd],
+                    'month'        : ["uint", 4, month],
+                    'day'          : ["uint", 5, day],
+                    'hour'         : ["uint", 5, hour],
+                    'minute'       : ["uint", 6, minute],
+                    'draught'      : ["uint", 8, draught],
+                    'destination'  : ["int", 120, AISString2Bits(destination,length=old_div(120,6)).int if type(destination) == str else destination],
+                    'dte'          : ["uint", 1, dte],
                     'spare'        : ["uint", 1, spare]
                 })
 
@@ -348,16 +350,16 @@ class AISStaticDataReportAMessage(AISMessage):
         Returns an instance of an AIS Static Data Report Message Format A class
         The parameters contain the default values, simply set the parameters
         whose values need to change. Ex:
-            
+
             aismsg = AISPositionReportAMessage(mmsi=12345, shipname='ASIAN JADE')
-        """        
+        """
         super(AISStaticDataReportAMessage, self).__init__({
                     # message_element : ["data_type", num_bits, initial_value]
-                    'id'              : ["uint", 6, id], 
-                    'repeat'          : ["uint", 2, repeat], 
-                    'mmsi'            : ["uint", 30, mmsi], 
-                    'partno'          : ["uint", 2, partno], 
-                    'shipname'        : ["int", 120, AISString2Bits(shipname,length=old_div(120,6)).int if type(shipname) == str else shipname], 
+                    'id'              : ["uint", 6, id],
+                    'repeat'          : ["uint", 2, repeat],
+                    'mmsi'            : ["uint", 30, mmsi],
+                    'partno'          : ["uint", 2, partno],
+                    'shipname'        : ["int", 120, AISString2Bits(shipname,length=old_div(120,6)).int if type(shipname) == str else shipname],
                     'spare'           : ["uint", 8, spare]
                 })
 
@@ -395,24 +397,24 @@ class AISStaticDataReportBMessage(AISMessage):
         Returns an instance of an AIS Static Data Report Message Format B class
         The parameters contain the default values, simply set the parameters
         whose values need to change. Ex:
-            
+
             aismsg = AISPositionReportBMessage(mmsi=12345, shiptype=60)
-        """        
+        """
         super(AISStaticDataReportBMessage, self).__init__({
                     # message_element : ["data_type", num_bits, initial_value]
-                    'id'              : ["uint", 6, id], 
-                    'repeat'          : ["uint", 2, repeat], 
-                    'mmsi'            : ["uint", 30, mmsi], 
-                    'partno'          : ["uint", 2, partno], 
-                    'shiptype'        : ["uint", 8, shiptype], 
-                    'vendorid'        : ["int", 18, AISString2Bits(vendorid,length=old_div(18,6)).int if type(vendorid) == str else vendorid], 
-                    'model'           : ["uint", 4, model], 
-                    'serial'          : ["uint", 20, serial], 
-                    'callsign'        : ["int", 42, AISString2Bits(callsign,length=old_div(42,6)).int if type(callsign) == str else callsign], 
-                    'to_bow'          : ["uint", 9, to_bow], 
-                    'to_stern'        : ["uint", 9, to_stern], 
-                    'to_port'         : ["uint", 6, to_port], 
-                    'to_starboard'    : ["uint", 6, to_starboard], 
+                    'id'              : ["uint", 6, id],
+                    'repeat'          : ["uint", 2, repeat],
+                    'mmsi'            : ["uint", 30, mmsi],
+                    'partno'          : ["uint", 2, partno],
+                    'shiptype'        : ["uint", 8, shiptype],
+                    'vendorid'        : ["int", 18, AISString2Bits(vendorid,length=old_div(18,6)).int if type(vendorid) == str else vendorid],
+                    'model'           : ["uint", 4, model],
+                    'serial'          : ["uint", 20, serial],
+                    'callsign'        : ["int", 42, AISString2Bits(callsign,length=old_div(42,6)).int if type(callsign) == str else callsign],
+                    'to_bow'          : ["uint", 9, to_bow],
+                    'to_stern'        : ["uint", 9, to_stern],
+                    'to_port'         : ["uint", 6, to_port],
+                    'to_starboard'    : ["uint", 6, to_starboard],
                     'spare'           : ["uint", 6, spare]
                 })
 
@@ -462,25 +464,25 @@ class AISBinaryBroadcastMessageAreaNoticeCircle(AISMessage):
 
         super(AISBinaryBroadcastMessageAreaNoticeCircle, self).__init__({
                     # message_element : ["data_type", num_bits, initial_value]
-                    'id'              : ["uint", 6, id], 
-                    'repeat'          : ["uint", 2, repeat], 
-                    'mmsi'            : ["uint", 30, mmsi], 
-                    'spare'           : ["uint", 2, 0], 
-                    'dac'             : ["uint", 10, 1], 
+                    'id'              : ["uint", 6, id],
+                    'repeat'          : ["uint", 2, repeat],
+                    'mmsi'            : ["uint", 30, mmsi],
+                    'spare'           : ["uint", 2, 0],
+                    'dac'             : ["uint", 10, 1],
                     'fid'             : ["uint", 6, 22],
-                    'linkage'         : ["uint", 10, linkage], 
-                    'notice'          : ["uint", 7, notice], 
-                    'month'           : ["uint", 4, month], 
-                    'day'             : ["uint", 5, day], 
-                    'hour'            : ["uint", 5, hour], 
-                    'minute'          : ["uint", 6, minute], 
-                    'duration'        : ["uint", 18, duration], 
-                    'subarea_type_1'  : ["uint", 3, 0], 
-                    'scale_1'         : ["uint", 2, scale_1], 
-                    'lon_1'           : ["int", 25, lon_1], 
-                    'lat_1'           : ["int", 24, lat_1], 
-                    'precision_1'     : ["uint", 3, precision_1], 
-                    'radius_1'        : ["uint", 12, radius_1], 
+                    'linkage'         : ["uint", 10, linkage],
+                    'notice'          : ["uint", 7, notice],
+                    'month'           : ["uint", 4, month],
+                    'day'             : ["uint", 5, day],
+                    'hour'            : ["uint", 5, hour],
+                    'minute'          : ["uint", 6, minute],
+                    'duration'        : ["uint", 18, duration],
+                    'subarea_type_1'  : ["uint", 3, 0],
+                    'scale_1'         : ["uint", 2, scale_1],
+                    'lon_1'           : ["int", 25, lon_1],
+                    'lat_1'           : ["int", 24, lat_1],
+                    'precision_1'     : ["uint", 3, precision_1],
+                    'radius_1'        : ["uint", 12, radius_1],
                     'spare_1'         : ["uint", 10, 0]
                 })
 
@@ -542,27 +544,27 @@ class AISAtonReport(AISMessage):
 
         super(AISAtonReport, self).__init__({
                     # message_element : ["data_type", num_bits, initial_value]
-                    'id'              : ["uint", 6, 21], 
-                    'repeat'          : ["uint", 2, repeat], 
-                    'mmsi'            : ["uint", 30, mmsi], 
-                    'aid_type'        : ["uint", 5, aid_type], 
-                    'name'            : ["int", 120, AISString2Bits(name,length=old_div(120,6)).int if type(name) == str else name], 
+                    'id'              : ["uint", 6, 21],
+                    'repeat'          : ["uint", 2, repeat],
+                    'mmsi'            : ["uint", 30, mmsi],
+                    'aid_type'        : ["uint", 5, aid_type],
+                    'name'            : ["int", 120, AISString2Bits(name,length=old_div(120,6)).int if type(name) == str else name],
                     'accuracy'        : ["uint", 1, accuracy],
-                    'lon'             : ["int", 28, lon], 
-                    'lat'             : ["int", 27, lat], 
-                    'to_bow'          : ["uint", 9, to_bow], 
-                    'to_stern'        : ["uint", 9, to_stern], 
-                    'to_port'         : ["uint", 6, to_port], 
-                    'to_starboard'    : ["uint", 6, to_starboard], 
-                    'epfd'            : ["uint", 4, epfd], 
-                    'ts'              : ["uint", 6, ts], 
-                    'off_position'    : ["uint", 1, off_position], 
-                    'regional'        : ["uint", 8, 0], 
-                    'raim'            : ["uint", 1, raim], 
-                    'virtual_aid'     : ["uint", 1, virtual_aid], 
-                    'assigned'        : ["uint", 1, assigned], 
+                    'lon'             : ["int", 28, lon],
+                    'lat'             : ["int", 27, lat],
+                    'to_bow'          : ["uint", 9, to_bow],
+                    'to_stern'        : ["uint", 9, to_stern],
+                    'to_port'         : ["uint", 6, to_port],
+                    'to_starboard'    : ["uint", 6, to_starboard],
+                    'epfd'            : ["uint", 4, epfd],
+                    'ts'              : ["uint", 6, ts],
+                    'off_position'    : ["uint", 1, off_position],
+                    'regional'        : ["uint", 8, 0],
+                    'raim'            : ["uint", 1, raim],
+                    'virtual_aid'     : ["uint", 1, virtual_aid],
+                    'assigned'        : ["uint", 1, assigned],
                     'spare'           : ["uint", 1, 0],
-                    'name_ext'        : ["int", 84, AISString2Bits(name_ext,length=old_div(84,6)).int if type(name_ext) == str else name_ext], 
+                    'name_ext'        : ["int", 84, AISString2Bits(name_ext,length=old_div(84,6)).int if type(name_ext) == str else name_ext],
                     'pad'             : ["uint", 4, 0]
                 })
 
@@ -625,12 +627,12 @@ class AIS(object):
     # Instance of the AISMessage class
     _ais_message = None
 
-    
+
     def __init__(self, ais_message):
         # If the provided param was not an AISMessage object, throw exception
         if not isinstance(ais_message, AISMessage):
             raise TypeError("Variable 'ais_message' is not an instance of 'AISMessage'.")
-            
+
         # Otherwise set the variable
         self._ais_message = ais_message
 
@@ -640,33 +642,33 @@ class AIS(object):
         Builds the AIS NMEA message string
         This method only supports AIVDM, single fragment, 168 bit (28-char) payload
         Type 1 and Type 24 format A are of this kind
-        
+
         Field 1, !AIVDM, identifies this as an AIVDM packet.
 
         Field 2 (1) is the count of fragments in the currently accumulating message.
-        The payload size of each sentence is limited by NMEA 0183's 82-character maximum, 
+        The payload size of each sentence is limited by NMEA 0183's 82-character maximum,
         so it is sometimes required to split a payload over several fragment sentences.
 
-        Field 3 (1) is the fragment number of this sentence. It will be one-based. 
+        Field 3 (1) is the fragment number of this sentence. It will be one-based.
         A sentence with a fragment count of 1 and a fragment number of 1 is complete in itself.
 
         Field 4 (empty) is a sequential message ID for multi-sentence messages.
 
-        Field 5 (A) is a radio channel code. AIS uses the high side of the duplex 
-        from two VHF radio channels: 
-        - AIS Channel A is 161.975Mhz (87B); 
+        Field 5 (A) is a radio channel code. AIS uses the high side of the duplex
+        from two VHF radio channels:
+        - AIS Channel A is 161.975Mhz (87B);
         - AIS Channel B is 162.025Mhz (88B).
-        
+
         Field 6 is the encoded payload string
-        
-        Field 7 (0) is the number of fill bits requires to pad the data payload 
+
+        Field 7 (0) is the number of fill bits requires to pad the data payload
         to a 6-bit boundary. This value can range from 1-5.
         """
-        
-        payLoad =  self.encode() 
+
+        payLoad =  self.encode()
         payload = "!AIVDM,1,1,,A," + payLoad + '*'
         chksum = self.crc(payload)
-        
+
         if invert_crc:
             chksum = ~chksum
 
@@ -676,20 +678,20 @@ class AIS(object):
     def encode(self, bitstr = None):
         """
         Encode a bitstream into a 6-bit encoded AIS message string
-        
-        @param  bitstr  The bitstream. This should be a Bit object generated 
+
+        @param  bitstr  The bitstream. This should be a Bit object generated
                         from bitstring.Bit(...). If this is not provided, then
                         it will use the bitstring from the '_ais_message' property
         @return         6-bit encoded AIS string
         """
-        
+
         curr_index = 0
         curr_offset = 6     # We'll be encoding 6 bits at a time
         encoded_str = []
-        
+
         if bitstr == None:
             bitstr = self._ais_message.build_bitstream()
-        
+
         # The total AIS message is len(bitstr) bits
         # Since we are encoding 6-bit chunks, we are looping
         #  round(len(bitstr)/ 6.) times (type 5 has 424 bits which does not divide by 6
@@ -708,11 +710,11 @@ class AIS(object):
     def decode(self, msg, ignore_crc = False):
 
         """
-        Decodes an AIS NMEA formatted message. Currently supports message 
-        types 1, 5, 21 and 24. On success, returns an instance of 
-        AISPositionReportMessage. A CRC check is performed. If the CRC does not 
+        Decodes an AIS NMEA formatted message. Currently supports message
+        types 1, 5, 21 and 24. On success, returns an instance of
+        AISPositionReportMessage. A CRC check is performed. If the CRC does not
         match, a CRCInvalidError exception is thrown
-        
+
         @param  msg     The message to decode
         @return         If CRC checks, returns an instance of AISPositionReportMessage
         """
@@ -721,27 +723,27 @@ class AIS(object):
         given_crc = int(msg[-2:], 16)
 
         # If CRC did not match, throw exception!
-        if given_crc != computed_crc and not ignore_crc : 
+        if given_crc != computed_crc and not ignore_crc :
             raise CRCInvalidError("The given CRC did not match the computed CRC.")
-            
+
         # Otherwise we can continue with decoding the message
         # ...
         # Grab just the payload. The 6th index in the AIS message contains the payload
         payload,fillbits = msg.split(",")[5:7]
-        
+
         # First we will reverse the 6-bit ascii encoding to its integer equivalent
         # using our reverse encoded character map
         dec = []
-        
+
         for c in payload:
             dec.append(re_encodingchars[c])
-        
+
         # Now we will take our list of integers and convert it to a bitstream
         bits = []
-        
+
         for i in range(len(dec)):
             bits.append(int2bin6(dec[i]))
-            
+
         bitstream = "".join(bits)
         if fillbits[0] !='0':
             bitstream = bitstream[:-int(fillbits[0])]
@@ -769,29 +771,29 @@ class AIS(object):
 
         return aismsg
 
-        
+
     def crc(self, msg):
 
         """
         Generates the CRC for the given AIS NMEA formatted string
-        
+
         @param  msg     The message used to generate the CRC. This should be
                         a well formed NMEA formatted message
         @return         Integer representation of the CRC. You can use hex(crc)
                         to get the hex
         """
-        
+
         chksum = 0
-        
+
         # If the input contains the entire NMEA message, then we just need to
         # get the string between the ! and *
         # Otherwise we'll assume the input contains just the string to checksum
         astk = msg.rfind("*")
-        
+
         if msg[0] == "!" and astk != -1:
             msg = msg[1:astk]
-        
+
         for c in msg:
             chksum = chksum ^ ord(c)
-            
+
         return chksum
