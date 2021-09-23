@@ -62,6 +62,7 @@ class HttpMaint(ta.MaintenanceTask):
 
         self.env = self.get_env()
         if self.maint_api_url is None: self.maint_api_url = self.env['MAINT_API_URL']
+        if self.http_scheme is None: self.http_scheme = self.env['HTTP_SCHEME']
 
         ta.MaintenanceTask.__init__(self)
 
@@ -72,7 +73,8 @@ class HttpMaint(ta.MaintenanceTask):
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            raw_data = requests.post(self.http_scheme + "://" + ip + self.maint_api_url + "partition_database.php", timeout = 5, data = {"new_partition_name_date": self.new_partition_name_date, "new_partition_timestamp": self.new_partition_timestamp, "oldest_kept_partition_name_date": self.oldest_kept_partition_name_date})
+            complete_url = self.http_scheme + "://" + ip + self.maint_api_url + "partition_database.php"
+            raw_data = requests.post(complete_url, timeout = 5, data = {"new_partition_name_date": self.new_partition_name_date, "new_partition_timestamp": self.new_partition_timestamp, "oldest_kept_partition_name_date": self.oldest_kept_partition_name_date})
             self.connect_attempts = 0
             return raw_data
         except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
