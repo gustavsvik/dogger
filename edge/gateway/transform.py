@@ -7,17 +7,16 @@ import numpy
 import tempfile
 import os
 import enum
-import openlocationcode.openlocationcode
 import json
-import bitstring
-try:
-    import bitarray
-except ImportError:
-    pass
-try:
-    import pyais
-except ImportError:
-    pass
+
+try : import openlocationcode.openlocationcode
+except ImportError : pass
+try : import bitstring
+except ImportError : pass
+try : import bitarray
+except ImportError : pass
+try : import pyais
+except ImportError : pass
 
 import gateway.runtime as rt
 import gateway.utils as ut
