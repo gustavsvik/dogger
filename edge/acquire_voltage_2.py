@@ -116,7 +116,7 @@ def scale_valmet_current_input(U):
 
 def scale_Opto_22_AD3_SATT_ETT45_0101(U_par):
     return ( U_par/249.0 * 1000.0 - 4.0 ) / 16.0 * 50.0
-    
+
 def downsample(y, size):
     y_reshape = y.reshape(size, int(len(y)/size))
     y_downsamp = y_reshape.mean(axis=1)
@@ -147,7 +147,7 @@ def ReadVoltage():
     pointsToRead = bufferSize
     #pointsToRead = DAQmx_Val_Auto
     data = numpy.zeros((32*bufferSize.value,),dtype=numpy.float64)
-    if global_error_code >= 0: 
+    if global_error_code >= 0:
         CHK(nidaq.DAQmxReadAnalogF64(taskVoltage,pointsToRead,timeout,DAQmx_Val_GroupByChannel,data.ctypes.data,uInt32(32*bufferSize.value),ctypes.byref(pointsRead),None))
     return data
 
@@ -220,3 +220,4 @@ while True:
         StopAndClearTasks()
         InitAcquire()
     time.sleep(10)
+

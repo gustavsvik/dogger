@@ -2,9 +2,9 @@ import gateway.link
 
 
 udp_upload_ais = gateway.link.SqlFileAtonReport(
-    channels = {168,169}, 
+    channels = {168,169},
     start_delay = 0,
-    transmit_rate = 0.5, 
+    transmit_rate = 0.5,
     max_age = 10,
     target_channels = {'VDM':{170:'txt'}},
     length_offset = [-400, -160, 180, 500],
@@ -14,7 +14,7 @@ udp_upload_ais = gateway.link.SqlFileAtonReport(
     name = ["MEASURE BEACON 01, KEEP DISTANCE! ", "TEST AREA,  NO ENTRY! CH16 7SA9999", "TEST AREA,  NO ENTRY! CH16 7SA9999", "MEASURE BEACON 02, KEEP DISTANCE! "],
     virtual_aid = [0, 1, 1, 0],
     file_path = '/srv/dogger/files/',
-    config_filepath = '/srv/dogger/', 
+    config_filepath = '/srv/dogger/',
     config_filename = 'conf.ini')
 
 udp_upload_ais.run()

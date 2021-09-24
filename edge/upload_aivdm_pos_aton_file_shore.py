@@ -2,9 +2,9 @@ import gateway.link
 
 
 udp_upload_ais = gateway.link.SqlFileAtonReport(
-    channels = {168,169}, 
+    channels = {168,169},
     start_delay = 0,
-    transmit_rate = 0.5, 
+    transmit_rate = 0.5,
     max_age = 10,
     target_channels = {'VDM':{173:'txt'}},
     length_offset = [585, -30, 660],
@@ -14,7 +14,7 @@ udp_upload_ais = gateway.link.SqlFileAtonReport(
     name = ["TSB TEST REMOTE CONTROL CENTER    ", "TSB SHORE MOBILE TEST CONTROL UNIT", "GUSTAVSVIK RADIO"],
     virtual_aid = [1, 1, 1],
     file_path = '/srv/dogger/files/',
-    config_filepath = '/srv/dogger/', 
+    config_filepath = '/srv/dogger/',
     config_filename = 'conf.ini')
 
 udp_upload_ais.run()
