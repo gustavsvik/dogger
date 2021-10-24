@@ -19,6 +19,8 @@ try : import serial.tools.list_ports
 except ImportError: pass
 try : from cryptography.fernet import Fernet
 except ImportError: pass
+try : import cv2
+except ImportError: pass
 
 import gateway.transform as tr
 import gateway.device as dv
@@ -555,7 +557,7 @@ class Image(ps.IngestFile) :
         if self.video_quality is None: self.video_quality = self.env['VIDEO_QUALITY']
         (self.channel,) = self.channels
         self.capture_filename = 'image_' + str(self.channel) + '.' + self.file_extension
-
+        rt.logging.debug("self.capture_filename", self.capture_filename)
         ps.IngestFile.__init__(self)
 
 
@@ -579,10 +581,10 @@ class Image(ps.IngestFile) :
                 self.read_samples()
 
                 if self.file_path is not None and os.path.exists(self.file_path):
-                    capture_file_timestamp = int(os.path.getmtime(self.capture_filename))
-                    store_filename = self.file_path + str(self.channel) + '_' + str(capture_file_timestamp) + '.' + self.file_extension
-                    archive_filename = self.archive_file_path + str(self.channel) + '_' + str(capture_file_timestamp) + '.' + self.file_extension
                     try:
+                        capture_file_timestamp = int(os.path.getmtime(self.capture_filename))
+                        store_filename = self.file_path + str(self.channel) + '_' + str(capture_file_timestamp) + '.' + self.file_extension
+                        archive_filename = self.archive_file_path + str(self.channel) + '_' + str(capture_file_timestamp) + '.' + self.file_extension
                         shutil.copy(self.capture_filename, store_filename)
                         if self.archive_file_path is not None and os.path.exists(self.archive_file_path):
                             pass
@@ -622,10 +624,7 @@ class USBCam(Image):
 
         if str.lower(self.video_capture_method) == 'opencv' :
 
-            import cv2
-
             self.cam = cv2.VideoCapture( int(''.join(filter(str.isdigit, self.video_unit))), cv2.CAP_ANY )  # cv2.CAP_OPENCV_MJPEG
-
             resolutions = [ (320,200), (320,240), (640,480), (720,480), (854,450), (800,480), (768,576), (800,600), (1024,768), (1152,768), (1280,720), (1280,800), (1280,768), (1280,1024), (1366,768), (1440,960), (1400,1050), (1680,1050), (1600,1200), (1920,1080), (1920,1200) ]
             for res in resolutions :
                 self.cam.set(cv2.CAP_PROP_FRAME_WIDTH , res[0])
@@ -634,7 +633,6 @@ class USBCam(Image):
                 height = self.cam.get(cv2.CAP_PROP_FRAME_HEIGHT)
                 if width == res[0] and height == res[1] :
                     rt.logging.debug("width, height: ", width, height)
-
             huge_dim = 10000
             self.cam.set(cv2.CAP_PROP_FRAME_WIDTH , huge_dim)
             self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, huge_dim)
@@ -642,7 +640,6 @@ class USBCam(Image):
             max_height = self.cam.get(cv2.CAP_PROP_FRAME_HEIGHT)
             self.cam.set(cv2.CAP_PROP_FRAME_WIDTH , max_width)
             self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, max_height)
-
             self.cam.set(cv2.CAP_PROP_FPS , self.video_rate)
 
         if str.lower(self.video_capture_method) == 'raspicam' :
@@ -670,22 +667,28 @@ class USBCam(Image):
             time_before = time.time()
 
             if str.lower(self.video_capture_method) == 'opencv' :
-                import cv2
+                rt.logging.debug("self.capture_filename", self.capture_filename, "...")
                 ret, frame = self.cam.read()
-                frame = cv2.resize(frame, tuple(self.video_res), interpolation = cv2.INTER_AREA)
-                cv2.imwrite( self.capture_filename, frame, [cv2.IMWRITE_JPEG_QUALITY, self.video_quality] )
+                if not ret : rt.logging.debug("...read failure!")
+                if ret :
+                    frame = cv2.resize(frame, tuple(self.video_res), interpolation = cv2.INTER_AREA)
+                    cv2.imwrite( self.capture_filename, frame, [cv2.IMWRITE_JPEG_QUALITY, self.video_quality] )
 
             elif str.lower(self.video_capture_method) == 'uvccapture' :
                 os.system('uvccapture -m -x' + str(self.video_res[0]) + ' -y' + str(self.video_res[1]) + ' -q' + str(self.video_quality) + ' -d' + self.video_unit + ' -o' + self.capture_filename)
 
             elif str.lower(self.video_capture_method) == 'ffmpeg' :
-                os.system('ffmpeg -y -f v4l2 -hide_banner -loglevel warning -i ' + self.video_unit + ' -s ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' -vframes 1 ' + self.capture_filename)  # -input_format mjpeg
+                ffmpeg_string = 'ffmpeg -y -f v4l2 -hide_banner -loglevel warning -i ' + self.video_unit + ' -s ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' -vframes 1 ' + self.capture_filename
+                rt.logging.debug("ffmpeg_string", ffmpeg_string)
+                os.system(ffmpeg_string)  # -input_format mjpeg
 
             elif str.lower(self.video_capture_method) == 'raspicam' :
                 self.picam.capture(self.capture_filename, format='jpeg', quality=10)
 
             else : # fswebcam
-                os.system('fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 2 --jpeg ' + str(self.video_quality) + ' --no-banner --save ' + self.capture_filename)
+                fswebcam_string = 'fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 2 --jpeg ' + str(self.video_quality) + ' --no-banner --save ' + self.capture_filename
+                rt.logging.debug("fswebcam_string", fswebcam_string)
+                os.system(fswebcam_string)
                 # --set "Brightness"=127 --set "Contrast"=63 --set "Saturation"=127 --set "Hue"=90 --set "Gamma"=250 --set "White Balance Temperature, Auto"=True
 
             rt.logging.debug("Capture time: ", time.time() - time_before)
