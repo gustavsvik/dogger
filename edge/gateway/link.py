@@ -767,7 +767,7 @@ class SqlFileAtonReport(SqlFile):
             timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
             rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs)
             aivdm_aton_payloads = None
-            if len(values) > 0 :
+            if values not in [None, []] and type(values) is list and len(values) >= 2 :
                 aivdm_aton_payloads = self.ais.aivdm_atons_from_pos(self.mmsi, values[0], values[1], self.aid_type, self.name, self.virtual_aid, self.length_offset, self.width_offset)
             rt.logging.debug('aivdm_aton_payloads', aivdm_aton_payloads)
             nmea_data_array = self.ais.decode_to_channels(char_data = aivdm_aton_payloads, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ' )
@@ -824,13 +824,17 @@ class SqlFileAisData(SqlFile):
             channels, times, values, byte_strings = self.sql.get_stored(from_channels = self.channels, max_age = self.max_age)
             rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings)
             timestamp = None
-            if times not in [None, []] and type(times) is list :
-                timestamp = times[0]
-            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(timestamp = timestamp, sample_rate = self.sample_rate)
-            rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs)
-            nmea_data_array = self.ais.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ' )
-            rt.logging.debug("nmea_data_array", nmea_data_array)
-            rt.logging.debug(" ")
+            try :
+                if times not in [None, []] and type(times) is list :
+                    timestamp = times[0]
+                timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(timestamp = timestamp, sample_rate = self.sample_rate)
+                rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs)
+                nmea_data_array = self.ais.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ' )
+                rt.logging.debug("nmea_data_array", nmea_data_array)
+                rt.logging.debug(" ")
+            except (ValueError, IndexError, TypeError) as e :
+                rt.logging.debug(e)
+
             for nmea_data in nmea_data_array :
                 rt.logging.debug('nmea_data', nmea_data)
                 if nmea_data is not None :
@@ -966,28 +970,31 @@ class SqlHttpUpdateStatic(ap.HttpHost):
 
         while True:
 
-            #try :
             self.sql.connect_db()
             channels, times, values, byte_strings = self.sql.get_stored(from_channels = self.channels, max_age = self.max_age)
             rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings)
             timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
             rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs)
-            nmea_data_array = self.ais.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ')
-            rt.logging.debug('nmea_data_array', nmea_data_array)
 
+            nmea_data_array = []
             aivdm_array = []
             try :
+                nmea_data_array = self.ais.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels, time_tuple = current_timetuple, line_end = ' ')
+                rt.logging.debug('nmea_data_array', nmea_data_array)
+                #aivdm_array = []
+                #try :
                 aivdm_array = nmea_data_array[0]['VDM'][0][1]
-            except IndexError as e :
-                rt.logging.exception(e)
-
-            rt.logging.debug("aivdm_array", aivdm_array)
+                #except IndexError as e :
+                #    rt.logging.exception(e)
+                rt.logging.debug("aivdm_array", aivdm_array)
+            except (ValueError, IndexError, TypeError) as e :
+                rt.logging.debug(e)
 
             for aivdm_dataset in aivdm_array :
 
                 rt.logging.debug("aivdm_dataset", aivdm_dataset)
                 reduced_aivdm_dataset = dict([(k,r) for k,r in aivdm_dataset[3].items() if r is not None])
-                rt.logging.debug("reduced_aivdm_dataset", reduced_aivdm_dataset)
+                #print("reduced_aivdm_dataset", reduced_aivdm_dataset)
 
                 # imo = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "imo"))
                 # ship_name = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "shipname"))
@@ -1002,13 +1009,18 @@ class SqlHttpUpdateStatic(ap.HttpHost):
 
                 host_hardware_id = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "host_hardware_id"))
                 host_text_id = mmsi
-                rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id)
+                #print("host_hardware_id", host_hardware_id, "host_text_id", host_text_id)
 
                 #device_hardware_id = device_text_id = mmsi
 
                 device_hardware_id = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "device_hardware_id"))
-                device_text_id = mmsi
-                rt.logging.debug("device_hardware_id", device_hardware_id, "device_text_id", device_text_id)
+                device_text_id = 'VDM'
+                #device_text_id = mmsi
+                device_address = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "device_address"))
+                if device_hardware_id is not None : device_hardware_id += '-' + device_text_id
+                if device_address is not None : device_hardware_id += '-' + device_address
+
+                #print("device_hardware_id", device_hardware_id, "device_text_id", device_text_id)
 
                 module_hardware_id = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "module_hardware_id"))
                 module_text_id = 'VDM'
@@ -1021,7 +1033,7 @@ class SqlHttpUpdateStatic(ap.HttpHost):
                 module_address = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "module_address"))
                 if module_hardware_id is not None : module_hardware_id += '-' + module_text_id
                 if module_address is not None : module_hardware_id += '-' + module_address
-                rt.logging.debug("module_hardware_id", module_hardware_id)
+                #print("module_hardware_id", module_hardware_id)
 
                 common_address = None
                 if call_sign is not None :
@@ -1033,7 +1045,7 @@ class SqlHttpUpdateStatic(ap.HttpHost):
                 for ip in self.ip_list :
 
                     existing_aivdm_dataset = {}
-
+                    rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id)
                     r_post = self.get_host_data(ip, host_hardware_id = host_hardware_id, host_text_id = host_text_id)
 
                     if r_post is not None :
@@ -1046,6 +1058,8 @@ class SqlHttpUpdateStatic(ap.HttpHost):
                         rt.logging.debug("response_json", response_json)
 
                         existing_description = ut.safe_get(response_json, "common_description")
+                        #print("existing_description", existing_description)
+                        #print(" ")
 
                         if existing_description is not None :
                             try :
@@ -1069,9 +1083,10 @@ class SqlHttpUpdateStatic(ap.HttpHost):
                         common_description += json.dumps(existing_aivdm_dataset)
                         #device_description = common_description
 
-                    rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id, "common_address", common_address, "common_description", common_description)
                     if host_hardware_id is not None and host_hardware_id != "" :
-                        r_post = self.update_static_data(ip, host_hardware_id = host_hardware_id, host_text_id = host_text_id, device_hardware_id = device_hardware_id, device_text_id = device_text_id, module_hardware_id = module_hardware_id, module_text_id = module_text_id, module_address = module_address, common_address = common_address, common_description = common_description)
+                        rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id, "common_address", common_address, "common_description", common_description)
+                        rt.logging.debug(" ")
+                        r_post = self.update_static_data(ip, host_hardware_id = host_hardware_id, host_text_id = host_text_id, device_hardware_id = device_hardware_id, device_text_id = device_text_id, device_address = device_address, module_hardware_id = module_hardware_id, module_text_id = module_text_id, module_address = module_address, common_address = common_address, common_description = common_description)
 
             #except (pymysql.err.OperationalError, pymysql.err.Error) as e :
             #    rt.logging.exception(e)
