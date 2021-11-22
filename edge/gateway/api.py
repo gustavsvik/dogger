@@ -245,13 +245,13 @@ class HttpHost(Http):
                 exit(-1)
 
 
-    def update_static_data(self, ip = '127.0.0.1', host_hardware_id = None, host_text_id = None, device_hardware_id = None, device_text_id = None, module_hardware_id = None, module_text_id = None, module_address = None, channel_text_id = None, common_address = None, common_description = None):
+    def get_device_modules(self, ip = '127.0.0.1', host_hardware_id = None, host_text_id = None):
 
         self.connect_attempts += 1
         if self.connect_attempts > 1:
             rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
         try:
-            raw_data = requests.post(self.http_scheme + "://" + ip + self.host_api_url + "update_static_data.php", timeout = 5, data = {"host_hardware_id": host_hardware_id, "host_text_id": host_text_id, "common_address": common_address, "common_description": common_description, "device_hardware_id": device_hardware_id, "device_text_id": device_text_id, "module_hardware_id": module_hardware_id, "module_text_id": module_text_id, "module_address": module_address, "channel_text_id": channel_text_id})
+            raw_data = requests.post(self.http_scheme + "://" + ip + self.host_api_url + "get_host_data.php", timeout = 5, data = {"host_hardware_id": host_hardware_id, "host_text_id": host_text_id})
             rt.logging.debug("raw_data", raw_data)
             self.connect_attempts = 0
             return raw_data
@@ -260,7 +260,27 @@ class HttpHost(Http):
             rt.logging.exception(e)
             time.sleep(10)
             if self.connect_attempts < self.max_connect_attempts:
-                self.update_static_data(ip, host_hardware_id, host_text_id, device_hardware_id, device_text_id, module_hardware_id, module_text_id, module_address, channel_text_id, common_address, common_description)
+                self.get_device_modules(ip, host_hardware_id, host_text_id)
+            else:
+                exit(-1)
+
+
+    def update_static_data(self, ip = '127.0.0.1', host_hardware_id = None, host_text_id = None, device_hardware_id = None, device_text_id = None, device_address = None, module_hardware_id = None, module_text_id = None, module_address = None, channel_text_id = None, common_address = None, common_description = None):
+
+        self.connect_attempts += 1
+        if self.connect_attempts > 1:
+            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
+        try:
+            raw_data = requests.post(self.http_scheme + "://" + ip + self.host_api_url + "update_static_data.php", timeout = 5, data = {"host_hardware_id": host_hardware_id, "host_text_id": host_text_id, "common_address": common_address, "common_description": common_description, "device_hardware_id": device_hardware_id, "device_text_id": device_text_id, "device_address": device_address, "module_hardware_id": module_hardware_id, "module_text_id": module_text_id, "module_address": module_address, "channel_text_id": channel_text_id})
+            rt.logging.debug("raw_data", raw_data)
+            self.connect_attempts = 0
+            return raw_data
+        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
+
+            rt.logging.exception(e)
+            time.sleep(10)
+            if self.connect_attempts < self.max_connect_attempts:
+                self.update_static_data(ip, host_hardware_id, host_text_id, device_hardware_id, device_text_id, device_address, module_hardware_id, module_text_id, module_address, channel_text_id, common_address, common_description)
             else:
                 exit(-1)
 
