@@ -183,6 +183,7 @@ udp_upload_ais = gateway.link.SqlHttpUpdateStatic(
                      "olc":          { "function":{"name":"get_open_location_code", "args":{"lat", "lon"}} },
                      "host_hardware_id": { "function":{"name":"create_location_key", "args":{"mmsi", "olc"}} },
                      "device_hardware_id": { "function":{"name":"create_key", "args":{"mmsi"}} },
+                     "device_address": { "function":{"name":"get_open_location_code", "args":{"lat", "lon"}} },
                      "module_hardware_id": { "function":{"name":"create_key", "args":{"mmsi"}} },
                      "module_address": { "function":{"name":"get_open_location_code", "args":{"lat", "lon"}} } },
                     {"message": {"type":21},
