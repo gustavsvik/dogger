@@ -7,11 +7,13 @@ import shutil
 import os
 import sys
 import io
+import tempfile
 import ctypes
 import base64
 import socket
 import struct
 import pyscreenshot as ImageGrab
+import pyais
 
 try : import serial
 except ImportError: pass
@@ -28,7 +30,7 @@ import gateway.runtime as rt
 import gateway.link as li
 import gateway.persist as ps
 import gateway.api as ap
-
+import gateway.utils as ut
 
 
 class UdpHttp(ap.UdpReceive) :
@@ -336,6 +338,7 @@ class SerialNmeaFile(SerialFile) :
                 if data_string != '' :
 
                     rt.logging.debug("data_string", data_string)
+                    #self.ais_test_monitor(data_string)
 
                     data_lines = data_string.splitlines()
                     rt.logging.debug("data_lines", data_lines)
@@ -355,6 +358,29 @@ class SerialNmeaFile(SerialFile) :
             self.serial_conn.close()
 
             time.sleep(5)
+
+
+    def ais_test_monitor(self, nmea_stream) :
+
+        nmea_strings = nmea_stream.splitlines()
+        data_string_temp_file = tempfile.NamedTemporaryFile(mode = 'w+', delete = False)
+        for nmea_string in nmea_strings :
+            data_string_temp_file.write(nmea_string + '\n')
+        data_string_temp_file.close()
+        pyais_stream = pyais.stream.FileReaderStream(data_string_temp_file.name)
+        try :
+            for ais_message in pyais_stream :
+                ais_data = {}
+                try :
+                    ais_data = ais_message.decode().content
+                except (ValueError, IndexError, pyais.exceptions.InvalidNMEAMessageException, pyais.exceptions.InvalidChecksumException) as e :
+                    rt.logging.exception(e)
+                if ut.safe_get(ais_data, 'mmsi', '') != '265811800' : #ut.safe_get(ais_data, 'type', 0) == 8 :
+                    rt.logging.debug('ais_message', ais_message)
+                    rt.logging.debug('ais_data', ais_data)
+                    rt.logging.debug(' ')
+        except (TypeError, ValueError, pyais.exceptions.InvalidNMEAMessageException) as e :
+            rt.logging.exception(e)
 
 
 
