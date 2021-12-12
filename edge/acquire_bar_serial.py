@@ -16,5 +16,5 @@ usb_serial = gateway.daqc.SerialNmeaFile(
     delay_waiting_check = 0.01,
     config_filepath = '/home/heta/Z/app/python/dogger/',
     config_filename = 'conf.ini')
-    
+
 usb_serial.run()
