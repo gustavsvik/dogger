@@ -472,7 +472,7 @@ class SqlUdpNmeaLines(SqlUdp) :
 class SqlUdpNmeaPos(SqlUdp) :
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, nmea_prepend = None, nmea_append = None, max_age = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -480,6 +480,8 @@ class SqlUdpNmeaPos(SqlUdp) :
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
         self.port = port
+        self.nmea_prepend = nmea_prepend
+        self.nmea_append = nmea_append
         self.max_age = max_age
 
         self.config_filepath = config_filepath
@@ -487,7 +489,7 @@ class SqlUdpNmeaPos(SqlUdp) :
 
         SqlUdp.__init__(self)
 
-        self.nmea = tr.Nmea()
+        self.nmea = tr.Nmea(prepend = self.nmea_prepend, append = self.nmea_append)
 
 
     def set_requested(self, channels, timestamps, values, strings, ip = '127.0.0.1'):
@@ -495,6 +497,7 @@ class SqlUdpNmeaPos(SqlUdp) :
         try :
             if not ( None in [ timestamps[0], values[0], values[1] ] ) :
                 nmea_string = self.nmea.gll_from_time_pos_float(timestamp = timestamps[0], latitude = values[0], longitude = values[1])
+                rt.logging.debug("nmea_string", nmea_string)
                 self.socket.sendto(nmea_string.encode('utf-8'), (ip, self.port))
 
         except Exception as e:
@@ -994,12 +997,14 @@ class SqlHttpUpdateStatic(ap.HttpHost):
 
                 rt.logging.debug("aivdm_dataset", aivdm_dataset)
                 reduced_aivdm_dataset = dict([(k,r) for k,r in aivdm_dataset[3].items() if r is not None])
-                #print("reduced_aivdm_dataset", reduced_aivdm_dataset)
+                rt.logging.debug("reduced_aivdm_dataset", reduced_aivdm_dataset)
 
                 # imo = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "imo"))
                 # ship_name = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "shipname"))
                 call_sign = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "callsign"))
                 mmsi = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "mmsi"))
+                message_type_string = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "type"))
+
                 # host_hardware_id = imo
                 # if host_hardware_id is None :
                     # if ship_name is not None :
@@ -1009,36 +1014,31 @@ class SqlHttpUpdateStatic(ap.HttpHost):
 
                 host_hardware_id = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "host_hardware_id"))
                 host_text_id = mmsi
-                #print("host_hardware_id", host_hardware_id, "host_text_id", host_text_id)
+                rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id)
 
-                #device_hardware_id = device_text_id = mmsi
-
-                device_hardware_id = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "device_hardware_id"))
+                #device_hardware_id = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "device_hardware_id"))
                 device_text_id = 'VDM'
-                #device_text_id = mmsi
                 device_address = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "device_address"))
-                if device_hardware_id is not None : device_hardware_id += '-' + device_text_id
+                device_hardware_id = mmsi + '-' + device_text_id
                 if device_address is not None : device_hardware_id += '-' + device_address
+                rt.logging.debug("device_hardware_id", device_hardware_id, "device_address", device_address)
 
-                #print("device_hardware_id", device_hardware_id, "device_text_id", device_text_id)
-
-                module_hardware_id = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "module_hardware_id"))
+                #module_hardware_id = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "module_hardware_id"))
                 module_text_id = 'VDM'
-                message_type_string = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "type"))
                 if message_type_string is not None : module_text_id += '-' + message_type_string.zfill(2)
                 format_id_string = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "fid"))
                 if format_id_string is not None : module_text_id += '-' + format_id_string.zfill(2)
                 area_code_string = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "dac"))
                 if area_code_string is not None : module_text_id += '-' + area_code_string.zfill(3)
                 module_address = ut.safe_str(ut.safe_get(reduced_aivdm_dataset, "module_address"))
-                if module_hardware_id is not None : module_hardware_id += '-' + module_text_id
+                module_hardware_id = mmsi + '-' + module_text_id
                 if module_address is not None : module_hardware_id += '-' + module_address
-                #print("module_hardware_id", module_hardware_id)
+                rt.logging.debug("module_hardware_id", module_hardware_id, "module_address", module_address)
 
-                common_address = None
+                host_address = None
                 if call_sign is not None :
-                    common_address = call_sign
-                rt.logging.debug("common_address", common_address)
+                    host_address = call_sign
+                rt.logging.debug("host_address", host_address)
 
                 common_description = ""
 
@@ -1047,6 +1047,7 @@ class SqlHttpUpdateStatic(ap.HttpHost):
                     existing_aivdm_dataset = {}
                     rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id)
                     r_post = self.get_host_data(ip, host_hardware_id = host_hardware_id, host_text_id = host_text_id)
+                    rt.logging.debug("r_post", r_post)
 
                     if r_post is not None :
 
@@ -1058,8 +1059,8 @@ class SqlHttpUpdateStatic(ap.HttpHost):
                         rt.logging.debug("response_json", response_json)
 
                         existing_description = ut.safe_get(response_json, "common_description")
-                        #print("existing_description", existing_description)
-                        #print(" ")
+                        rt.logging.debug("existing_description", existing_description)
+                        rt.logging.debug(" ")
 
                         if existing_description is not None :
                             try :
@@ -1067,14 +1068,15 @@ class SqlHttpUpdateStatic(ap.HttpHost):
                             except json.decoder.JSONDecodeError as e :
                                 rt.logging.exception(e)
 
-                        existing_address = ut.safe_get(response_json, "common_address")
-                        if common_address is None and existing_address is not None :
-                            common_address = existing_address
+                        existing_address = ut.safe_get(response_json, "host_address")
+                        if host_address is None and existing_address is not None :
+                            host_address = existing_address
                         #device_address = common_address
 
                         existing_host_id = ut.safe_get(response_json, "host_hardware_id")
                         if host_hardware_id is None :
                             host_hardware_id = existing_host_id
+                        rt.logging.debug("host_hardware_id", host_hardware_id)
 
                         reduced_aivdm_dataset |= {"host_hardware_id": host_hardware_id}
                         existing_aivdm_dataset |= reduced_aivdm_dataset
@@ -1083,10 +1085,11 @@ class SqlHttpUpdateStatic(ap.HttpHost):
                         common_description += json.dumps(existing_aivdm_dataset)
                         #device_description = common_description
 
+                    rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id, "host_address", host_address, "common_description", common_description)
                     if host_hardware_id is not None and host_hardware_id != "" :
-                        rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id, "common_address", common_address, "common_description", common_description)
+                        rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id, "host_address", host_address, "common_description", common_description)
                         rt.logging.debug(" ")
-                        r_post = self.update_static_data(ip, host_hardware_id = host_hardware_id, host_text_id = host_text_id, device_hardware_id = device_hardware_id, device_text_id = device_text_id, device_address = device_address, module_hardware_id = module_hardware_id, module_text_id = module_text_id, module_address = module_address, common_address = common_address, common_description = common_description)
+                        r_post = self.update_static_data(ip, host_hardware_id = host_hardware_id, host_text_id = host_text_id, device_hardware_id = device_hardware_id, device_text_id = device_text_id, device_address = device_address, module_hardware_id = module_hardware_id, module_text_id = module_text_id, module_address = module_address, host_address = host_address, common_description = common_description)
 
             #except (pymysql.err.OperationalError, pymysql.err.Error) as e :
             #    rt.logging.exception(e)
