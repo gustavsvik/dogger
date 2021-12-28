@@ -2,7 +2,6 @@
 
 import time
 import datetime
-import numpy
 import shutil
 import os
 import sys
@@ -12,9 +11,13 @@ import ctypes
 import base64
 import socket
 import struct
-import pyscreenshot as ImageGrab
-import pyais
 
+try : import pyscreenshot as ImageGrab
+except ImportError: pass
+try : import numpy
+except ImportError: pass
+try : import pyais
+except ImportError: pass
 try : import serial
 except ImportError: pass
 try : import serial.tools.list_ports
@@ -225,12 +228,13 @@ class SerialFile(ps.IngestFile, ps.LoadFile) :
         self.serial_conn = None
 
         try :
-            self.serial_conn = serial.Serial(port = self.port, baudrate = self.baudrate, timeout = self.timeout, parity = serial.PARITY_EVEN, stopbits = serial.STOPBITS_ONE, bytesize = serial.SEVENBITS) #, write_timeout=1, , , , xonxoff=False, rtscts=False, dsrdtr=False)
+            self.serial_conn = serial.Serial(port = self.port, baudrate = self.baudrate, timeout = self.timeout, parity = self.parity, stopbits = self.stopbits, bytesize = self.bytesize) #parity = serial.PARITY_EVEN, stopbits = serial.STOPBITS_ONE, bytesize = serial.SEVENBITS, write_timeout=1, , , , xonxoff=False, rtscts=False, dsrdtr=False)
             time.sleep(0.1)
             if (self.serial_conn.isOpen()):
                 rt.logging.debug("connected to : " + self.serial_conn.portstr)
         except serial.serialutil.SerialException as e:
             rt.logging.exception(e)
+        rt.logging.debug("self.serial_conn", self.serial_conn)
 
 
     def load_file(self, current_file = None):
@@ -539,6 +543,7 @@ class HttpAishubAivdmFile(HttpFile) :
 
             result = self.get_external()
             data_lines = result.text
+            rt.logging.debug("data_lines", data_lines)
             first_line_break_index = data_lines.find('\n')
             data_lines_list_no_header = []
             if first_line_break_index > 0 :
