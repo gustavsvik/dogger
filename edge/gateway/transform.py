@@ -543,6 +543,7 @@ class Nmea(TextNumeric) :
 
     def gga_to_time_pos(self, nmea_string, current_timetuple) :
 
+        rt.logging.debug("nmea_string", nmea_string)
         nmea_fields = nmea_string.split(',')
         rt.logging.debug("nmea_fields", nmea_fields)
 
@@ -557,10 +558,13 @@ class Nmea(TextNumeric) :
         latitude = None
         longitude = None
 
-        if len(nmea_fields) > 5 :
-            if int(float(nmea_fields[1])) >= 0 and int(float(nmea_fields[1])) <= 235959 :
-                hour, minute, second, microsec = self.time_to_time_members(nmea_fields[1])
-            latitude, longitude = self.pos_to_float(nmea_fields[2], nmea_fields[3], nmea_fields[4], nmea_fields[5])
+        try :
+            if len(nmea_fields) > 5 :
+                if int(float(nmea_fields[1])) >= 0 and int(float(nmea_fields[1])) <= 235959 :
+                    hour, minute, second, microsec = self.time_to_time_members(nmea_fields[1])
+                latitude, longitude = self.pos_to_float(nmea_fields[2], nmea_fields[3], nmea_fields[4], nmea_fields[5])
+        except ValueError as e :
+            rt.logging.exception(e)
 
         available_datetime = datetime.datetime(year, month, monthday, hour, minute, second, microsec)
         timestamp_secs = int(available_datetime.timestamp())
@@ -597,8 +601,8 @@ class Ais(Nmea) :
 
                 try :
                     selected_line = selected_line.decode()
-                except (UnicodeDecodeError, AttributeError) :
-                    pass
+                except (UnicodeDecodeError, AttributeError) as e :
+                    rt.logging.exception(e)
                 rt.logging.debug("selected_line", selected_line)
                 rt.logging.debug("channel_data.items()", channel_data.items())
                 for selected_tag, channels in channel_data.items() :
@@ -613,7 +617,7 @@ class Ais(Nmea) :
                         try :
                             current_string_value = string_dict[selected_tag]
                         except KeyError as e :
-                            pass
+                            rt.logging.exception(e)
                         string_dict[selected_tag] = current_string_value + selected_line
                         if line_end is not None :
                             string_dict[selected_tag] += line_end
@@ -631,7 +635,7 @@ class Ais(Nmea) :
             try :
                 dict_string = string_dict[selected_tag] #+ '\r\n'
             except KeyError as e :
-                pass
+                rt.logging.exception(e)
             rt.logging.debug("dict_string", dict_string)
 
             if line_end is not None :
@@ -803,7 +807,9 @@ class Ais(Nmea) :
                 #aivdm_payload = json.dumps(csv_dict)
                 #rt.logging.debug("aivdm_payload", aivdm_payload)
 
-                mmsi = int(ut.safe_get(csv_dict, "mmsi", 0))
+                mmsi_string = str(ut.safe_get(csv_dict, "mmsi", 0))
+
+                mmsi = int(mmsi_string)
                 imo = int(ut.safe_get(csv_dict, "imo", 0))
                 callsign = ut.safe_get(csv_dict, "callsign", 0)
                 shipname = ut.safe_get(csv_dict, "shipname", 0)
@@ -819,6 +825,11 @@ class Ais(Nmea) :
                 course = int(ut.safe_get(csv_dict, "course", 0))
                 speed = int(ut.safe_get(csv_dict, "speed", 0))
                 status = int( ut.safe_get(csv_dict, "status", 0))
+
+                # AFAICT the AISHUB dataset offers no particular distinction of SAR aircraft. As long as there is no implementation of message 9 (for
+                # which the speed unit has to be whole knots rather than deciknots, for lack of better, the leading 3 characters of the MMSI of an SAR
+                # aircraft are assumed to always be '111' (which it indeed should according to the applicable ITU standard).
+                if mmsi_string[:3] == '111' : sog *= 10
 
                 aivdm_message = ai.AISStaticAndVoyageReportMessage(mmsi = mmsi, imo = imo, callsign = callsign, shipname = shipname, shiptype = shiptype, to_bow = to_bow, to_stern = to_stern, to_port = to_port, to_starboard = to_starboard, draught = draught, destination = destination, month = month, day = day, hour = hour, minute = minute)
                 aivdm_instance = ai.AIS(aivdm_message)
@@ -1106,8 +1117,10 @@ class Ais(Nmea) :
 
                 if values_arg is None or ( values_arg is not None and return_val in values_arg ) :
                     rt.logging.debug("structure_tag", structure_tag, "return_val", return_val)
+                    rt.logging.debug(" ")
                     return_dict[structure_tag] = return_val
 
+        rt.logging.debug("return_dict", return_dict)
         return return_dict
 
 
