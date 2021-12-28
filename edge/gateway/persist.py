@@ -174,7 +174,7 @@ class LoadFile(ProcessFile):
 
 
     def get_filenames(self, channel = None):
-    
+
         files = get_all_files(path = self.file_path, extensions = self.file_extensions, channel = channel)
 
         return files
@@ -216,7 +216,7 @@ class IngestFile(AcquireControlFile) :
         rt.logging.debug("selected_channel_array", selected_channel_array)
 
         for channel, file_type in selected_channel_array[0].items() :
-            rt.logging.debug("channel, file_type", channel, file_type) 
+            rt.logging.debug("channel, file_type", channel, file_type)
             rt.logging.debug("selected_channel_array[0][channel]", selected_channel_array[0][channel])
             rt.logging.debug("self.file_path", self.file_path)
             if self.file_path is not None and os.path.exists(self.file_path) and channel > 0 :
@@ -226,7 +226,7 @@ class IngestFile(AcquireControlFile) :
 
                 if timestamp_microsecs is None : timestamp_microsecs = 0
 
-                capture_file_timestamp = timestamp_secs 
+                capture_file_timestamp = timestamp_secs
                 store_filename = self.file_path + str(channel) + '_' + str(capture_file_timestamp) + '.' + file_type
                 rt.logging.debug("store_filename", store_filename)
                 try :
@@ -262,7 +262,7 @@ class IngestFile(AcquireControlFile) :
                         except PermissionError as e:
                             rt.logging.exception(e)
 
-                except KeyError as e : 
+                except KeyError as e :
 
                     rt.logging.exception(e)
 
@@ -333,7 +333,7 @@ class SQL:
 
             sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_TEXT,AD.ACQUIRED_BYTES FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + str(channel)
 
-            sql_status_order_clause = "AND AD.STATUS>=0 ORDER BY AD.ACQUIRED_TIME DESC" 
+            sql_status_order_clause = "AND AD.STATUS>=0 ORDER BY AD.ACQUIRED_TIME DESC"
 
             if max_age is not None :
                 current_timestamp = int(time.time())
@@ -378,7 +378,7 @@ class SQL:
 
         return_string = None
 
-        if not ( None in [channel_list, timestamp_list] ) and not ( 0 in [len(channel_list), len(timestamp_list)] ) : 
+        if not ( None in [channel_list, timestamp_list] ) and not ( 0 in [len(channel_list), len(timestamp_list)] ) :
 
             try:
 
@@ -388,7 +388,7 @@ class SQL:
 
                 for channel_index in range(len(channel_list)):
 
-                    requested_timestamps = [int(ts_string) for ts_string in timestamp_list[channel_index][:-1]] 
+                    requested_timestamps = [int(ts_string) for ts_string in timestamp_list[channel_index][:-1]]
                     channel_string = channel_list[channel_index][0]
 
                     if not requested_timestamps :
@@ -429,7 +429,7 @@ class SQL:
             finally:
 
                 self.close_db_connection()
-                
+
         return return_string
 
 
@@ -469,7 +469,7 @@ class SQL:
 
 
     def store_new_acquired_list(self, channel_list, times_list, values_list, byte_string_list):
-    
+
         no_of_inserted_rows = 0
 
         try:
@@ -486,7 +486,7 @@ class SQL:
                         try:
                             cursor.execute(check_present_sql)
                             rows_already_present = cursor.fetchall()
-                        except pymysql.err.Error as e : #(pymysql.err.IntegrityError, pymysql.err.InternalError, pymysql.err.OperationalError, pymysql.err.ProgrammingError) 
+                        except pymysql.err.Error as e : #(pymysql.err.IntegrityError, pymysql.err.InternalError, pymysql.err.OperationalError, pymysql.err.ProgrammingError)
                             rt.logging.exception(e)
                         rt.logging.debug(rows_already_present)
                         if len(rows_already_present) == 0 :
@@ -562,10 +562,10 @@ class Accumulate(ta.ProcessDataTask) :
             if current_timestamp - self.previous_timestamp > 60 :
                 current_timestamp = self.previous_timestamp + 60
                 current_minute = self.previous_minute + 1
-            
+
             if current_second == 0 and current_minute != self.previous_minute :
 
-                for channel_index in self.channels: 
+                for channel_index in self.channels:
 
                     accumulated_min_samples = 0
                     accumulated_min_value = 0.0
@@ -573,7 +573,7 @@ class Accumulate(ta.ProcessDataTask) :
                     accumulated_hour_value = 0.0
                     accumulated_text = ''
                     accumulated_bytes = b''
-                    
+
                     try :
 
                         self.sql.connect_db()
@@ -625,7 +625,7 @@ class Accumulate(ta.ProcessDataTask) :
                             accumulated_hour_mean = 0.0
                             if accumulated_hour_samples > 0 :
                                 accumulated_hour_mean = accumulated_hour_value / accumulated_hour_samples
-                                
+
                             sql_insert_accumulated_3600 = "INSERT INTO t_accumulated_data (CHANNEL_INDEX,ACCUMULATED_BIN_END_TIME,ACCUMULATED_BIN_SIZE,ACCUMULATED_NO_OF_SAMPLES,ACCUMULATED_VALUE,ACCUMULATED_TEXT,ACCUMULATED_BYTES) VALUES (%s,%s,%s,%s,%s,%s,%s)"
                             with self.sql.conn.cursor() as cursor :
                                 try:
@@ -637,9 +637,9 @@ class Accumulate(ta.ProcessDataTask) :
                             accumulated_hour_value = 0.0
 
                     finally:
-                    
+
                         self.sql.close_db_connection()
 
-                        
+
                 self.previous_minute = current_minute
                 self.previous_timestamp = current_timestamp
