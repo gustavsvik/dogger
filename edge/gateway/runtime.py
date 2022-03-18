@@ -15,8 +15,8 @@ class LogRecord(logging.LogRecord) :
                 msg = msg.format(*self.args)
         return msg
 
-        
-        
+
+
 class Logger(logging.Logger) :
     def makeRecord(self, name, level, fn, lno, msg, args, exc_info, func=None, extra=None) :
         rv = LogRecord(name, level, fn, lno, msg, args, exc_info, func)
