@@ -28,7 +28,7 @@ def get_all_files(path, extensions, channel) :
     return files
 
 
-def delete_multiple(files) :
+def delete_files(files) :
 
     for current_file in files:
         try :
@@ -94,6 +94,19 @@ def get_file_channel(current_file = None) :
     return channel
 
 
+def load_file(file = None) :
+
+    try :
+        text_file = open(file, "r")
+        file_data = text_file.read()
+    except OSError as e :
+        rt.logging.exception(e)
+
+    rt.logging.debug("file_data", file_data)
+
+    return file_data
+
+
 def load_text_json_file(current_file = None):
 
     acquired_microsecs = 9999
@@ -119,7 +132,17 @@ def load_text_json_file(current_file = None):
     return acquired_microsecs, acquired_value, acquired_text, acquired_bytes
 
 
-def load_text_string_file(current_file = None):
+def load_text_file_lines(file = None) :
+
+    file_data = load_file(file)
+    data_lines = file_data.splitlines()
+
+    rt.logging.debug("data_lines", data_lines)
+
+    return data_lines
+
+
+def load_text_string_file(current_file = None) :
 
     acquired_microsecs = 9999
     acquired_value = -9999.0
