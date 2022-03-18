@@ -1,7 +1,6 @@
 #
 
 import time
-import datetime
 import shutil
 import os
 import sys
@@ -26,6 +25,8 @@ try : from cryptography.fernet import Fernet
 except ImportError: pass
 try : import cv2
 except ImportError: pass
+try : from netCDF4 import Dataset as NetCDFFile
+except ImportError: pass
 
 import gateway.transform as tr
 import gateway.device as dv
@@ -36,6 +37,7 @@ import gateway.api as ap
 import gateway.utils as ut
 
 
+
 class UdpHttp(ap.UdpReceive) :
 
 
@@ -44,15 +46,22 @@ class UdpHttp(ap.UdpReceive) :
         ap.UdpReceive.__init__(self)
 
 
-    def upload_data(self, channel, sample_secs, data_value, byte_string) :
+    def upload_data(self, channels = set(), timestamps = None, values = None, byte_strings = None) :
 
-        if self.channels is not None and ( self.channels == set() or channel in self.channels ) :
+        if self.channels is not None :
+
+            common_channels = set()
+            if self.channels == set() :
+                common_channels = channels
+            else :
+                common_channels = channels.intersection(self.channels)
 
             try :
-                http = li.DirectUpload(channels = [channel], start_delay = self.start_delay, max_connect_attempts = self.max_connect_attempts, http_scheme = self.http_scheme, config_filepath = self.config_filepath, config_filename = self.config_filename)
+                http = li.DirectUpload(channels = common_channels, start_delay = self.start_delay, max_connect_attempts = self.max_connect_attempts, http_scheme = self.http_scheme, config_filepath = self.config_filepath, config_filename = self.config_filename)
                 for current_ip in self.ip_list :
                     res = http.send_request(start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
-                    data_string = str(channel) + ';' + str(sample_secs) + ',' + str(data_value) + ',,' + byte_string.decode() + ',;'
+                    data_string = tr.delimited_string_from_lists(common_channels, timestamps, values, byte_strings)
+                    #data_string = str(channel) + ';' + str(sample_secs) + ',' + str(data_value) + ',,' + byte_string.decode() + ',;'
                     rt.logging.debug("data_string", data_string, "current_ip", current_ip)
                     res = http.set_requested(data_string, ip = current_ip)
             except PermissionError as e :
@@ -88,9 +97,24 @@ class UdpValueHttp(UdpHttp) :
             #time.sleep(1/self.transmit_rate)
             data, address = self.socket.recvfrom(4096)
             rt.logging.debug("data", data, "len(data)", len(data))
-            values = struct.unpack('>HIf', data)
-            rt.logging.debug("values", values)
-            self.upload_data(int(values[0]), int(values[1]), float(values[2]), b'')
+
+            no_of_data_records = len(data) // 10
+
+            channels = []
+            timestamps = []
+            values = []
+            byte_strings = []
+
+            for index in range(no_of_data_records) :
+                single_data_record = data[index * 10 : (index+1) * 10]
+                unpacked_record = struct.unpack('>HIf', single_data_record)
+                rt.logging.debug("unpacked_record", unpacked_record)
+                channels.append(int(unpacked_record[0]))
+                timestamps.append(int(unpacked_record[1]))
+                values.append(float(unpacked_record[2]))
+                byte_strings.append(b'')
+
+            self.upload_data(channels, timestamps, values, byte_strings)
 
 
 
@@ -160,23 +184,24 @@ class StaticFileNmeaFile(ps.IngestFile) :
         if self.nmea_prepend is None : self.nmea_prepend = ''
         if self.nmea_append is None : self.nmea_append = ''
 
-        self.nmea = tr.Nmea(prepend = self.nmea_prepend, append = self.nmea_append)
+        self.nmea = tr.NmeaSentence(prepend = self.nmea_prepend, append = self.nmea_append)
 
 
     def run(self) :
 
-        data_lines = []
+        while True :
 
-        while not data_lines :
-            try :
-                text_file = open(self.static_file_path_name, "r")
-                data_lines = text_file.read().splitlines()
-            except OSError as e :
-                rt.logging.exception(e)
-            rt.logging.debug("data_lines", data_lines)
-            time.sleep(1.0)
+            data_lines = []
 
-        while True:
+            while not data_lines :
+                #try :
+                #    text_file = open(self.static_file_path_name, "r")
+                #    data_lines = text_file.read().splitlines()
+                #except OSError as e :
+                #    rt.logging.exception(e)
+                #rt.logging.debug("data_lines", data_lines)
+                data_lines = ps.load_text_file_lines(self.static_file_path_name)
+                time.sleep(1.0)
 
             char_data_lines = data_lines
             if self.concatenate is not None and self.concatenate :
@@ -203,10 +228,106 @@ class StaticFileNmeaFile(ps.IngestFile) :
 
 
 
-class SerialFile(ps.IngestFile, ps.LoadFile) :
+class CmemsFile(ap.NativeCmems, ps.IngestFile) :
 
 
     def __init__(self):
+
+        ap.NativeCmems.__init__(self)
+        ps.IngestFile.__init__(self)
+
+
+
+class NativeCmemsNumpyFile(CmemsFile) :
+
+
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, product_id = None, service_id = None, service_user = None, service_pwd = None, out_file_name = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+        self.product_id = product_id
+        self.service_id = service_id
+        self.service_user = service_user
+        self.service_pwd = service_pwd
+        self.out_file_name = out_file_name
+        self.file_path = file_path
+        self.archive_file_path = archive_file_path
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        CmemsFile.__init__(self)
+
+        self.netcdf = tr.NetCdf()
+
+
+    def run(self) :
+
+        while True :
+
+            self.send_request()
+
+            complete_file_name = self.file_path + self.out_file_name
+            netcdf_data = None
+            while not netcdf_data :
+                netcdf_data = NetCDFFile(complete_file_name)
+                time.sleep(1.0)
+            if netcdf_data :
+                ps.delete_files([complete_file_name])
+            rt.logging.debug("netcdf_data", netcdf_data)
+
+            time_object = netcdf_data.variables["time"] #numpy.array(
+            timestamps = time_object[:].data
+            rt.logging.debug("timestamps", timestamps)
+            latitude_object = netcdf_data.variables["lat"]
+            latitudes = latitude_object[:].data
+            rt.logging.debug("latitudes", latitudes)
+            longitude_object = netcdf_data.variables["lon"]
+            longitudes = longitude_object[:].data
+            rt.logging.debug("longitudes", longitudes)
+            all_values_time_lat_lon_object = netcdf_data.variables["VHM0"] #numpy.array(
+            all_values_time_lat_lon = all_values_time_lat_lon_object[:,:,:].data
+            rt.logging.debug("all_values_time_lat_lon", all_values_time_lat_lon)
+            all_times_lats_lons_values_flat = []
+            for timestamp, time_values in zip(timestamps, all_values_time_lat_lon) :
+                new_times_lats_lons_values_flat = numpy.concatenate( ( [int(timestamp)], [len(latitudes)], [latitudes], [len(longitudes)], [longitudes], time_values ), axis = None )
+                rt.logging.debug("new_times_lats_lons_values_flat", new_times_lats_lons_values_flat)
+                all_times_lats_lons_values_flat = numpy.concatenate( ( all_times_lats_lons_values_flat, new_times_lats_lons_values_flat ) )
+            rt.logging.debug("all_times_lats_lons_values_flat", all_times_lats_lons_values_flat, "len(all_times_lats_lons_values_flat)", len(all_times_lats_lons_values_flat))
+
+            channel_indices, = self.channels['NETCDF'].items()
+            data_array = [ { channel_indices[0] : all_times_lats_lons_values_flat } ]
+            rt.logging.debug("data_array", data_array)
+            #packed = msgpack_numpy.packb(unpacked, default = msgpack_numpy.encode)
+            #print("packed", packed, len(packed), "len(packed)")
+            #packed_ascii = base64.b64encode(packed)
+            #print("packed_ascii", packed_ascii, len(packed_ascii), "len(packed_ascii)")
+            #packed = base64.b64decode(packed_ascii)
+            #unpacked = msgpack_numpy.unpackb(packed, object_hook = msgpack_numpy.decode) #strict_map_key=False)
+            #values = unpacked[3]
+            #print("unpacked[3]", unpacked[3], "len(unpacked[3])", len(unpacked[3]) )
+            json_string = '['
+            for timestamp, time_values in zip(timestamps[0:1], all_values_time_lat_lon[0:1]) :
+                for lat, lon_values in zip(latitudes, time_values) :
+                    for lon, value in zip(longitudes, lon_values) :
+                        print("lat", lat, "lon", lon, "value", value)
+                        json_string += '[null, null, "0", {"type": 1, "mmsi": "' + str('{0:.3g}'.format(value)) + '", "lat":' + str('{0:.7g}'.format(lat)) + ', "lon":' + str('{0:.7g}'.format(lon)) + '}], '
+            json_string = json_string[:-2] + ']'
+            print("json_string", json_string)
+            data_array = [ { channel_indices[0] : json_string } ]
+
+            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+            self.write(data_array = data_array, selected_tag = 'NETCDF', timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
+
+            time.sleep(1/self.sample_rate)
+
+
+
+class SerialFile(ps.IngestFile, ps.LoadFile) :
+
+
+    def __init__(self) :
 
         ps.LoadFile.__init__(self)
         ps.IngestFile.__init__(self) # IngestFile base class inherits from base class of LoadFile. Deadly Diamond of Death should not be a problem.
@@ -269,7 +390,7 @@ class SerialNmeaFile(SerialFile) :
 
         SerialFile.__init__(self)
 
-        self.nmea = tr.Nmea(prepend = '', append = '')
+        self.nmea = tr.NmeaSentence(prepend = '', append = '')
 
 
     def get_filenames(self, channel_data = None, file_path = None) :
@@ -417,7 +538,7 @@ class NmeaUdpFile(UdpFile):
 
         UdpFile.__init__(self)
 
-        self.nmea = tr.Nmea(prepend = '', append = '')
+        self.nmea = tr.NmeaSentence(prepend = '', append = '')
 
 
     def run(self):
@@ -470,7 +591,7 @@ class RawUdpFile(UdpFile):
 
         UdpFile.__init__(self)
 
-        self.nmea = tr.Nmea()
+        self.nmea = tr.NmeaSentence()
 
 
     def run(self):
@@ -553,19 +674,37 @@ class HttpAishubAivdmFile(HttpFile) :
             for char_data in data_lines_list_no_header :
 
                 rt.logging.debug("char_data", char_data)
-                tagged_char_data = ['AISHUB\n' + char_data]
-                rt.logging.debug("tagged_char_data", tagged_char_data)
+                char_data_lines = char_data.splitlines()[1:]
+                rt.logging.debug("char_data_lines", char_data_lines)
+                key_list = key_list = ['mmsi', 'timestamp']
+                timestamps = [ tr.dict_from_csv(key_list, char_data_line, ',')['timestamp'] for char_data_line in char_data_lines ]
+                rt.logging.debug("timestamps", timestamps)
+                unique_timestamps = list(set(timestamps))
+                rt.logging.debug("unique_timestamps", unique_timestamps)
+                unique_timestamps_dict = tr.dict_from_lists(unique_timestamps, [ ['AISHUB\n'] for _ in unique_timestamps ])
+                rt.logging.debug("unique_timestamps_dict", unique_timestamps_dict)
+                for timestamp_secs, char_data_line in zip(timestamps, char_data_lines) :
+                    unique_timestamps_dict[timestamp_secs][0] += char_data_line + '\n'
+                    #print(timestamp, ut.safe_index(timestamps, timestamp))
+                rt.logging.debug("unique_timestamps_dict", unique_timestamps_dict)
 
-                ais_data_array = self.ais.decode_to_channels(char_data = tagged_char_data, channel_data = self.channels)
+                #tagged_char_data = ['AISHUB\n' + char_data]
+                #print("tagged_char_data", tagged_char_data)
 
-                rt.logging.debug("ais_data_array", ais_data_array)
-                timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
-                for ais_data in ais_data_array :
-                    rt.logging.debug('ais_data', ais_data)
-                    if ais_data is not None :
-                        (selected_tag, data_array), = ais_data.items()
-                        rt.logging.debug("selected_tag", selected_tag, "data_array", data_array)
-                        self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
+                for (timestamp_secs, timestamped_char_data) in unique_timestamps_dict.items() :
+
+                    rt.logging.debug("timestamped_char_data", timestamped_char_data)
+
+                    ais_data_array = self.ais.decode_to_channels(char_data = timestamped_char_data, channel_data = self.channels)
+
+                    rt.logging.debug("ais_data_array", ais_data_array)
+                    #timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+                    for ais_data in ais_data_array :
+                        rt.logging.debug('ais_data', ais_data)
+                        if ais_data is not None :
+                            (selected_tag, data_array), = ais_data.items()
+                            rt.logging.debug("selected_tag", selected_tag, "data_array", data_array)
+                            self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = int(timestamp_secs)) #, timestamp_microsecs = timestamp_microsecs)
 
 #                time.sleep(1/self.sample_rate)
 #            data_array =  [ { channel: result_text} ]
