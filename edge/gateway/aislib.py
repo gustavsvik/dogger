@@ -457,33 +457,20 @@ class AISStaticDataReportBMessage(AISMessage):
 
 
 
-class AISBinaryBroadcastMessageAreaNoticeCircle(AISMessage):
+class AISBinaryBroadcastMessage(AISMessage):
 
 
-    def __init__(self, id = 8, repeat = 0, mmsi = 0, linkage = 0, notice = 34, month = 12, day = 1, hour = 0, minute = 0, duration = 43200, scale_1 = 0, lon_1 = 181000, lat_1 = 91000, precision_1 = 4, radius_1 = 0):
+    def __init__(self, id = 8, repeat = 0, mmsi = 0, binary_data = 0):
 
-        super(AISBinaryBroadcastMessageAreaNoticeCircle, self).__init__({
+        super(AISBinaryBroadcastMessage, self).__init__({
                     # message_element : ["data_type", num_bits, initial_value]
                     'id'              : ["uint", 6, id],
                     'repeat'          : ["uint", 2, repeat],
                     'mmsi'            : ["uint", 30, mmsi],
                     'spare'           : ["uint", 2, 0],
                     'dac'             : ["uint", 10, 1],
-                    'fid'             : ["uint", 6, 22],
-                    'linkage'         : ["uint", 10, linkage],
-                    'notice'          : ["uint", 7, notice],
-                    'month'           : ["uint", 4, month],
-                    'day'             : ["uint", 5, day],
-                    'hour'            : ["uint", 5, hour],
-                    'minute'          : ["uint", 6, minute],
-                    'duration'        : ["uint", 18, duration],
-                    'subarea_type_1'  : ["uint", 3, 0],
-                    'scale_1'         : ["uint", 2, scale_1],
-                    'lon_1'           : ["int", 25, lon_1],
-                    'lat_1'           : ["int", 24, lat_1],
-                    'precision_1'     : ["uint", 3, precision_1],
-                    'radius_1'        : ["uint", 12, radius_1],
-                    'spare_1'         : ["uint", 10, 0]
+                    'fid'             : ["uint", 6, 31],
+                    'binary_data'     : ["int", 294, binary_data]
                 })
 
 
@@ -763,7 +750,7 @@ class AIS(object):
         elif msgId == '000101':
              aismsg = AISStaticAndVoyageReportMessage()
         elif msgId == '001000':
-             aismsg = AISBinaryBroadcastMessageAreaNoticeCircle()
+             aismsg = AISBinaryBroadcastMessage()
         elif msgId == '010101':
              aismsg = AISAtonReport()
 
