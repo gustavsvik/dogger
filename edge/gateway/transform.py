@@ -57,17 +57,25 @@ def dict_from_lists(keys_list, values_list) :
     return data_dict
 
 
+#def string_from_lines(data_lines, values_list) :
+#
+#    first_line_break_index = data_lines.find('\n')
+#    data_lines_list_no_header = []
+#            if first_line_break_index > 0 :
+#                data_lines_list_no_header.append( data_lines[first_line_break_index + 1 : ] )
+#            print("data_lines_list_no_header", data_lines_list_no_header)
+
+
 def get_channel_range_string(channels) :
 
-    return ';'.join([str(ch) for ch in channels]) + ';'
+    channel_list = ut.safe_list(channels)
+    return ';'.join([str(ch) for ch in channel_list]) + ';'
 
 
 def parse_delimited_string(data_string) :
 
     channel_data = [channel_string.split(',') for channel_string in data_string.split(';')]
-    #print('channel_data[0::2][:-1]', channel_data[0::2][:-1])
     channel_list = channel_data[0::2][:-1]
-    #print('channel_data[1::2]', channel_data[1::2])
     data_list = channel_data[1::2]
     rt.logging.debug("data_list", data_list)
     timestamp_list = [data[0::4][:-1] for data in data_list]
@@ -75,6 +83,16 @@ def parse_delimited_string(data_string) :
     byte_string_list = [data[3::4] for data in data_list]
     rt.logging.debug("byte_string_list", byte_string_list)
     return channel_list, timestamp_list, values_list, byte_string_list
+
+
+def delimited_string_from_lists(channels, timestamps, values, byte_strings) :
+
+    rt.logging.debug("channels", channels, "timestamps", timestamps, "values", values, "byte_strings", byte_strings)
+    data_string = ""
+    for channel, timestamp, value, byte_string in zip(ut.safe_list(channels), ut.safe_list(timestamps), ut.safe_list(values), ut.safe_list(byte_strings) ) :
+        data_string += str(channel) + ';' + str(timestamp) + ',' + str(value) + ',,' + byte_string.decode() + ',;'
+
+    return data_string
 
 
 def parse_channel_timestamp_string(data_string) :
@@ -167,22 +185,28 @@ def twos_comp(val, bits):
     return val                         # return positive value as is
 
 
+def get_open_location_code(lat = None, lon = None, length = None) :
+
+    olc = None
+    if not None in [lat, lon] and number_convertible(lat) and number_convertible(lon) :
+        olc = openlocationcode.openlocationcode.encode(latitude = float(lat), longitude = float(lon), codeLength = 11)
+
+    olc_trimmed = olc
+    if olc is not None :
+        if length is None :
+            length = len(olc)
+        olc_trimmed = olc[0:length]
+    rt.logging.debug("olc_trimmed", olc_trimmed)
+    return olc_trimmed
+
+
 
 class Callbacks :
 
 
     def get_open_location_code(lat = None, lon = None) :
 
-        length = 7
-
-        olc = None
-        if not None in [lat, lon] and number_convertible(lat) and number_convertible(lon) :
-            olc = openlocationcode.openlocationcode.encode(latitude = float(lat), longitude = float(lon), codeLength = 11)
-
-        if length is None and olc is not None :
-            length = len(olc)
-
-        return olc[0:length]
+        return get_open_location_code(lat = lat, lon = lon, length = 7)
 
 
     def create_key(mmsi = None, part_2 = None, part_3 = None) :
@@ -262,8 +286,44 @@ class TextNumeric :
 
     def __init__(self) :
 
-        if self.prepend is None : self.prepend = ''
-        if self.append is None : self.append = ''
+        pass
+        #self.prepend = prepend
+        #self.append = append
+        #if self.prepend is None : self.prepend = ''
+        #if self.append is None : self.append = ''
+
+
+    def get_tagged_string_data(self, char_data = None, channel_data = None, line_end = None) :
+
+        string_dict = {}
+
+        for selected_line in char_data :
+
+            try :
+                selected_line = selected_line.decode()
+            except (UnicodeDecodeError, AttributeError) as e :
+                rt.logging.exception(e)
+            rt.logging.debug("selected_line", selected_line)
+            rt.logging.debug("channel_data.items()", channel_data.items())
+            for selected_tag, channels in channel_data.items() :
+                selected_tag = str(selected_tag)
+                channels_list = list(channels)
+                rt.logging.debug("channels_list", channels_list)
+                #TODO: Take into account that a single selected_line can contain several separated strings which potentially can be different NMEA/AIS sentences as identified by selected_tag. In current state, loss of data may occur.
+                if selected_tag in selected_line :
+                    rt.logging.debug("selected_tag", selected_tag)
+                    current_string_value = ut.safe_get(string_dict, selected_tag, '')
+                    # current_string_value = ''
+                    # try :
+                    #     current_string_value = string_dict[selected_tag]
+                    # except KeyError as e :
+                    #     rt.logging.debug(rt.logging.exception)
+                    string_dict[selected_tag] = current_string_value + selected_line
+                    rt.logging.debug("string_dict", string_dict)
+                    if line_end is not None :
+                        string_dict[selected_tag] += line_end
+
+        return string_dict
 
 
     def decode_to_channels(self, char_data = None, channel_data = None, time_tuple = None, line_end = None) :
@@ -276,29 +336,31 @@ class TextNumeric :
 
         if not ( None in [char_data, channel_data] ) :
 
-            for selected_line in char_data :
+            # for selected_line in char_data :
+            #
+            #     try :
+            #         selected_line = selected_line.decode()
+            #     except (UnicodeDecodeError, AttributeError) :
+            #         pass
+            #
+            #     for selected_tag, channels in channel_data.items() :
+            #         selected_tag = str(selected_tag)
+            #         rt.logging.debug("selected_tag", selected_tag)
+            #         rt.logging.debug("channels", channels)
+            #         channels_list = list(channels)
+            #         #TODO: Take into account that a single selected_line can contain several separated strings which potentially can be different NMEA/AIS sentences as identified by selected_tag. In current state, loss of data may occur.
+            #         if selected_tag in selected_line :
+            #             rt.logging.debug("selected_tag", selected_tag, "channels_list", channels_list)
+            #             current_string_value = ''
+            #             try :
+            #                 current_string_value = string_dict[selected_tag]
+            #             except KeyError as e :
+            #                 pass
+            #             string_dict[selected_tag] = current_string_value + selected_line
+            #             if line_end is not None :
+            #                 string_dict[selected_tag] += line_end
 
-                try :
-                    selected_line = selected_line.decode()
-                except (UnicodeDecodeError, AttributeError) :
-                    pass
-
-                for selected_tag, channels in channel_data.items() :
-                    selected_tag = str(selected_tag)
-                    rt.logging.debug("selected_tag", selected_tag)
-                    rt.logging.debug("channels", channels)
-                    channels_list = list(channels)
-                    #TODO: Take into account that a single selected_line can contain several separated strings which potentially can be different NMEA/AIS sentences as identified by selected_tag. In current state, loss of data may occur.
-                    if selected_tag in selected_line :
-                        rt.logging.debug("selected_tag", selected_tag, "channels_list", channels_list)
-                        current_string_value = ''
-                        try :
-                            current_string_value = string_dict[selected_tag]
-                        except KeyError as e :
-                            pass
-                        string_dict[selected_tag] = current_string_value + selected_line
-                        if line_end is not None :
-                            string_dict[selected_tag] += line_end
+            string_dict = self.get_tagged_string_data(char_data = char_data, channel_data = channel_data, line_end = line_end)
         rt.logging.debug("string_dict", string_dict)
 
         data_arrays = []
@@ -359,6 +421,7 @@ class TextNumeric :
                 if selected_tag == 'XDR' :
                     pass
 
+                rt.logging.debug("channels_list", channels_list, "data_list", data_list)
                 data_array = [ dict_from_lists( channels_list, data_list ) ]
 
                 rt.logging.debug("data_array", data_array)
@@ -370,14 +433,22 @@ class TextNumeric :
 
 
 
+class NetCdf(TextNumeric) :
+
+
+    def __init__(self) :
+
+        #self.prepend = prepend
+        #self.append = append
+
+        TextNumeric.__init__(self)
+
+
+
 class Nmea(TextNumeric) :
 
 
-    def __init__(self, prepend = None, append = None, message_formats = None) :
-
-        self.prepend = prepend
-        self.append = append
-        self.message_formats = message_formats
+    def __init__(self) :
 
         TextNumeric.__init__(self)
 
@@ -391,6 +462,19 @@ class Nmea(TextNumeric) :
                 checksum = checksum ^ nmea_bytearray[i]
         checksum_hex = hex(checksum)
         return checksum_hex[2:]
+
+
+
+class NmeaSentence(Nmea) :
+
+
+    def __init__(self, prepend = None, append = None, message_formats = None) :
+
+        self.prepend = prepend
+        self.append = append
+        self.message_formats = message_formats
+
+        Nmea.__init__(self)
 
 
     def to_float(self, nmea_string, index) :
@@ -487,8 +571,8 @@ class Nmea(TextNumeric) :
 
         datetime_origin = datetime.datetime.fromtimestamp(int(timestamp))
         origin_timetuple = datetime_origin.timetuple()
-        time_string = "{:.{}f}".format(origin_timetuple.tm_hour * 10000 + origin_timetuple.tm_min * 100 + origin_timetuple.tm_sec, 2)
-
+        time_string = "{:.{}f}".format(origin_timetuple.tm_hour * 10000 + origin_timetuple.tm_min * 100 + origin_timetuple.tm_sec, 2).rjust(9, '0')
+        rt.logging.debug("time_string", time_string)
         return time_string
 
 
@@ -582,7 +666,7 @@ class Ais(Nmea) :
         self.append = append
         self.message_formats = message_formats
 
-        Nmea.__init__(self, message_formats = self.message_formats)
+        Nmea.__init__(self)
 
         self.message_ids = self.get_message_ids(self.message_formats)
 
@@ -597,30 +681,33 @@ class Ais(Nmea) :
 
         if not ( None in [char_data, channel_data] ) :
 
-            for selected_line in char_data :
+        #     for selected_line in char_data :
+        #
+        #         try :
+        #             selected_line = selected_line.decode()
+        #         except (UnicodeDecodeError, AttributeError) as e :
+        #             rt.logging.exception(e)
+        #         rt.logging.debug("selected_line", selected_line)
+        #         rt.logging.debug("channel_data.items()", channel_data.items())
+        #         for selected_tag, channels in channel_data.items() :
+        #             selected_tag = str(selected_tag)
+        #             rt.logging.debug("selected_tag", selected_tag)
+        #             rt.logging.debug("channels", channels)
+        #             channels_list = list(channels)
+        #             #TODO: Take into account that a single selected_line can contain several separated strings which potentially can be different NMEA/AIS sentences as identified by selected_tag. In current state, loss of data may occur.
+        #             if selected_tag in selected_line :
+        #                 rt.logging.debug("selected_tag", selected_tag, "channels_list", channels_list)
+        #                 current_string_value = ''
+        #                 try :
+        #                     current_string_value = string_dict[selected_tag]
+        #                 except KeyError as e :
+        #                     rt.logging.exception(e)
+        #                 string_dict[selected_tag] = current_string_value + selected_line
+        #                 if line_end is not None :
+        #                     string_dict[selected_tag] += line_end
 
-                try :
-                    selected_line = selected_line.decode()
-                except (UnicodeDecodeError, AttributeError) as e :
-                    rt.logging.exception(e)
-                rt.logging.debug("selected_line", selected_line)
-                rt.logging.debug("channel_data.items()", channel_data.items())
-                for selected_tag, channels in channel_data.items() :
-                    selected_tag = str(selected_tag)
-                    rt.logging.debug("selected_tag", selected_tag)
-                    rt.logging.debug("channels", channels)
-                    channels_list = list(channels)
-                    #TODO: Take into account that a single selected_line can contain several separated strings which potentially can be different NMEA/AIS sentences as identified by selected_tag. In current state, loss of data may occur.
-                    if selected_tag in selected_line :
-                        rt.logging.debug("selected_tag", selected_tag, "channels_list", channels_list)
-                        current_string_value = ''
-                        try :
-                            current_string_value = string_dict[selected_tag]
-                        except KeyError as e :
-                            rt.logging.exception(e)
-                        string_dict[selected_tag] = current_string_value + selected_line
-                        if line_end is not None :
-                            string_dict[selected_tag] += line_end
+            string_dict = self.get_tagged_string_data(char_data = char_data, channel_data = channel_data, line_end = line_end)
+
         rt.logging.debug("string_dict", string_dict)
 
         data_arrays = []
@@ -829,13 +916,13 @@ class Ais(Nmea) :
                 # AFAICT the AISHUB dataset offers no particular distinction of SAR aircraft. As long as there is no implementation of message 9 (for
                 # which the speed unit has to be whole knots rather than deciknots, for lack of better, the leading 3 characters of the MMSI of an SAR
                 # aircraft are assumed to always be '111' (which it indeed should according to the applicable ITU standard).
-                if mmsi_string[:3] == '111' : sog *= 10
+                if mmsi_string[:3] == '111' : speed *= 10
 
                 aivdm_message = ai.AISStaticAndVoyageReportMessage(mmsi = mmsi, imo = imo, callsign = callsign, shipname = shipname, shiptype = shiptype, to_bow = to_bow, to_stern = to_stern, to_port = to_port, to_starboard = to_starboard, draught = draught, destination = destination, month = month, day = day, hour = hour, minute = minute)
                 aivdm_instance = ai.AIS(aivdm_message)
                 aivdm_payload += aivdm_instance.build_payload(False) + ' '
 
-                aivdm_message = ai.AISPositionReportMessage(mmsi = mmsi, lon = lon, lat = lat, sog = speed, cog = course, status = status)
+                aivdm_message = ai.AISPositionReportMessage(mmsi = mmsi, lon = lon, lat = lat, sog = speed, cog = course, ts = sec, status = status)
                 aivdm_instance = ai.AIS(aivdm_message)
                 aivdm_payload += aivdm_instance.build_payload(False) + ' '
 
@@ -1124,6 +1211,29 @@ class Ais(Nmea) :
         return return_dict
 
 
+    def append_ais_struct_function_results(self, ais_dataset, message_format) :
+
+        rt.logging.debug("ais_dataset", ais_dataset)
+        result_dataset = {}
+        function_items = { structure_tag : ut.safe_get(structure_item, 'function') for structure_tag, structure_item in message_format.items() if ut.safe_get(structure_item, 'function') is not None }
+        for function_member, function_struct in function_items.items() :
+            rt.logging.debug("function_member", function_member, "function_struct", function_struct)
+            struct_name = ut.safe_get(function_struct, 'name')
+            struct_args = ut.safe_get(function_struct, 'args')
+            rt.logging.debug("struct_name", struct_name, "struct_args", struct_args)
+            if struct_name is not None and struct_args is not None :
+                args = { arg : ut.safe_get(ais_dataset, arg) for arg in struct_args }
+                rt.logging.debug("args", args)
+                func = getattr(Callbacks, struct_name)
+                return_val = ut.instance_from_dict(func, args)
+                function_eval_data = {function_member:return_val}
+                rt.logging.debug("function_eval_data", function_eval_data)
+                ais_dataset |= function_eval_data
+        rt.logging.debug("ais_dataset", ais_dataset)
+
+        return ais_dataset
+
+
     def data_from_ais(self, ais_message_strings, separator) :
 
         mmsis = []
@@ -1245,11 +1355,9 @@ class Ais(Nmea) :
                             include_current_mmsi = False
                             if current_mmsi in mmsi_include_only :
                                 include_current_mmsi = True
-                        #if current_mmsi == "002655619" : print("message_format", message_format, "current_mmsi", current_mmsi, "include_current_mmsi", include_current_mmsi, "mmsi_include_only", mmsi_include_only, "mmsi_exclude_only", mmsi_exclude_only)
-                        #if mmsi_include_only in [None, []] or ( mmsi_include_only not in [None, []] and current_mmsi in mmsi_include_only ) or ( mmsi_exclude_only in [None, []] or (mmsi_exclude_only not in [None, []] and current_mmsi not in mmsi_exclude_only ) ):
+
                         if include_current_mmsi :
 
-                            #if current_mmsi in ["002655619","002300059"] :
                             rt.logging.debug("message_header_format", message_header_format, "mmsi_include_only", mmsi_include_only, "mmsi_exclude_only", mmsi_exclude_only, "current_mmsi", current_mmsi)
                             message_data = None
                             if current_message_type in [6,8] :
@@ -1260,20 +1368,9 @@ class Ais(Nmea) :
                                 message_data = self.parse_ais_struct( ais_data, message_format )
                             ais_dataset |= message_data
                             rt.logging.debug("ais_dataset", ais_dataset, "message_format", message_format)
-                            function_items = { structure_tag : ut.safe_get(structure_item, 'function') for structure_tag, structure_item in message_format.items() if ut.safe_get(structure_item, 'function') is not None }
-                            for function_member, function_struct in function_items.items() :
-                                rt.logging.debug("function_member", function_member, "function_struct", function_struct)
-                                struct_name = ut.safe_get(function_struct, 'name')
-                                struct_args = ut.safe_get(function_struct, 'args')
-                                rt.logging.debug("struct_name", struct_name, "struct_args", struct_args)
-                                if struct_name is not None and struct_args is not None :
-                                    args = { arg : ut.safe_get(ais_dataset, arg) for arg in struct_args }
-                                    rt.logging.debug("args", args)
-                                    func = getattr(Callbacks, struct_name)
-                                    return_val = ut.instance_from_dict(func, args)
-                                    function_eval_data = {function_member:return_val}
-                                    rt.logging.debug("function_eval_data", function_eval_data)
-                                    ais_dataset |= function_eval_data
+
+                            self.append_ais_struct_function_results(ais_dataset, message_format)
+                            rt.logging.debug("ais_dataset", ais_dataset)
 
                             if current_mmsi is not None : # ut.safe_get(message_id_data, 'mmsi') is not None :
                                 ais_datasets.append(ais_dataset)
