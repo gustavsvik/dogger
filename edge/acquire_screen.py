@@ -2,7 +2,7 @@ import gateway.daqc
 
 
 screenshot = gateway.daqc.ScreenshotUpload(
-    channels = {602},
+    channels = {603},
     sample_rate = 1.0,
     host_api_url = '\\host\\',
     client_api_url = '\\client\\',
