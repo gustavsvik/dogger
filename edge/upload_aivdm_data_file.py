@@ -2,7 +2,7 @@ import gateway.link
 
 
 udp_upload_ais = gateway.link.SqlFileAisData(
-    channels = {144,152},
+    channels = {144} #,152},
     start_delay = 0,
     transmit_rate = 0.2,
     max_age = 20,
