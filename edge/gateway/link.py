@@ -392,7 +392,7 @@ class SqlUdpNmeaValue(SqlUdp) :
 
         SqlUdp.__init__(self)
 
-        self.nmea = tr.Nmea(prepend = self.nmea_prepend, append = self.nmea_append)
+        self.nmea = tr.NmeaSentence(prepend = self.nmea_prepend, append = self.nmea_append)
 
 
     def set_requested(self, channels, times, values, strings, ip = '127.0.0.1') :
@@ -489,7 +489,7 @@ class SqlUdpNmeaPos(SqlUdp) :
 
         SqlUdp.__init__(self)
 
-        self.nmea = tr.Nmea(prepend = self.nmea_prepend, append = self.nmea_append)
+        self.nmea = tr.NmeaSentence(prepend = self.nmea_prepend, append = self.nmea_append)
 
 
     def set_requested(self, channels, timestamps, values, strings, ip = '127.0.0.1'):
@@ -695,7 +695,7 @@ class SqlFileRawBytes(ps.IngestFile):
 
         SqlFile.__init__(self)
 
-        self.nmea = tr.Nmea(prepend = self.nmea_prepend, append = self.nmea_append)
+        self.nmea = tr.NmeaSentence(prepend = self.nmea_prepend, append = self.nmea_append)
 
 
     def run(self):
