@@ -2,10 +2,24 @@ import socket
 import requests
 import http
 import time
+import datetime
+from optparse import OptionParser
+
+try : from motu_utils import motu_api
+except ImportError: pass
 
 import gateway.runtime as rt
 import gateway.task as ta
 import gateway.transform as tr
+
+
+
+class Native(ta.AcquireControlTask) :
+
+
+    def __init__(self) :
+
+        ta.AcquireControlTask.__init__(self)
 
 
 
@@ -419,3 +433,59 @@ class HttpClient(Http):
 #            else:
 #                exit(-1)
 #
+
+class NativeCmems(Native):
+
+
+    def __init__(self) : #, out_dir = None, out_name = None) :
+
+        #self.out_dir = out_dir
+        #self.out_name = out_name
+
+        #self.config_filepath = config_filepath
+        #self.config_filename = config_filename
+
+        self.env = self.get_env()
+        if self.service_user is None: self.service_user = self.env['SERVICE_USER']
+        if self.service_pwd is None: self.service_pwd = self.env['SERVICE_PWD']
+
+        Native.__init__(self)
+
+        date_min = ( datetime.date.today() - datetime.timedelta( days = 0 ) ).isoformat()
+        date_max = ( datetime.date.today() + datetime.timedelta( days = 0 ) ).isoformat()
+
+        #service_id = 'BALTICSEA_ANALYSISFORECAST_WAV_003_010-TDS'
+        #product_id = 'dataset-bal-analysis-forecast-wav-hourly'
+        #out_dir = '/srv/dogger/sandbox/'
+        #out_name = f'{service_id}.nc' #_{date_min}_{date_max}
+
+        rt.logging.debug("getting update from %s to %s" % (date_min, date_max))
+        motu_opts = {'log_level': None, 'user': self.service_user, 'pwd': self.service_pwd,
+                     'auth_mode': 'cas', 'proxy':False, 'proxy_server': None,
+                     'proxy_user': None, 'proxy_pwd': None,
+                     'motu': 'https://nrt.cmems-du.eu/motu-web/Motu',
+                     'service_id': self.service_id,
+                     'product_id': self.product_id,
+                     'date_min': date_min, 'date_max': date_max,
+                     'latitude_min': 62.6, 'latitude_max': 62.9,
+                     'longitude_min': 17.7, 'longitude_max': 18.4,
+                     'depth_min': None, 'depth_max': None,
+                     'variable': ['VHM0'],
+                     'sync': None, 'describe': None, 'size': None,
+                     'out_dir': self.file_path, 'out_name': self.out_file_name,
+                     'block_size': 65536, 'socket_timeout': None, 'user_agent': None, 'outputWritten': None,
+                     'console_mode': None, 'config_file': None}
+
+        # we create a fake option parser because this is what the motu api expects:
+        # a parsed result from optionparser rather than a normal dict
+        self.options = None
+        op = OptionParser()
+        for o in motu_opts :
+            op.add_option( '--' + o, dest = o, default = motu_opts[o] )
+        (options, args) = op.parse_args()
+        self.options = options
+
+
+    def send_request(self) :
+
+        motu_api.execute_request(self.options)
