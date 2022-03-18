@@ -27,13 +27,13 @@ def to_int(val, default_val = 0):
         int_val = default_val
     return int_val
 
-    
+
 
 class Configure:
 
 
     def __init__(self, filepath = None, filename = None):
-    
+
         self.config_filepath = filepath
         self.config_filename = filename
 
@@ -44,10 +44,10 @@ class Configure:
         import sys
         import json
         import configparser
-        
+
         conf = configparser.ConfigParser()
-        #filepath = os.path.dirname(__file__) 
-        #filename = 'conf.ini' 
+        #filepath = os.path.dirname(__file__)
+        #filename = 'conf.ini'
         #if self.config_filepath is not None :
         filepath = self.config_filepath
         #if self.config_filename is not None :
@@ -76,6 +76,8 @@ class Configure:
         video_res = strip_string(conf, top_label, 'video_res', '')
         video_capture_method = strip_string(conf, top_label, 'video_capture_method', '')
         crop = strip_string(conf, top_label, 'crop', '')
+        service_user = strip_string(conf, top_label, 'service_user', '')
+        service_pwd = strip_string(conf, top_label, 'service_pwd', '')
 
         start_delay = to_float(strip_string(conf, top_label, 'start_delay'), 0.0)
         sample_rate = to_float(strip_string(conf, top_label, 'sample_rate'), 0.0)
@@ -144,6 +146,7 @@ class Configure:
         env['VIDEO_QUALITY'] = video_quality
         env['VIDEO_CAPTURE_METHOD'] = video_capture_method
         env['CROP'] = crop
-
+        env['SERVICE_USER'] = service_user
+        env['SERVICE_PWD'] = service_pwd
 
         return env
