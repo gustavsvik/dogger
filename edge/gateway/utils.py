@@ -7,7 +7,7 @@ except ImportError: pass
 
 
 
-def safe_str(obj, default_value = None) :
+def safe_str(obj = None, default_value = None) :
     value = default_value
     if obj is not None :
         try :
@@ -17,7 +17,7 @@ def safe_str(obj, default_value = None) :
     return value
 
 
-def safe_append(string, appendix, default_value = None) :
+def safe_append(string = None, appendix = None, default_value = None) :
     value = default_value
     if not None in [string, appendix] :
         try :
@@ -27,7 +27,8 @@ def safe_append(string, appendix, default_value = None) :
     return value
 
 
-def safe_get(dict_like_obj, keys, default_value = None) :
+def safe_get(dict_like_obj = None, keys = None, default_value = None) :
+
     values = default_value
     if dict_like_obj is not None :
         if (type(keys) is list) :
@@ -48,7 +49,8 @@ def safe_get(dict_like_obj, keys, default_value = None) :
     return values
 
 
-def safe_index(list_like_obj, values, non_exist_index = None) :
+def safe_index(list_like_obj = None, values = None, non_exist_index = None) :
+
     index = non_exist_index
     if list_like_obj is not None :
         indices = []
@@ -63,6 +65,23 @@ def safe_index(list_like_obj, values, non_exist_index = None) :
             indices = list_like_obj.index(values)
 
     return indices
+
+
+def safe_list(iterable_or_single_object = None) :
+
+    return_list = None
+
+    if iterable_or_single_object is not None :
+
+        if type(iterable_or_single_object) in [bytes, str] :
+            return_list = [ iterable_or_single_object ]
+        else :
+            try :
+                return_list = list(iterable_or_single_object)
+            except TypeError :
+                return_list = [ iterable_or_single_object ]
+
+    return return_list
 
 
 def instance_from_dict(obj, argument_dict) :
