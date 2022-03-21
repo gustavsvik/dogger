@@ -310,18 +310,35 @@ class SqlUdpRawValue(SqlUdp) :
     def set_requested(self, channels, timestamps, values, strings, ip = '127.0.0.1') :
 
         rt.logging.debug("ip", ip, "self.port", self.port)
+        all_data_bytes = b""
         for channel, timestamp, value in zip(channels, timestamps, values) : #range(len(values)) :
             try :
                 if not (None in [channel, timestamp, value]) :
                     rt.logging.debug("int(channel)", int(channel), "int(timestamp)", int(timestamp), "float(value)", float(value))
                     data_bytes = struct.pack('>HIf', int(channel), int(timestamp), float(value))   # short unsigned int, big endian
-                    rt.logging.debug("len(data_bytes)", len(data_bytes))
-                    try :
-                        self.socket.sendto(data_bytes, (ip, self.port))
-                    except Exception as e :
-                        rt.logging.exception('Exception', e)
+                    rt.logging.debug("data_bytes", data_bytes)
+                    all_data_bytes += data_bytes
+                    #try :
+                    #    self.socket.sendto(data_bytes, (ip, self.port))
+                    #except Exception as e :
+                    #    rt.logging.exception('Exception', e)
             except Exception as e :
                 rt.logging.exception('Exception', e)
+
+        try :
+            #crypto_key = b'XUFA58vllD2n41e7NZDZkyPiUCECkxFsBjF_HaKlIrI='
+            #fernet = Fernet(crypto_key)
+            #rt.logging.debug("all_data_bytes", all_data_bytes)
+            #encrypted_string = fernet.encrypt(all_data_bytes)
+            #rt.logging.debug("len(encrypted_string)", len(encrypted_string), "encrypted_string", encrypted_string)
+            #rt.logging.debug(" ")
+            try :
+                self.socket.sendto(all_data_bytes, (ip, self.port))
+            except Exception as e :
+                rt.logging.exception('Exception', e)
+
+        except Exception as e :
+            rt.logging.exception('Exception', e)
 
 
 
