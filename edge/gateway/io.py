@@ -1,5 +1,5 @@
 import time
-from typing import Union
+from typing import Union, Literal
 
 try : import serial
 except ImportError: pass
@@ -29,9 +29,9 @@ class Serial(Bus, serial.Serial) :
         bus_port:           Union[ None, str ] = None,
         host_port:          Union[ None, str ] = None,
         baudrate:           Union[ None, int ] = 9600,
-        parity:             Union[ None, str ] = serial.PARITY_NONE,
-        bytesize:           Union[ None, int ] = serial.EIGHTBITS,
-        stopbits:           Union[ None, int ] = serial.STOPBITS_ONE,
+        parity:             Union[ None, Literal[serial.PARITY_NONE, serial.PARITY_EVEN, serial.PARITY_ODD, serial.PARITY_MARK, serial.PARITY_SPACE] ] = serial.PARITY_NONE,
+        bytesize:           Union[ None, Literal[serial.FIVEBITS, serial.SIXBITS, serial.SEVENBITS, serial.EIGHTBITS] ] = serial.EIGHTBITS,
+        stopbits:           Union[ None, Literal[serial.STOPBITS_ONE, serial.STOPBITS_ONE_POINT_FIVE, serial.STOPBITS_TWO] ] = serial.STOPBITS_ONE,
         timeout:            Union[ None, float ] = None,
         write_timeout:      Union[ None, float ] = None,
         xonxoff:            Union[ None, bool ] = False,
@@ -110,9 +110,9 @@ class SerialModbus(Bus) :
         bus_port:        Union[ None, str ] = None,
         host_port:       Union[ None, str ] = None,
         baudrate:        Union[ None, int ] = 19200,
-        parity:          Union[ None, str ] = serial.PARITY_NONE,
-        bytesize:        Union[ None, int ] = serial.EIGHTBITS,
-        stopbits:        Union[ None, int ] = serial.STOPBITS_ONE,
+        parity:          Union[ None, Literal[serial.PARITY_NONE, serial.PARITY_EVEN, serial.PARITY_ODD, serial.PARITY_MARK, serial.PARITY_SPACE] ] = serial.PARITY_NONE,
+        bytesize:        Union[ None, Literal[serial.FIVEBITS, serial.SIXBITS, serial.SEVENBITS, serial.EIGHTBITS] ] = serial.EIGHTBITS,
+        stopbits:        Union[ None, Literal[serial.STOPBITS_ONE, serial.STOPBITS_ONE_POINT_FIVE, serial.STOPBITS_TWO] ] = serial.STOPBITS_ONE,
         timeout:         Union[ None, float ] = 0.2,
         write_timeout:   Union[ None, float ] = None,
         slaveaddress:    Union[ None, int ] = 1,
