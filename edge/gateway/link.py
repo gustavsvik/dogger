@@ -735,7 +735,7 @@ class SqlFileRawBytes(ps.IngestFile):
                 if nmea_data is not None :
                     rt.logging.debug("nmea_data", nmea_data)
                     (selected_tag, data_array), = nmea_data.items()
-                    self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
+                    self.persist(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
             self.sql.close_db_connection()
 
             time.sleep(1/self.transmit_rate)
@@ -797,7 +797,7 @@ class SqlFileAtonReport(SqlFile):
                 if nmea_data is not None :
                     (selected_tag, data_array), = nmea_data.items()
                     rt.logging.debug("self.target_channels", self.target_channels, "data_array", data_array, "selected_tag", selected_tag)
-                    self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
+                    self.persist(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
             #except (pymysql.err.OperationalError, pymysql.err.Error) as e :
             #    rt.logging.exception(e)
             #finally :
@@ -860,7 +860,7 @@ class SqlFileAisData(SqlFile):
                 if nmea_data is not None :
                     (selected_tag, data_array), = nmea_data.items()
                     rt.logging.debug("selected_tag", selected_tag, "data_array", data_array)
-                    self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
+                    self.persist(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
             #except (pymysql.err.OperationalError, pymysql.err.Error) as e :
             #    rt.logging.exception(e)
             #finally :
@@ -938,7 +938,7 @@ class SqlFilePosAisData(SqlFile):
                 if nmea_data is not None :
                     (selected_tag, data_array), = nmea_data.items()
                     rt.logging.debug("self.target_channels", self.target_channels, "data_array", data_array, "selected_tag", selected_tag)
-                    self.write(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
+                    self.persist(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
 
             #except (pymysql.err.OperationalError, pymysql.err.Error) as e :
             #    rt.logging.exception(e)

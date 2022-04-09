@@ -163,6 +163,31 @@ def load_text_string_file(current_file = None) :
     return acquired_microsecs, acquired_value, acquired_text, acquired_bytes
 
 
+def get_filenames(channel_data = None, file_path = None) :
+
+    channel_list = []
+    filetype_list = []
+
+    rt.logging.debug("channel_data", channel_data)
+    if channel_data is None :
+        channel_array = []
+    else :
+        channel_array = [ tag_channels for channel_tag, tag_channels in channel_data.items() ]
+        for channel, file_type in channel_array[0].items() :
+            channel_list.append(channel)
+            filetype_list.append(file_type)
+    channels = set(channel_list)
+    file_types = set(filetype_list)
+    rt.logging.debug("channels", channels, "file_types", file_types)
+    files = []
+    for channel in channels :
+        new_files = get_all_files(path = file_path, extensions = file_types, channel = channel)
+        rt.logging.debug("new_files", new_files)
+        files.extend(new_files)
+
+    return files
+
+
 
 class AcquireControlFile(ta.AcquireControlTask) :
 
@@ -228,7 +253,7 @@ class IngestFile(AcquireControlFile) :
         AcquireControlFile.__init__(self)
 
 
-    def write(self, target_channels = None, data_array = None, selected_tag = None, timestamp_secs = None, timestamp_microsecs = None, sample_rate = None, write_interval = None) :
+    def persist(self, target_channels = None, data_array = None, selected_tag = None, timestamp_secs = None, timestamp_microsecs = None, sample_rate = None, write_interval = None) :
 
         write_channels = self.channels
         if target_channels is not None :
