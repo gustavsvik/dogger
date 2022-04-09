@@ -10,16 +10,13 @@ import ctypes
 import base64
 import socket
 import struct
+from typing import Union, Literal, Dict
 
 try : import pyscreenshot as ImageGrab
 except ImportError: pass
 try : import numpy
 except ImportError: pass
 try : import pyais
-except ImportError: pass
-try : import serial
-except ImportError: pass
-try : import serial.tools.list_ports
 except ImportError: pass
 try : from cryptography.fernet import Fernet
 except ImportError: pass
@@ -35,6 +32,7 @@ import gateway.link as li
 import gateway.persist as ps
 import gateway.api as ap
 import gateway.utils as ut
+import gateway.io as io
 
 
 
@@ -222,7 +220,7 @@ class StaticFileNmeaFile(ps.IngestFile) :
                     if nmea_data is not None :
                         (selected_tag, data_array), = nmea_data.items()
                         rt.logging.debug("selected_tag", selected_tag, "data_array", data_array)
-                        self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
+                        self.persist(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
 
                 time.sleep(1/self.sample_rate)
 
@@ -311,51 +309,41 @@ class NativeCmemsNumpyFile(CmemsFile) :
             for timestamp, time_values in zip(timestamps[0:1], all_values_time_lat_lon[0:1]) :
                 for lat, lon_values in zip(latitudes, time_values) :
                     for lon, value in zip(longitudes, lon_values) :
-                        print("lat", lat, "lon", lon, "value", value)
+                        #print("lat", lat, "lon", lon, "value", value)
                         json_string += '[null, null, "0", {"type": 1, "mmsi": "' + str('{0:.3g}'.format(value)) + '", "lat":' + str('{0:.7g}'.format(lat)) + ', "lon":' + str('{0:.7g}'.format(lon)) + '}], '
             json_string = json_string[:-2] + ']'
-            print("json_string", json_string)
+            #print("json_string", json_string)
             data_array = [ { channel_indices[0] : json_string } ]
 
             timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
-            self.write(data_array = data_array, selected_tag = 'NETCDF', timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
+            self.persist(data_array = data_array, selected_tag = 'NETCDF', timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
 
             time.sleep(1/self.sample_rate)
 
 
 
-class SerialFile(ps.IngestFile, ps.LoadFile) :
+class Serial(io.Serial) :
+
+
+    (PARITY_NONE, PARITY_EVEN, PARITY_ODD, PARITY_MARK, PARITY_SPACE) = PARITIES = io.Serial.PARITIES
+    (FIVEBITS, SIXBITS, SEVENBITS, EIGHTBITS) = BYTESIZES = io.Serial.BYTESIZES
+    (STOPBITS_ONE, STOPBITS_ONE_POINT_FIVE, STOPBITS_TWO) = STOPBITS = io.Serial.STOPBITS
+
+
+    def __init__(self) :
+
+        self.serial = io.Serial(bus_port = self.bus_port, host_port = self.host_port, baudrate = self.serial_baudrate, parity = self.serial_parity, bytesize = self.serial_bytesize, stopbits = self.serial_stopbits, timeout = self.serial_timeout, delay_waiting_check = self.delay_waiting_check)
+
+
+
+class SerialFile(Serial, ps.IngestFile, ps.LoadFile) :
 
 
     def __init__(self) :
 
         ps.LoadFile.__init__(self)
         ps.IngestFile.__init__(self) # IngestFile base class inherits from base class of LoadFile. Deadly Diamond of Death should not be a problem.
-
-
-    def init_serial(self) :
-
-        comport_list = serial.tools.list_ports.comports()
-        for comport in comport_list:
-            port_string = str(comport.device) + ';' + str(comport.name) + ';' + str(comport.description) + ';' + str(comport.hwid) + ';' + str(comport.vid) + ';' + str(comport.pid) + ';' + str(comport.serial_number) + ';' + str(comport.location) + ';' + str(comport.manufacturer) + ';' + str(comport.product) + ';' + str(comport.interface)
-            rt.logging.debug("port_string", port_string)
-
-            if self.port is None :
-                rt.logging.debug("self.location", self.location)
-                if (port_string.find(self.location)) >= 0:
-                    self.port = comport.device
-                    rt.logging.debug("self.port", self.port)
-
-        self.serial_conn = None
-
-        try :
-            self.serial_conn = serial.Serial(port = self.port, baudrate = self.baudrate, timeout = self.timeout, parity = self.parity, stopbits = self.stopbits, bytesize = self.bytesize) #parity = serial.PARITY_EVEN, stopbits = serial.STOPBITS_ONE, bytesize = serial.SEVENBITS, write_timeout=1, , , , xonxoff=False, rtscts=False, dsrdtr=False)
-            time.sleep(0.1)
-            if (self.serial_conn.isOpen()):
-                rt.logging.debug("connected to : " + self.serial_conn.portstr)
-        except serial.serialutil.SerialException as e:
-            rt.logging.exception(e)
-        rt.logging.debug("self.serial_conn", self.serial_conn)
+        Serial.__init__(self)
 
 
     def load_file(self, current_file = None):
@@ -367,20 +355,49 @@ class SerialFile(ps.IngestFile, ps.LoadFile) :
 class SerialNmeaFile(SerialFile) :
 
 
-    def __init__(self, channels = None, ctrl_channels = None, port = None, start_delay = None, sample_rate = None, location = None, baudrate = None, timeout = None, parity = None, stopbits = None, bytesize = None, delay_waiting_check = None, file_path = None, ctrl_file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
+    (PARITY_NONE, PARITY_EVEN, PARITY_ODD, PARITY_MARK, PARITY_SPACE) = Serial.PARITIES
+    (FIVEBITS, SIXBITS, SEVENBITS, EIGHTBITS) = Serial.BYTESIZES
+    (STOPBITS_ONE, STOPBITS_ONE_POINT_FIVE, STOPBITS_TWO) = Serial.STOPBITS
+
+
+    def __init__(self,
+        channels:            Union[ Dict[str, Dict[int, str]], None ] = None,
+        ctrl_channels:       Union[ Dict[str, Dict[int, str]], None ] = None,
+        start_delay:         Union[ float, None ] = None,
+        sample_rate:         Union[ float, None ] = None,
+        bus_port:            Union[ str, None ] = None,
+        host_port:           Union[ str, None ] = None,
+        serial_baudrate:            Union[ int, None ] = 19200,
+        serial_parity:              Union[ Literal[PARITY_NONE, PARITY_EVEN, PARITY_ODD, PARITY_MARK, PARITY_SPACE], None ] = PARITY_NONE,
+        serial_bytesize:            Union[ Literal[FIVEBITS, SIXBITS, SEVENBITS, EIGHTBITS], None ] = EIGHTBITS,
+        serial_stopbits:            Union[ Literal[STOPBITS_ONE, STOPBITS_ONE_POINT_FIVE, STOPBITS_TWO], None ] = STOPBITS_ONE,
+        serial_timeout:             Union[ float, None ] = None,
+        serial_write_timeout:       Union[ float, None ] = None,
+        delay_waiting_check: Union[ float, None ] = 0.0,
+        file_path:           Union[ str, None ] = None,
+        ctrl_file_path:      Union[ str, None ] = None,
+        archive_file_path:   Union[ str, None ] = None,
+        config_filepath:     Union[ str, None ] = None,
+        config_filename:     Union[ str, None ] = None) :
 
         self.channels = channels
         self.ctrl_channels = ctrl_channels
-        self.port = port
+
         self.start_delay = start_delay
         self.sample_rate = sample_rate
-        self.location = location
-        self.baudrate = baudrate
-        self.timeout = timeout
-        self.parity = parity
-        self.stopbits = stopbits
-        self.bytesize = bytesize
+
+        self.bus_port = bus_port
+        self.host_port = host_port
+
+        self.serial_baudrate = serial_baudrate
+        self.serial_parity = serial_parity
+        self.serial_bytesize = serial_bytesize
+        self.serial_stopbits = serial_stopbits
+        self.serial_timeout = serial_timeout
+        self.serial_write_timeout = serial_write_timeout
+
         self.delay_waiting_check = delay_waiting_check
+
         self.file_path = file_path
         self.ctrl_file_path = ctrl_file_path
         self.archive_file_path = archive_file_path
@@ -393,42 +410,17 @@ class SerialNmeaFile(SerialFile) :
         self.nmea = tr.NmeaSentence(prepend = '', append = '')
 
 
-    def get_filenames(self, channel_data = None, file_path = None) :
-
-        channel_list = []
-        filetype_list = []
-
-        rt.logging.debug("channel_data", channel_data)
-        if channel_data is None :
-            channel_array = []
-        else :
-            channel_array = [ tag_channels for channel_tag, tag_channels in channel_data.items() ]
-            for channel, file_type in channel_array[0].items() :
-                channel_list.append(channel)
-                filetype_list.append(file_type)
-        channels = set(channel_list)
-        file_types = set(filetype_list)
-        rt.logging.debug("channels", channels, "file_types", file_types)
-        files = []
-        for channel in channels :
-            new_files = ps.get_all_files(path = file_path, extensions = file_types, channel = channel)
-            rt.logging.debug("new_files", new_files)
-            files.extend(new_files)
-
-        return files
-
-
     def run(self) :
 
         while True:
 
-            self.init_serial()
+            self.serial.open_connection()
 
             data_string = ''
 
-            while self.serial_conn.isOpen():
+            while self.serial.connection_is_open():
 
-                files = self.get_filenames(channel_data = self.ctrl_channels, file_path = self.ctrl_file_path)
+                files = ps.get_filenames(channel_data = self.ctrl_channels, file_path = self.ctrl_file_path)
                 rt.logging.debug('self.ctrl_channels', self.ctrl_channels)
                 rt.logging.debug('files', files)
 
@@ -448,21 +440,12 @@ class SerialNmeaFile(SerialFile) :
                     #from_time_pos(timestamp, latitude, longitude)
                 #self.serial_conn.write(b'$GPGGA,204000.000,6237.8000,N,01757.0000,E,1,9,0.91,44.7,M,24.4,M,,*62\r\n')
 
-                response = ''
-                while self.serial_conn.in_waiting:
-                    response = self.serial_conn.read()
-                    response_string = ''
-                    try:
-                        response_string = response.decode()
-                    except UnicodeDecodeError as e:
-                        rt.logging.exception(e)
-                    data_string += response_string
-
-                    time.sleep(self.delay_waiting_check)
+                response_string = self.serial.read_string_response()
+                data_string += response_string
 
                 if data_string != '' :
 
-                    rt.logging.debug("data_string", data_string)
+                    print("data_string", data_string)
                     #self.ais_test_monitor(data_string)
 
                     data_lines = data_string.splitlines()
@@ -474,13 +457,13 @@ class SerialNmeaFile(SerialFile) :
                     for nmea_data in nmea_data_array :
                         if nmea_data is not None :
                             (selected_tag, data_array), = nmea_data.items()
-                            self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
+                            self.persist(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
 
                 data_string = ''
 
                 time.sleep(1/self.sample_rate)
 
-            self.serial_conn.close()
+            self.serial.close_connection()
 
             time.sleep(5)
 
@@ -506,6 +489,126 @@ class SerialNmeaFile(SerialFile) :
                     rt.logging.debug(' ')
         except (TypeError, ValueError, pyais.exceptions.InvalidNMEAMessageException) as e :
             rt.logging.exception(e)
+
+
+
+class ModbusSerial(io.ModbusSerial) :
+
+
+    (MODE_RTU, MODE_ASCII) = MODES = io.ModbusSerial.MODES
+
+
+    def __init__(self) :
+
+        self.modbus_instrument = io.ModbusSerial(bus_port = self.port, host_port = self.location, baudrate = self.baudrate, parity = self.parity, bytesize = self.bytesize, stopbits = self.stopbits, timeout = self.timeout, write_timeout = self.write_timeout, slaveaddress = self.slaveaddress, mode = self.mode)
+
+
+
+class ModbusSerialFile(ps.IngestFile, ps.LoadFile) :
+
+
+    def __init__(self) :
+
+        ps.LoadFile.__init__(self)
+        ps.IngestFile.__init__(self) # IngestFile base class inherits from base class of LoadFile. Deadly Diamond of Death should not be a problem.
+        ModbusSerial.__init__(self)
+
+
+
+class RegistersModbusSerialFile(ModbusSerialFile) :
+
+
+    (MODE_RTU, MODE_ASCII) = ModbusSerial.MODES
+
+    (PARITY_NONE, PARITY_EVEN, PARITY_ODD, PARITY_MARK, PARITY_SPACE) = Serial.PARITIES
+    (FIVEBITS, SIXBITS, SEVENBITS, EIGHTBITS) = Serial.BYTESIZES
+    (STOPBITS_ONE, STOPBITS_ONE_POINT_FIVE, STOPBITS_TWO) = Serial.STOPBITS
+
+
+    def __init__(self,
+        channels:            Union[ Dict[str, Dict[int, str]], None ] = None,
+        ctrl_channels:       Union[ Dict[str, Dict[int, str]], None ] = None,
+        start_delay:         Union[ float, None ] = None,
+        sample_rate:         Union[ float, None ] = None,
+        port:                Union[ str, None ] = None,
+        location:            Union[ str, None ] = None,
+        baudrate:            Union[ int, None ] = 19200,
+        parity:              Union[ Literal[PARITY_NONE, PARITY_EVEN, PARITY_ODD, PARITY_MARK, PARITY_SPACE], None ] = PARITY_NONE,
+        bytesize:            Union[ Literal[FIVEBITS, SIXBITS, SEVENBITS, EIGHTBITS], None ] = EIGHTBITS,
+        stopbits:            Union[ Literal[STOPBITS_ONE, STOPBITS_ONE_POINT_FIVE, STOPBITS_TWO], None ] = STOPBITS_ONE,
+        timeout:             Union[ float, None ] = None,
+        write_timeout:       Union[ float, None ] = None,
+        slaveaddress:        Union[ int, None ] = 1,
+        mode:                Union[ Literal[MODE_RTU, MODE_ASCII], None ] = MODE_RTU,
+        file_path:           Union[ str, None ] = None,
+        ctrl_file_path:      Union[ str, None ] = None,
+        archive_file_path:   Union[ str, None ] = None,
+        config_filepath:     Union[ str, None ] = None,
+        config_filename:     Union[ str, None ] = None) :
+
+        self.channels = channels
+        self.ctrl_channels = ctrl_channels
+
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+
+        self.port = port
+        self.location = location
+
+        self.baudrate = baudrate
+        self.parity = parity
+        self.bytesize = bytesize
+        self.stopbits = stopbits
+        self.timeout = timeout
+        self.write_timeout = write_timeout
+
+        self.slaveaddress = slaveaddress
+        self.mode = mode
+
+        self.file_path = file_path
+        self.ctrl_file_path = ctrl_file_path
+        self.archive_file_path = archive_file_path
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        ModbusSerialFile.__init__(self)
+
+
+    def run(self) :
+
+        while True:
+
+            registers_int_list = self.modbus_instrument.read_registers_in_chunks(offset, max_chunk_size, max_address)
+
+            print("registers_int_list", registers_int_list)
+
+            registers_per_value = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+
+            register_values = []
+            register_index = 0
+            for no_of_value_registers in registers_per_value :
+                format_string = "<" + "H" * no_of_value_registers
+                #print("format_string", format_string)
+                value_int_list = registers_int_list[register_index:register_index+no_of_value_registers]
+                value_int_list.reverse()
+                print("value_int_list", value_int_list)
+                unpacked_float = -9999.0
+                if len(value_int_list) == 2 :
+                    packed_string = struct.pack(format_string, *value_int_list)
+                    unpacked_float = struct.unpack("f", packed_string)[0]
+                register_values.append(unpacked_float)
+                register_index += no_of_value_registers
+
+            print("register_values", register_values)
+
+            time.sleep(1.0)
+
+
+
+    def load_file(self, current_file = None):
+
+        return ps.load_text_string_file(current_file)
 
 
 
@@ -568,7 +671,7 @@ class NmeaUdpFile(UdpFile):
                     (selected_tag, data_array), = nmea_data.items()
                     rt.logging.debug("data_array", data_array)
                     if not ( None in data_array ) :
-                        self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
+                        self.persist(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
 
 
 
@@ -614,7 +717,7 @@ class RawUdpFile(UdpFile):
             data_array =  [ { values[0]:[values[2]] } ]
             rt.logging.debug("data_array", data_array)
             rt.logging.debug("self.channels", self.channels)
-            self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = values[1])
+            self.persist(data_array = data_array, selected_tag = selected_tag, timestamp_secs = values[1])
 
 
 
@@ -685,11 +788,7 @@ class HttpAishubAivdmFile(HttpFile) :
                 rt.logging.debug("unique_timestamps_dict", unique_timestamps_dict)
                 for timestamp_secs, char_data_line in zip(timestamps, char_data_lines) :
                     unique_timestamps_dict[timestamp_secs][0] += char_data_line + '\n'
-                    #print(timestamp, ut.safe_index(timestamps, timestamp))
                 rt.logging.debug("unique_timestamps_dict", unique_timestamps_dict)
-
-                #tagged_char_data = ['AISHUB\n' + char_data]
-                #print("tagged_char_data", tagged_char_data)
 
                 for (timestamp_secs, timestamped_char_data) in unique_timestamps_dict.items() :
 
@@ -704,13 +803,13 @@ class HttpAishubAivdmFile(HttpFile) :
                         if ais_data is not None :
                             (selected_tag, data_array), = ais_data.items()
                             rt.logging.debug("selected_tag", selected_tag, "data_array", data_array)
-                            self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = int(timestamp_secs)) #, timestamp_microsecs = timestamp_microsecs)
+                            self.persist(data_array = data_array, selected_tag = selected_tag, timestamp_secs = int(timestamp_secs)) #, timestamp_microsecs = timestamp_microsecs)
 
 #                time.sleep(1/self.sample_rate)
 #            data_array =  [ { channel: result_text} ]
 #            rt.logging.debug("data_array", data_array)
 #            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
-#            self.write(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs)
+#            self.persist(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs)
 
             time.sleep(1/self.sample_rate)
 
