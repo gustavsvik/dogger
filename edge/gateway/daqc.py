@@ -361,24 +361,24 @@ class SerialNmeaFile(SerialFile) :
 
 
     def __init__(self,
-        channels:            Union[ Dict[str, Dict[int, str]], None ] = None,
-        ctrl_channels:       Union[ Dict[str, Dict[int, str]], None ] = None,
-        start_delay:         Union[ float, None ] = None,
-        sample_rate:         Union[ float, None ] = None,
-        bus_port:            Union[ str, None ] = None,
-        host_port:           Union[ str, None ] = None,
-        serial_baudrate:            Union[ int, None ] = 19200,
-        serial_parity:              Union[ Literal[PARITY_NONE, PARITY_EVEN, PARITY_ODD, PARITY_MARK, PARITY_SPACE], None ] = PARITY_NONE,
-        serial_bytesize:            Union[ Literal[FIVEBITS, SIXBITS, SEVENBITS, EIGHTBITS], None ] = EIGHTBITS,
-        serial_stopbits:            Union[ Literal[STOPBITS_ONE, STOPBITS_ONE_POINT_FIVE, STOPBITS_TWO], None ] = STOPBITS_ONE,
-        serial_timeout:             Union[ float, None ] = None,
-        serial_write_timeout:       Union[ float, None ] = None,
-        delay_waiting_check: Union[ float, None ] = 0.0,
-        file_path:           Union[ str, None ] = None,
-        ctrl_file_path:      Union[ str, None ] = None,
-        archive_file_path:   Union[ str, None ] = None,
-        config_filepath:     Union[ str, None ] = None,
-        config_filename:     Union[ str, None ] = None) :
+        channels:             Union[ Dict[str, Dict[int, str]], None ] = None,
+        ctrl_channels:        Union[ Dict[str, Dict[int, str]], None ] = None,
+        start_delay:          Union[ float, None ] = None,
+        sample_rate:          Union[ float, None ] = None,
+        bus_port:             Union[ str, None ] = None,
+        host_port:            Union[ str, None ] = None,
+        serial_baudrate:      Union[ int, None ] = 19200,
+        serial_parity:        Union[ Literal[PARITY_NONE, PARITY_EVEN, PARITY_ODD, PARITY_MARK, PARITY_SPACE], None ] = PARITY_NONE,
+        serial_bytesize:      Union[ Literal[FIVEBITS, SIXBITS, SEVENBITS, EIGHTBITS], None ] = EIGHTBITS,
+        serial_stopbits:      Union[ Literal[STOPBITS_ONE, STOPBITS_ONE_POINT_FIVE, STOPBITS_TWO], None ] = STOPBITS_ONE,
+        serial_timeout:       Union[ float, None ] = None,
+        serial_write_timeout: Union[ float, None ] = None,
+        delay_waiting_check:  Union[ float, None ] = 0.0,
+        file_path:            Union[ str, None ] = None,
+        ctrl_file_path:       Union[ str, None ] = None,
+        archive_file_path:    Union[ str, None ] = None,
+        config_filepath:      Union[ str, None ] = None,
+        config_filename:      Union[ str, None ] = None) :
 
         self.channels = channels
         self.ctrl_channels = ctrl_channels
@@ -445,7 +445,7 @@ class SerialNmeaFile(SerialFile) :
 
                 if data_string != '' :
 
-                    print("data_string", data_string)
+                    rt.logging.debug("data_string", data_string)
                     #self.ais_test_monitor(data_string)
 
                     data_lines = data_string.splitlines()
@@ -500,7 +500,7 @@ class ModbusSerial(io.ModbusSerial) :
 
     def __init__(self) :
 
-        self.modbus_instrument = io.ModbusSerial(bus_port = self.port, host_port = self.location, baudrate = self.baudrate, parity = self.parity, bytesize = self.bytesize, stopbits = self.stopbits, timeout = self.timeout, write_timeout = self.write_timeout, slaveaddress = self.slaveaddress, mode = self.mode)
+        self.modbus_instrument = io.ModbusSerial(bus_port = self.bus_port, host_port = self.host_port, baudrate = self.serial_baudrate, parity = self.serial_parity, bytesize = self.serial_bytesize, stopbits = self.serial_stopbits, timeout = self.serial_timeout, write_timeout = self.serial_write_timeout, slaveaddress = self.modbus_slave_address, mode = self.modbus_mode)
 
 
 
@@ -526,25 +526,28 @@ class RegistersModbusSerialFile(ModbusSerialFile) :
 
 
     def __init__(self,
-        channels:            Union[ Dict[str, Dict[int, str]], None ] = None,
-        ctrl_channels:       Union[ Dict[str, Dict[int, str]], None ] = None,
-        start_delay:         Union[ float, None ] = None,
-        sample_rate:         Union[ float, None ] = None,
-        port:                Union[ str, None ] = None,
-        location:            Union[ str, None ] = None,
-        baudrate:            Union[ int, None ] = 19200,
-        parity:              Union[ Literal[PARITY_NONE, PARITY_EVEN, PARITY_ODD, PARITY_MARK, PARITY_SPACE], None ] = PARITY_NONE,
-        bytesize:            Union[ Literal[FIVEBITS, SIXBITS, SEVENBITS, EIGHTBITS], None ] = EIGHTBITS,
-        stopbits:            Union[ Literal[STOPBITS_ONE, STOPBITS_ONE_POINT_FIVE, STOPBITS_TWO], None ] = STOPBITS_ONE,
-        timeout:             Union[ float, None ] = None,
-        write_timeout:       Union[ float, None ] = None,
-        slaveaddress:        Union[ int, None ] = 1,
-        mode:                Union[ Literal[MODE_RTU, MODE_ASCII], None ] = MODE_RTU,
-        file_path:           Union[ str, None ] = None,
-        ctrl_file_path:      Union[ str, None ] = None,
-        archive_file_path:   Union[ str, None ] = None,
-        config_filepath:     Union[ str, None ] = None,
-        config_filename:     Union[ str, None ] = None) :
+        channels:                       Union[ Dict[str, Dict[int, str]], None ] = None,
+        ctrl_channels:                  Union[ Dict[str, Dict[int, str]], None ] = None,
+        start_delay:                    Union[ float, None ] = None,
+        sample_rate:                    Union[ float, None ] = None,
+        bus_port:                       Union[ str, None ] = None,
+        host_port:                      Union[ str, None ] = None,
+        serial_baudrate:                Union[ int, None ] = 19200,
+        serial_parity:                  Union[ Literal[PARITY_NONE, PARITY_EVEN, PARITY_ODD, PARITY_MARK, PARITY_SPACE], None ] = PARITY_NONE,
+        serial_bytesize:                Union[ Literal[FIVEBITS, SIXBITS, SEVENBITS, EIGHTBITS], None ] = EIGHTBITS,
+        serial_stopbits:                Union[ Literal[STOPBITS_ONE, STOPBITS_ONE_POINT_FIVE, STOPBITS_TWO], None ] = STOPBITS_ONE,
+        serial_timeout:                 Union[ float, None ] = None,
+        serial_write_timeout:           Union[ float, None ] = None,
+        modbus_slave_address:           Union[ int, None ] = 1,
+        modbus_mode:                    Union[ Literal[MODE_RTU, MODE_ASCII], None ] = MODE_RTU,
+        modbus_register_address_offset: Union[ int, None ] = 0,
+        modbus_max_read_chunk_size:     Union[ int, None ] = 1,
+        modbus_max_read_address:        Union[ int, None ] = 1,
+        file_path:                      Union[ str, None ] = None,
+        ctrl_file_path:                 Union[ str, None ] = None,
+        archive_file_path:              Union[ str, None ] = None,
+        config_filepath:                Union[ str, None ] = None,
+        config_filename:                Union[ str, None ] = None) :
 
         self.channels = channels
         self.ctrl_channels = ctrl_channels
@@ -552,18 +555,21 @@ class RegistersModbusSerialFile(ModbusSerialFile) :
         self.start_delay = start_delay
         self.sample_rate = sample_rate
 
-        self.port = port
-        self.location = location
+        self.bus_port = bus_port
+        self.host_port = host_port
 
-        self.baudrate = baudrate
-        self.parity = parity
-        self.bytesize = bytesize
-        self.stopbits = stopbits
-        self.timeout = timeout
-        self.write_timeout = write_timeout
+        self.serial_baudrate = serial_baudrate
+        self.serial_parity = serial_parity
+        self.serial_bytesize = serial_bytesize
+        self.serial_stopbits = serial_stopbits
+        self.serial_timeout = serial_timeout
+        self.serial_write_timeout = serial_write_timeout
 
-        self.slaveaddress = slaveaddress
-        self.mode = mode
+        self.modbus_slave_address = modbus_slave_address
+        self.modbus_mode = modbus_mode
+        self.modbus_register_address_offset = modbus_register_address_offset
+        self.modbus_max_read_chunk_size = modbus_max_read_chunk_size
+        self.modbus_max_read_address = modbus_max_read_address
 
         self.file_path = file_path
         self.ctrl_file_path = ctrl_file_path
@@ -579,7 +585,7 @@ class RegistersModbusSerialFile(ModbusSerialFile) :
 
         while True:
 
-            registers_int_list = self.modbus_instrument.read_registers_in_chunks(offset, max_chunk_size, max_address)
+            registers_int_list = self.modbus_instrument.read_registers_in_chunks(self.modbus_register_address_offset, self.modbus_max_read_chunk_size, self.modbus_max_read_address)
 
             print("registers_int_list", registers_int_list)
 
