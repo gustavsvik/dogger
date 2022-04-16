@@ -24,6 +24,11 @@ import gateway.aislib as ai
 
 
 
+def to_json(nested_struct) :
+    # TODO: Add checks and balances
+    return json.dumps(nested_struct)
+
+
 def number_convertible(value) :
     # As per https://stackoverflow.com/a/354038
     return str(value).lstrip('-').replace('.','',1).replace('e-','',1).replace('e','',1).isdigit()
