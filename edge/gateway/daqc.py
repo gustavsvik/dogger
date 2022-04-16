@@ -30,18 +30,18 @@ import gateway.device as dv
 import gateway.runtime as rt
 import gateway.link as li
 import gateway.persist as ps
-import gateway.api as ap
+import gateway.inet as it
 import gateway.utils as ut
 import gateway.io as io
 
 
 
-class UdpHttp(ap.UdpReceive) :
+class UdpHttp(it.UdpReceive) :
 
 
     def __init__(self):
 
-        ap.UdpReceive.__init__(self)
+        it.UdpReceive.__init__(self)
 
 
     def upload_data(self, channels = set(), timestamps = None, values = None, byte_strings = None) :
@@ -226,12 +226,12 @@ class StaticFileNmeaFile(ps.IngestFile) :
 
 
 
-class CmemsFile(ap.NativeCmems, ps.IngestFile) :
+class CmemsFile(it.NativeCmems, ps.IngestFile) :
 
 
     def __init__(self):
 
-        ap.NativeCmems.__init__(self)
+        it.NativeCmems.__init__(self)
         ps.IngestFile.__init__(self)
 
 
@@ -618,7 +618,7 @@ class RegistersModbusSerialFile(ModbusSerialFile) :
 
 
 
-class UdpFile(ap.UdpReceive, ps.IngestFile):
+class UdpFile(it.UdpReceive, ps.IngestFile):
 
 
     def __init__(self):
@@ -727,12 +727,12 @@ class RawUdpFile(UdpFile):
 
 
 
-class HttpFile(ap.HttpClient, ps.IngestFile) :
+class HttpFile(it.HttpClient, ps.IngestFile) :
 
 
     def __init__(self):
 
-        ap.HttpClient.__init__(self)
+        it.HttpClient.__init__(self)
         ps.IngestFile.__init__(self)
 
 
