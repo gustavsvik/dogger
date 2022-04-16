@@ -15,11 +15,11 @@ import gateway.utils as ut
 
 import gateway.persist as ps
 import gateway.transform as tr
-import gateway.api as ap
+import gateway.inet as it
 
 
 
-class GetDBDataJson(ap.HttpMaint):
+class GetDBDataJson(it.HttpMaint):
 
 
     def __init__(self, start_delay = None, transmit_rate = None, ip_list = None, http_scheme = None, maint_api_url = None, max_connect_attempts = None, table_label = None, id_range = None, config_filepath = None, config_filename = None):
@@ -36,11 +36,11 @@ class GetDBDataJson(ap.HttpMaint):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        ap.HttpMaint.__init__(self)
+        it.HttpMaint.__init__(self)
 
 
 
-class DirectUpload(ap.HttpHost, ap.HttpClient):
+class DirectUpload(it.HttpHost, it.HttpClient):
 
 
     def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, http_scheme = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
@@ -57,12 +57,12 @@ class DirectUpload(ap.HttpHost, ap.HttpClient):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        ap.HttpClient.__init__(self)
-        ap.HttpHost.__init__(self)
+        it.HttpClient.__init__(self)
+        it.HttpHost.__init__(self)
 
 
 
-class SqlHttp(ap.HttpHost, ap.HttpClient):
+class SqlHttp(it.HttpHost, it.HttpClient):
 
 
     def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, max_age = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
@@ -81,8 +81,8 @@ class SqlHttp(ap.HttpHost, ap.HttpClient):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        ap.HttpClient.__init__(self)
-        ap.HttpHost.__init__(self)
+        it.HttpClient.__init__(self)
+        it.HttpHost.__init__(self)
 
         self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
@@ -124,7 +124,7 @@ class SqlHttp(ap.HttpHost, ap.HttpClient):
 
 
 
-class Replicate(ap.HttpHost):
+class Replicate(it.HttpHost):
 
 
     def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
@@ -141,7 +141,7 @@ class Replicate(ap.HttpHost):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        ap.HttpHost.__init__(self)
+        it.HttpHost.__init__(self)
 
         self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
@@ -195,7 +195,7 @@ class Replicate(ap.HttpHost):
 
 
 
-class HttpSql(ap.HttpClient):
+class HttpSql(it.HttpClient):
 
 
     def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
@@ -212,7 +212,7 @@ class HttpSql(ap.HttpClient):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        ap.HttpClient.__init__(self)
+        it.HttpClient.__init__(self)
 
         self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
@@ -255,12 +255,12 @@ class HttpSql(ap.HttpClient):
 
 
 
-class SqlUdp(ap.UdpSend):
+class SqlUdp(it.UdpSend):
 
 
     def __init__(self) :
 
-        ap.UdpSend.__init__(self)
+        it.UdpSend.__init__(self)
 
         self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
@@ -318,10 +318,10 @@ class SqlUdpRawValue(SqlUdp) :
                     data_bytes = struct.pack('>HIf', int(channel), int(timestamp), float(value))   # short unsigned int, big endian
                     rt.logging.debug("data_bytes", data_bytes)
                     all_data_bytes += data_bytes
-                    #try :
-                    #    self.socket.sendto(data_bytes, (ip, self.port))
-                    #except Exception as e :
-                    #    rt.logging.exception('Exception', e)
+                    ##try :
+                    #self.dispatch_packet(data_bytes, ip)
+                    ##except Exception as e :
+                    ##    rt.logging.exception('Exception', e)
             except Exception as e :
                 rt.logging.exception('Exception', e)
 
@@ -332,11 +332,7 @@ class SqlUdpRawValue(SqlUdp) :
             #encrypted_string = fernet.encrypt(all_data_bytes)
             #rt.logging.debug("len(encrypted_string)", len(encrypted_string), "encrypted_string", encrypted_string)
             #rt.logging.debug(" ")
-            try :
-                self.socket.sendto(all_data_bytes, (ip, self.port))
-            except Exception as e :
-                rt.logging.exception('Exception', e)
-
+            self.dispatch_packet(all_data_bytes, ip)
         except Exception as e :
             rt.logging.exception('Exception', e)
 
@@ -376,10 +372,7 @@ class SqlUdpRawBytes(SqlUdp) :
                     rt.logging.debug(" ")
                     data_bytes = struct.pack('>HI{}s'.format(len(encrypted_string)), int(channel), int(timestamp), encrypted_string)
                     rt.logging.debug("len(data_bytes)", len(data_bytes))
-                    try :
-                        self.socket.sendto(data_bytes, (ip, self.port))
-                    except Exception as e :
-                        rt.logging.exception('Exception', e)
+                    self.dispatch_packet(data_bytes, ip)
 
             except Exception as e :
                 rt.logging.exception('Exception', e)
@@ -418,7 +411,7 @@ class SqlUdpNmeaValue(SqlUdp) :
             if value is not None :
                 nmea_string = self.nmea.from_float(multiplier = self.multiplier, decimals = self.decimals, value = value)
                 rt.logging.debug("nmea_string", nmea_string)
-                self.socket.sendto(nmea_string.encode('utf-8'), (ip, self.port))
+                self.dispatch_packet(nmea_string.encode('utf-8'), ip)
 
 
 
@@ -447,7 +440,7 @@ class SqlUdpBytes(SqlUdp) :
         for byte_string in strings :
             rt.logging.debug("byte_string", byte_string)
             if byte_string is not None :
-                self.socket.sendto(byte_string, (ip, self.port))
+                self.dispatch_packet(byte_string, ip)
 
 
 
@@ -482,7 +475,7 @@ class SqlUdpNmeaLines(SqlUdp) :
                     if nmea_sentence.find(b'\n') and nmea_sentence.find(b'\r') :
                         nmea_sentence += b'\r\n'
                         rt.logging.debug("nmea_sentence", nmea_sentence)
-                        self.socket.sendto(nmea_sentence, (ip, self.port))
+                        self.dispatch_packet(nmea_sentence, ip)
 
 
 
@@ -515,7 +508,7 @@ class SqlUdpNmeaPos(SqlUdp) :
             if not ( None in [ timestamps[0], values[0], values[1] ] ) :
                 nmea_string = self.nmea.gll_from_time_pos_float(timestamp = timestamps[0], latitude = values[0], longitude = values[1])
                 rt.logging.debug("nmea_string", nmea_string)
-                self.socket.sendto(nmea_string.encode('utf-8'), (ip, self.port))
+                self.dispatch_packet(nmea_string.encode('utf-8'), ip)
 
         except Exception as e:
             rt.logging.exception(e)
@@ -579,11 +572,11 @@ class SqlUdpAivdmPosition(SqlUdpAivdmStatic):
         try :
             aivdm_stat_payload = self.nmea.aivdm_from_static(mmsi = self.mmsi, vessel_name = self.vessel_name, call_sign = self.call_sign, ship_type = self.ship_type)
             rt.logging.debug('aivdm_stat_payload', aivdm_stat_payload)
-            self.socket.sendto(aivdm_stat_payload.encode('utf-8'), (ip, self.port))
+            self.dispatch_packet(aivdm_stat_payload.encode('utf-8'), ip)
             rt.logging.debug("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
             aivdm_pos_payload = self.nmea.aivdm_from_pos(mmsi = self.mmsi, timestamp = times[0], latitude = values[0], longitude = values[1], status = self.nav_status)
             rt.logging.debug('aivdm_pos_payload', aivdm_pos_payload)
-            self.socket.sendto(aivdm_pos_payload.encode('utf-8'), (ip, self.port))
+            self.dispatch_packet(aivdm_pos_payload.encode('utf-8'), ip)
         except Exception as e:
             rt.logging.exception(e)
 
@@ -618,7 +611,7 @@ class SqlUdpBinaryBroadcastMessageAreaNoticeCircle(SqlUdp):
             rt.logging.debug("list(channels)", list(channels), "times", times, "values", values, "ip", ip)
             aivdm_area_notice_circle_payload = self.ais.aivdm_area_notice_circle_from_pos(self.mmsi, values[0], values[1])
             rt.logging.debug('aivdm_area_notice_circle_payload', aivdm_area_notice_circle_payload)
-            self.socket.sendto(aivdm_area_notice_circle_payload.encode('utf-8'), (ip, self.port))
+            self.dispatch_packet(aivdm_area_notice_circle_payload.encode('utf-8'), ip)
         except Exception as e:
             rt.logging.exception(e)
 
@@ -662,7 +655,7 @@ class SqlUdpAtonReport(SqlUdp):
             rt.logging.debug('aivdm_aton_payloads', aivdm_aton_payloads)
 
             for aivdm_aton_payload in aivdm_aton_payloads :
-                self.socket.sendto(aivdm_aton_payload.encode('utf-8'), (ip, self.port))
+                self.dispatch_packet(aivdm_aton_payload.encode('utf-8'), ip)
 
         except Exception as e :
 
@@ -798,9 +791,7 @@ class SqlFileAtonReport(SqlFile):
                     (selected_tag, data_array), = nmea_data.items()
                     rt.logging.debug("self.target_channels", self.target_channels, "data_array", data_array, "selected_tag", selected_tag)
                     self.persist(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
-            #except (pymysql.err.OperationalError, pymysql.err.Error) as e :
-            #    rt.logging.exception(e)
-            #finally :
+
             self.sql.close_db_connection()
 
             time.sleep(1/self.transmit_rate)
@@ -861,9 +852,7 @@ class SqlFileAisData(SqlFile):
                     (selected_tag, data_array), = nmea_data.items()
                     rt.logging.debug("selected_tag", selected_tag, "data_array", data_array)
                     self.persist(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
-            #except (pymysql.err.OperationalError, pymysql.err.Error) as e :
-            #    rt.logging.exception(e)
-            #finally :
+
             self.sql.close_db_connection()
 
             time.sleep(1/self.transmit_rate)
@@ -940,16 +929,13 @@ class SqlFilePosAisData(SqlFile):
                     rt.logging.debug("self.target_channels", self.target_channels, "data_array", data_array, "selected_tag", selected_tag)
                     self.persist(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
 
-            #except (pymysql.err.OperationalError, pymysql.err.Error) as e :
-            #    rt.logging.exception(e)
-            #finally :
             self.sql.close_db_connection()
 
             time.sleep(1/self.transmit_rate)
 
 
 
-class SqlHttpUpdateStatic(ap.HttpHost):
+class SqlHttpUpdateStatic(it.HttpHost):
 
 
     def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, message_formats = None, ip_list = None, http_scheme = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None) :
@@ -977,7 +963,7 @@ class SqlHttpUpdateStatic(ap.HttpHost):
         self.config_filename = config_filename
 
         #SqlFile.__init__(self)
-        ap.HttpHost.__init__(self)
+        it.HttpHost.__init__(self)
 
         self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
         self.ais = tr.Ais(message_formats = self.message_formats)
@@ -1117,7 +1103,7 @@ class SqlHttpUpdateStatic(ap.HttpHost):
 
 
 
-# class SqlHttpUpdateDevice(ap.HttpHost):
+# class SqlHttpUpdateDevice(it.HttpHost):
 
 
     # def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, message_formats = None, ip_list = None, http_scheme = None, host_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None) :
@@ -1139,7 +1125,7 @@ class SqlHttpUpdateStatic(ap.HttpHost):
         # self.config_filepath = config_filepath
         # self.config_filename = config_filename
 
-        # ap.HttpHost.__init__(self)
+        # it.HttpHost.__init__(self)
 
         # self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
         # self.ais = tr.Ais(message_formats = self.message_formats)
