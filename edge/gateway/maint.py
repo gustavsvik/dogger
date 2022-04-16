@@ -13,11 +13,11 @@ import gateway.task as ta
 
 import gateway.persist as ps
 import gateway.runtime as rt
-import gateway.api as ap
+import gateway.inet as it
 
 
 
-class CloudDBPartition(ap.HttpMaint):
+class CloudDBPartition(it.HttpMaint):
 
 
     def __init__(self, start_delay = None, ip_list = None, http_scheme = None, maint_api_url = None, max_connect_attempts = None, new_partition_name_date = None, new_partition_timestamp = None, oldest_kept_partition_name_date = None, config_filepath = None, config_filename = None):
@@ -37,7 +37,7 @@ class CloudDBPartition(ap.HttpMaint):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
-        ap.HttpMaint.__init__(self)
+        it.HttpMaint.__init__(self)
 
 
 
