@@ -54,6 +54,14 @@ class UdpSend(Udp):
         Udp.__init__(self)
 
 
+    def dispatch_packet(self, data_bytes = '', ip = '127.0.0.1'):
+
+        try :
+            self.socket.sendto(data_bytes, (ip, self.port))
+        except OSError as e :
+            rt.logging.exception(e)
+
+
 
 class Http(ta.HttpTask):
 
