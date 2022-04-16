@@ -587,7 +587,7 @@ class RegistersModbusSerialFile(ModbusSerialFile) :
 
             registers_int_list = self.modbus_instrument.read_registers_in_chunks(self.modbus_register_address_offset, self.modbus_max_read_chunk_size, self.modbus_max_read_address)
 
-            print("registers_int_list", registers_int_list)
+            rt.logging.debug("registers_int_list", registers_int_list)
 
             registers_per_value = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
 
@@ -595,8 +595,7 @@ class RegistersModbusSerialFile(ModbusSerialFile) :
             register_index = 0
             for no_of_value_registers in registers_per_value :
                 format_string = "<" + "H" * no_of_value_registers
-                #print("format_string", format_string)
-                value_int_list = registers_int_list[register_index:register_index+no_of_value_registers]
+                value_int_list = registers_int_list[register_index:register_index + no_of_value_registers]
                 value_int_list.reverse()
                 print("value_int_list", value_int_list)
                 unpacked_float = -9999.0
@@ -606,9 +605,17 @@ class RegistersModbusSerialFile(ModbusSerialFile) :
                 register_values.append(unpacked_float)
                 register_index += no_of_value_registers
 
-            print("register_values", register_values)
+            json_string = tr.to_json(registers_int_list)
 
-            time.sleep(1.0)
+            rt.logging.debug("register_values", register_values)
+
+            channel_indices, = self.channels['MODBUS'].items()
+            data_array = [ { channel_indices[0] : json_string } ]
+            rt.logging.debug("data_array", data_array)
+            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+            self.persist(data_array = data_array, selected_tag = 'MODBUS', timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
+
+            time.sleep(1/self.sample_rate)
 
 
 
@@ -623,7 +630,7 @@ class UdpFile(it.UdpReceive, ps.IngestFile):
 
     def __init__(self):
 
-        ap.UdpReceive.__init__(self)
+        it.UdpReceive.__init__(self)
         ps.IngestFile.__init__(self)
 
 
