@@ -163,6 +163,26 @@ def load_text_string_file(current_file = None) :
     return acquired_microsecs, acquired_value, acquired_text, acquired_bytes
 
 
+def load_byte_string_file(current_file = None) :
+
+    acquired_microsecs = 9999
+    acquired_value = -9999.0
+    acquired_text = ''
+    acquired_bytes = b''
+
+    try :
+        with open(current_file, "rb") as bin_file :
+            acquired_bytes = bin_file.read()
+    except OSError as e :
+        rt.logging.exception(e)
+        try:
+            os.remove(current_file)
+        except (PermissionError, FileNotFoundError, OSError) as e:
+            rt.logging.exception(e)
+
+    return acquired_microsecs, acquired_value, acquired_text, acquired_bytes
+
+
 def get_filenames(channel_data = None, file_path = None) :
 
     channel_list = []
@@ -261,7 +281,6 @@ class IngestFile(AcquireControlFile) :
         rt.logging.debug("write_channels", write_channels)
         rt.logging.debug("data_array", data_array)
         selected_channel_array = [ tag_channels for channel_tag, tag_channels in write_channels.items() if channel_tag == selected_tag ]
-        rt.logging.debug("selected_channel_array", selected_channel_array)
 
         for channel, file_type in selected_channel_array[0].items() :
             rt.logging.debug("channel, file_type", channel, file_type)
@@ -298,6 +317,15 @@ class IngestFile(AcquireControlFile) :
                                 rt.logging.debug("channel_array", channel_array)
                                 rt.logging.debug("channel", channel)
                                 text_file.write(channel_array)
+                        except PermissionError as e:
+                            rt.logging.exception(e)
+
+                    if file_type == 'bin' and channel_array != b'' :
+                        try :
+                            with open(store_filename, 'wb') as bin_file :
+                                rt.logging.debug("channel_array", channel_array)
+                                rt.logging.debug("channel", channel)
+                                bin_file.write(channel_array)
                         except PermissionError as e:
                             rt.logging.exception(e)
 
