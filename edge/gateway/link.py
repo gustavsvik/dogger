@@ -773,7 +773,6 @@ class SqlFileAtonReport(SqlFile):
 
         while True:
 
-            #try :
             self.sql.connect_db()
             channels, times, values, byte_strings = self.sql.get_stored(from_channels = self.channels, max_age = self.max_age)
             rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings)
@@ -927,6 +926,67 @@ class SqlFilePosAisData(SqlFile):
                 if nmea_data is not None :
                     (selected_tag, data_array), = nmea_data.items()
                     rt.logging.debug("self.target_channels", self.target_channels, "data_array", data_array, "selected_tag", selected_tag)
+                    self.persist(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
+
+            self.sql.close_db_connection()
+
+            time.sleep(1/self.transmit_rate)
+
+
+
+class SqlFileModbusData(SqlFile):
+
+
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, message_formats = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+        self.transmit_rate = transmit_rate
+        self.gateway_database_connection = gateway_database_connection
+        self.max_age = max_age
+        self.target_channels = target_channels
+        self.message_formats = message_formats
+
+        self.file_path = file_path
+        self.archive_file_path = archive_file_path
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        SqlFile.__init__(self)
+
+        self.modbus = tr.ModbusData(message_formats = self.message_formats)
+
+
+    def run(self):
+
+        time.sleep(self.start_delay)
+        rt.logging.debug(self.target_channels)
+
+        while True:
+
+            #try :
+            self.sql.connect_db()
+            channels, times, values, byte_strings = self.sql.get_stored(from_channels = self.channels, max_age = self.max_age)
+            rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings)
+            timestamp = None
+            try :
+                if times not in [None, []] and type(times) is list :
+                    timestamp = times[0]
+                timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(timestamp = timestamp, sample_rate = self.sample_rate)
+                rt.logging.debug("timestamp_secs", timestamp_secs, "current_timetuple", current_timetuple, "timestamp_microsecs", timestamp_microsecs, "next_sample_secs", next_sample_secs)
+                modbus_data_array = self.modbus.decode_to_channels(char_data = byte_strings, channel_data = self.target_channels, time_tuple = current_timetuple)
+                rt.logging.debug("modbus_data_array", modbus_data_array)
+                rt.logging.debug(" ")
+            except (ValueError, IndexError, TypeError) as e :
+                rt.logging.exception(e)
+
+            for modbus_data in modbus_data_array :
+                rt.logging.debug('modbus_data', modbus_data)
+                if modbus_data is not None :
+                    (selected_tag, data_array), = modbus_data.items()
+                    rt.logging.debug("selected_tag", selected_tag, "data_array", data_array)
                     self.persist(target_channels = self.target_channels, data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
 
             self.sql.close_db_connection()
