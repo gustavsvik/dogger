@@ -187,7 +187,10 @@ class ModbusSerial(Bus) :
         self.instrument.serial.write_timeout  = self.write_timeout
 
 
-    def read_registers_in_chunks(self, offset, max_chunk_size, max_address) :
+    def read_registers_in_chunks(self, slave_address, offset, max_chunk_size, max_address) :
+
+        self.instrument.address = slave_address
+        rt.logging.debug("self.instrument", self.instrument)
 
         no_of_whole_chunks = max_address // max_chunk_size
         end_of_whole_chunks = no_of_whole_chunks * max_chunk_size
