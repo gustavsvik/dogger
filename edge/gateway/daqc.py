@@ -526,8 +526,8 @@ class RegistersModbusSerialFile(ModbusSerialFile) :
 
 
     def __init__(self,
-        channels:                       Union[ Dict[str, Dict[int, str]], None ] = None,
-        ctrl_channels:                  Union[ Dict[str, Dict[int, str]], None ] = None,
+        channels:                       Union[ Dict[int, Dict[int, str]], None ] = None,
+        ctrl_channels:                  Union[ Dict[int, Dict[int, str]], None ] = None,
         start_delay:                    Union[ float, None ] = None,
         sample_rate:                    Union[ float, None ] = None,
         bus_port:                       Union[ str, None ] = None,
@@ -585,38 +585,40 @@ class RegistersModbusSerialFile(ModbusSerialFile) :
 
         while True:
 
-            registers_int_list = self.modbus_instrument.read_registers_in_chunks(self.modbus_register_address_offset, self.modbus_max_read_chunk_size, self.modbus_max_read_address)
+            for key in self.channels.keys() :
 
-            rt.logging.debug("registers_int_list", registers_int_list)
+                slave_address = key
+                channel_dict = self.channels[key]
+                channel = list(channel_dict)[0]
+                self.modbus_instrument.address = slave_address
+                registers_int_list = self.modbus_instrument.read_registers_in_chunks(slave_address, self.modbus_register_address_offset, self.modbus_max_read_chunk_size, self.modbus_max_read_address)
+                #register_bytes = [ register_int.to_bytes(2, byteorder='big') for register_int in registers_int_list ]
+                #rt.logging.debug("register_bytes", register_bytes)
 
-            registers_per_value = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+                #registers_per_value = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+                #register_values = []
+                #register_index = 0
+                #for no_of_value_registers in registers_per_value :
+                #    format_string = "<" + "H" * no_of_value_registers
+                #    value_int_list = registers_int_list[register_index:register_index + no_of_value_registers]
+                #    value_int_list.reverse()
+                #    unpacked_float = -9999.0
+                #    if len(value_int_list) == 2 :
+                #        packed_string = struct.pack(format_string, *value_int_list)
+                #        unpacked_float = struct.unpack("f", packed_string)[0]
+                #    register_values.append(unpacked_float)
+                #    register_index += no_of_value_registers
+                #rt.logging.debug("register_values", register_values)
 
-            register_values = []
-            register_index = 0
-            for no_of_value_registers in registers_per_value :
-                format_string = "<" + "H" * no_of_value_registers
-                value_int_list = registers_int_list[register_index:register_index + no_of_value_registers]
-                value_int_list.reverse()
-                print("value_int_list", value_int_list)
-                unpacked_float = -9999.0
-                if len(value_int_list) == 2 :
-                    packed_string = struct.pack(format_string, *value_int_list)
-                    unpacked_float = struct.unpack("f", packed_string)[0]
-                register_values.append(unpacked_float)
-                register_index += no_of_value_registers
-
-            json_string = tr.to_json(registers_int_list)
-
-            rt.logging.debug("register_values", register_values)
-
-            channel_indices, = self.channels['MODBUS'].items()
-            data_array = [ { channel_indices[0] : json_string } ]
-            rt.logging.debug("data_array", data_array)
-            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
-            self.persist(data_array = data_array, selected_tag = 'MODBUS', timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
+                json_string = tr.to_json(registers_int_list)
+                slave_address_tag = '"SLAVE-' + '{0:03d}'.format(slave_address) + '"'
+                target_channels = { slave_address_tag: channel_dict }
+                data_array = [ { channel : (slave_address_tag + ':' + json_string.replace(" ", "")) } ] #   data_array = [ { channel_indices[0] : b'FC03' + b''.join(register_bytes) } ]
+                rt.logging.debug("data_array", data_array)
+                timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+                self.persist(target_channels = target_channels, data_array = data_array, selected_tag = slave_address_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
 
             time.sleep(1/self.sample_rate)
-
 
 
     def load_file(self, current_file = None):
