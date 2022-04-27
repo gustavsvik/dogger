@@ -330,6 +330,30 @@ class TextStringFile(FileToSQL):
         return ps.load_text_string_file(current_file)
 
 
+class ByteStringFile(FileToSQL):
+
+
+    def __init__(self, channels = None, start_delay = None, gateway_database_connection = None, file_path = None, file_extensions = ['csv', 'txt', 'json'], files_to_keep = None, config_filepath = None, config_filename = None):
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.gateway_database_connection = gateway_database_connection
+        self.file_path = file_path
+        self.file_extensions = file_extensions
+        self.files_to_keep = files_to_keep
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        FileToSQL.__init__(self)
+
+
+    def load_file(self, current_file = None):
+
+        return ps.load_byte_string_file(current_file)
+
+
+
 class TextJsonFile(FileToSQL):
 
 
