@@ -94,7 +94,7 @@
 import gateway.daqc
 
 modbus = gateway.daqc.RegistersModbusSerialFile(
-    channels = { 'WM14':{155:'txt'} },
+    channels = { 1:{155:'txt'}, 3:{157:'txt'} },
     ctrl_channels = {},
     start_delay = 10,
     sample_rate = 1,
@@ -103,6 +103,7 @@ modbus = gateway.daqc.RegistersModbusSerialFile(
     serial_parity = gateway.daqc.Serial.PARITY_NONE,
     serial_bytesize = gateway.daqc.Serial.EIGHTBITS,
     serial_stopbits = gateway.daqc.Serial.STOPBITS_ONE,
+    serial_timeout = 0.1,
     modbus_slave_address = 1,
     modbus_mode = gateway.daqc.ModbusSerial.MODE_RTU,
     modbus_register_address_offset = 1,
@@ -111,7 +112,7 @@ modbus = gateway.daqc.RegistersModbusSerialFile(
     file_path = '/home/scc01/Z/data/files/',
     ctrl_file_path = '/home/scc01/Z/data/files/others/',
     archive_file_path = '/home/scc01/Z/data/files/',
-    config_filepath = '/home/scc01/Z/app/python/dogger/',
+    config_filepath = '/home/scc01/Z/dogger/',
     config_filename = 'conf.ini')
 
 modbus.run()
