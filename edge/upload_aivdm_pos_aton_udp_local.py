@@ -13,7 +13,6 @@ udp_upload_ais = gateway.link.SqlUdpAtonReport(
     aid_type = [19, 30, 30, 19],
     name = ["MEASUREMENT BEACON", "TEST AREA NO PASSAGE", "TEST AREA NO PASSAGE", "MEASUREMENT BEACON"],
     virtual_aid = [0, 1, 1, 0],
-    config_filepath = '/home/heta/Z/app/python/dogger/',
     config_filename = 'conf_udp_local.ini')
 
 udp_upload_ais.run()

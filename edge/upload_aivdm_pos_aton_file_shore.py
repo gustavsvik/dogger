@@ -12,9 +12,6 @@ udp_upload_ais = gateway.link.SqlFileAtonReport(
     mmsi = [992659995, 992659994, 992659993],
     aid_type = [19, 30, 19],
     name = ["TSB TEST REMOTE CONTROL CENTER    ", "TSB SHORE MOBILE TEST CONTROL UNIT", "GUSTAVSVIK RADIO"],
-    virtual_aid = [1, 1, 1],
-    file_path = '/srv/dogger/files/',
-    config_filepath = '/srv/dogger/',
-    config_filename = 'conf.ini')
+    virtual_aid = [1, 1, 1] )
 
 udp_upload_ais.run()

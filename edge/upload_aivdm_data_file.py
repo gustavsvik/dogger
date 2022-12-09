@@ -7,7 +7,6 @@ udp_upload_ais = gateway.link.SqlFileAisData(
     transmit_rate = 0.2,
     max_age = 20,
     target_channels = {'VDM':{0:'txt', 148:'json'}},
-    file_path = '/srv/dogger/files/',
     message_formats = [ {"message": {"type":5},
                      "imo":          { "type":"int", "novalue":0 },
                      "callsign":     { "type":"str" },
@@ -195,7 +194,6 @@ udp_upload_ais = gateway.link.SqlFileAisData(
                      "device_hardware_id": { "function":{"name":"create_key", "args":{"mmsi"}} },
                      "host_hardware_id":{ "function":{"name":"create_key", "args":{"mmsi"}} },
                      "icon_filename":{ "function":{"name":"get_png_name_by_aton_type", "args":{"aid_type", "virtual_aid"}} } } ],
-    config_filepath = '/srv/dogger/',
     config_filename = 'conf_cloud_db.ini')
 
 udp_upload_ais.run()

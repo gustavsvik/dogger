@@ -9,6 +9,7 @@ usb_cam = gateway.daqc.USBCam(
     video_res = [1280, 720],
     video_quality = 80,
     video_capture_method = 'RASPICAM',
-    video_rate = 5)
+    video_rate = 5,
+    config_file = 'SKIP')
 
 usb_cam.run()

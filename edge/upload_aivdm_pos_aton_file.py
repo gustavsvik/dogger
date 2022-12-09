@@ -12,9 +12,6 @@ udp_upload_ais = gateway.link.SqlFileAtonReport(
     mmsi = [992659999, 992659998, 992659997, 992659996],
     aid_type = [19, 30, 30, 19],
     name = ["MEASURE BEACON 01, KEEP DISTANCE! ", "TEST AREA,  NO ENTRY! CH16 7SA9999", "TEST AREA,  NO ENTRY! CH16 7SA9999", "MEASURE BEACON 02, KEEP DISTANCE! "],
-    virtual_aid = [0, 1, 1, 0],
-    file_path = '/srv/dogger/files/',
-    config_filepath = '/srv/dogger/',
-    config_filename = 'conf.ini')
+    virtual_aid = [0, 1, 1, 0] )
 
 udp_upload_ais.run()

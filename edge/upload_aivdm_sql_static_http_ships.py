@@ -37,7 +37,6 @@ udp_upload_ais = gateway.link.SqlHttpUpdateStatic(
                       "second":       { "type":"int", "novalue":[61,62,63], "nosensor":60 },
                       "device_hardware_id": { "function":{"name":"create_key", "args":{"mmsi"}} },
                       "image_filename":{ "function":{"name":"get_png_name_by_key", "args":{"mmsi"}} } } ],
-    config_filepath = '/srv/dogger/',
     config_filename = 'conf_cloud_db.ini')
 
 udp_upload_ais.run()

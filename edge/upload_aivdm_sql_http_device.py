@@ -94,7 +94,6 @@ udp_upload_ais = gateway.link.SqlHttpUpdateDevice(
                      "device_hardware_id": { "function":{"name":"get_device_hardware_id", "args":{"mmsi"}} },
                      "module_text_id": { "function":{"name":"create_olc_composite_key", "args":{"mmsi", "olc"}} } } ],
 
-    config_filepath = '/srv/dogger/',
     config_filename = 'conf_cloud_db.ini')
 
 udp_upload_ais.run()

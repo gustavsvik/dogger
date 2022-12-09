@@ -12,11 +12,6 @@ usb_serial = gateway.daqc.SerialNmeaFile(
     serial_stopbits = gateway.daqc.Serial.STOPBITS_ONE,
     serial_bytesize = gateway.daqc.Serial.SEVENBITS,
     serial_timeout = 0.01,
-    delay_waiting_check = 0,
-    file_path = '/home/scc01/Z/data/files/',
-    ctrl_file_path = '/home/scc01/Z/data/files/others/',
-    archive_file_path = '/home/scc01/Z/data/files/',
-    config_filepath = '/home/scc01/Z/dogger/',
-    config_filename = 'conf.ini')
+    delay_waiting_check = 0)
 
 usb_serial.run()

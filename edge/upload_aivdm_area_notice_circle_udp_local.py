@@ -8,7 +8,6 @@ udp_upload_ais = gateway.link.SqlUdpBinaryBroadcastMessageAreaNoticeCircle(
     port = 4444,
     max_age = 10,
     mmsi = 123456789,
-    config_filepath = '/home/heta/Z/app/python/dogger/',
     config_filename = 'conf_udp_local.ini')
 
 udp_upload_ais.run()

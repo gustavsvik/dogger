@@ -6,9 +6,7 @@ screenshot = gateway.daqc.ScreenshotUpload(
     sample_rate = 1.0,
     host_api_url = '\\host\\',
     client_api_url = '\\client\\',
-    crop = [0,184,1243,1040],
-    video_quality = 80,
-    config_filepath = 'Z:\\app\\python\\dogger\\',
-    config_filename = 'conf.ini')
+    crop = [0,1243,184,1040],
+    video_quality = 80)
 
 screenshot.run()

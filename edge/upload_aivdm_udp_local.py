@@ -11,8 +11,6 @@ udp_upload_ais = gateway.link.SqlUdpAivdmPosition(
     vessel_name = "TSB TEST AREA PATROL",
     call_sign = "7SA9998",
     ship_type = 55,
-    nav_status = 0,
-    config_filepath = '/home/heta/Z/app/python/dogger/',
-    config_filename = 'conf_udp_local.ini')
+    nav_status = 0)
 
 udp_upload_ais.run()

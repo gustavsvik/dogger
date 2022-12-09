@@ -6,8 +6,6 @@ mob_upload_sql_udp = gateway.link.SqlUdpRawValue(
     start_delay = 0,
     transmit_rate = 1,
     port = 61010,
-    max_age = 10,
-    config_filepath = '/srv/dogger/',
-    config_filename = 'conf.ini')
+    max_age = 10)
 
 mob_upload_sql_udp.run()

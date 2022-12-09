@@ -6,8 +6,6 @@ http_upload = gateway.link.Replicate(
     start_delay = 0,
     transmit_rate = 1,
     host_api_url = '/host/',
-    max_connect_attempts = 50,
-    config_filepath = '/home/heta/Z/app/python/dogger/',
-    config_filename = 'conf.ini')
+    max_connect_attempts = 50)
 
 http_upload.run()

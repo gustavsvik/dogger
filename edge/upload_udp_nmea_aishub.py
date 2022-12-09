@@ -7,7 +7,6 @@ mob_upload_sql_udp = gateway.link.SqlUdpNmeaLines(
     transmit_rate = 0.5,
     port = 3265,
     max_age = 20,
-    config_filepath = '/home/scc01/Z/dogger/',
     config_filename = 'conf_udp_aishub.ini')
 
 mob_upload_sql_udp.run()
