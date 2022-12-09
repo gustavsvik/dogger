@@ -18,7 +18,13 @@ class Bus :
     def __init__(self) :
 
         if self.bus_port is None :
-            self.bus_port = Serial.search_port(self.host_port)
+            self.bus_port = self.search_port(self.host_port)
+
+
+    @staticmethod
+    def search_port(host_port) :
+
+        pass
 
 
 
