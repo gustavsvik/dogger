@@ -45,17 +45,32 @@ class Configure:
         import json
         import configparser
 
+        import gateway.utils as ut
+
         conf = configparser.ConfigParser()
-        #filepath = os.path.dirname(__file__)
-        #filename = 'conf.ini'
-        #if self.config_filepath is not None :
-        filepath = self.config_filepath
-        #if self.config_filename is not None :
-        filename = self.config_filename
+
+        filepath = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) # Default location two directory levels up from this file
+        if self.config_filepath is not None :
+            filepath = self.config_filepath
+
+        filename = 'conf.ini'
+        filenames = ut.get_all_files(filepath, file_pattern = 'conf.ini')
+        if len(filenames) == 1 :
+            filename = filenames[0]
+        else :
+            filenames = ut.get_all_files(filepath, file_pattern = '*.ini')
+            if len(filenames) >= 1 :
+                filename = filenames[0]
+
+        if self.config_filename is not None :
+            filename = self.config_filename
+
+        filepath_filename = os.path.join(filepath, filename)
         try :
-            conf.read(os.path.join(filepath, filename))
+            conf.read(filepath_filename)
         except :
             pass
+
         top_label = 'dogger'
 
         env = dict()
@@ -67,8 +82,15 @@ class Configure:
         net_archive_file_path = strip_string(conf, top_label, 'net_archive_file_path', '')
         local_archive_file_path = strip_string(conf, top_label, 'local_archive_file_path', '')
         windows_archive_file_path = strip_string(conf, top_label, 'windows_archive_file_path', '')
+        net_ctrl_file_path = strip_string(conf, top_label, 'net_ctrl_file_path', '')
+        local_ctrl_file_path = strip_string(conf, top_label, 'local_ctrl_file_path', '')
+        windows_ctrl_file_path = strip_string(conf, top_label, 'windows_ctrl_file_path', '')
+        net_static_file_path = strip_string(conf, top_label, 'net_static_file_path', '')
+        local_static_file_path = strip_string(conf, top_label, 'local_static_file_path', '')
+        windows_static_file_path = strip_string(conf, top_label, 'windows_static_file_path', '')
         gateway_database_connection = strip_string(conf, top_label, 'gateway_database_connection', '')
         ip_list = strip_string(conf, top_label, 'ip_list', '')
+        crypto_key = strip_string(conf, top_label, 'crypto_key', '')
         http_scheme = strip_string(conf, top_label, 'http_scheme', 'http')
         host_api_url = strip_string(conf, top_label, 'host_api_url', '')
         client_api_url = strip_string(conf, top_label, 'client_api_url', '')
@@ -115,6 +137,12 @@ class Configure:
         archive_file_path = local_archive_file_path
         if os.path.isdir(net_archive_file_path) : archive_file_path = net_archive_file_path
         if sys.platform.startswith('win32') : archive_file_path = windows_archive_file_path
+        ctrl_file_path = local_ctrl_file_path
+        if os.path.isdir(net_ctrl_file_path) : ctrl_file_path = net_ctrl_file_path
+        if sys.platform.startswith('win32') : ctrl_file_path = windows_ctrl_file_path
+        static_file_path = local_static_file_path
+        if os.path.isdir(net_static_file_path) : static_file_path = net_static_file_path
+        if sys.platform.startswith('win32') : static_file_path = windows_static_file_path
         env['SAMPLE_RATE'] = sample_rate
         env['TRANSMIT_RATE'] = transmit_rate
         env['SAMPLES_PER_CHAN'] = samples_per_chan
@@ -122,6 +150,10 @@ class Configure:
         env['WINDOWS_FILE_PATH'] = windows_file_path
         env['ARCHIVE_FILE_PATH'] = archive_file_path
         env['WINDOWS_ARCHIVE_FILE_PATH'] = windows_archive_file_path
+        env['CTRL_FILE_PATH'] = ctrl_file_path
+        env['WINDOWS_CTRL_FILE_PATH'] = windows_ctrl_file_path
+        env['STATIC_FILE_PATH'] = static_file_path
+        env['WINDOWS_STATIC_FILE_PATH'] = windows_static_file_path
         env['TRUNCATE_INTERVAL'] = truncate_interval
         env['ACQUIRED_TRUNCATE_INTERVAL'] = acquired_truncate_interval
         env['ACCUMULATED_DELETE_INTERVAL'] = accumulated_delete_interval
@@ -136,6 +168,7 @@ class Configure:
             env['IP_LIST'] = json.loads(ip_list)
         except ValueError:
             env['IP_LIST'] = ip_list
+        env['CRYPTO_KEY'] = crypto_key
         env['HTTP_SCHEME'] = http_scheme
         env['HOST_API_URL'] = host_api_url
         env['CLIENT_API_URL'] = client_api_url
