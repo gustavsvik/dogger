@@ -1,10 +1,31 @@
 #
 
+import os
+import glob
 import json
 
 try : import yaml
 except ImportError: pass
 
+import gateway.runtime as rt
+
+
+
+def safe_sign(obj = None, default_value = None) :
+    value = default_value
+    sign_func = lambda obj: -1 if obj < 0 else (1 if obj > 0 else 0)
+    value = sign_func(obj)
+    return value
+
+
+def safe_float(obj = None, default_value = None) :
+    value = default_value
+    if obj is not None :
+        try :
+            value = float(obj)
+        except ValueError as e :
+            pass
+    return value
 
 
 def safe_str(obj = None, default_value = None) :
@@ -82,6 +103,50 @@ def safe_list(iterable_or_single_object = None) :
                 return_list = [ iterable_or_single_object ]
 
     return return_list
+
+
+def get_all_files(path, file_pattern) :
+
+    pattern = path + file_pattern
+    files = sorted(glob.glob(pattern))
+
+    return files
+
+
+def load_file(file = None) :
+
+    file_data = None
+    try :
+        text_file = open(file, "r")
+        file_data = text_file.read()
+    except OSError as e :
+        rt.logging.exception(e)
+
+    rt.logging.debug("file_data", file_data)
+
+    return file_data
+
+
+def load_text_file_lines(file = None) :
+
+    file_data = load_file(file)
+
+    data_lines = None
+    if file_data is not None :
+        data_lines = file_data.splitlines()
+
+    rt.logging.debug("data_lines", data_lines)
+
+    return data_lines
+
+
+def delete_files(files) :
+
+    for current_file in files:
+        try :
+            os.remove(current_file)
+        except (PermissionError, FileNotFoundError) as e:
+            rt.logging.exception(e)
 
 
 def instance_from_dict(obj, argument_dict) :
