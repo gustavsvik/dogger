@@ -43,8 +43,10 @@ class Task:
 
     def get_env(self):
 
-        config = md.Configure(filepath = self.config_filepath, filename = self.config_filename)
-        env = config.get()
+        env = None
+        if (self.config_filename == None) or (not self.config_filename.upper() == 'SKIP') :
+            config = md.Configure(filepath = self.config_filepath, filename = self.config_filename)
+            env = config.get()
 
         return env
 
