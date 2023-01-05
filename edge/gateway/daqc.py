@@ -18,7 +18,7 @@ try : import numpy
 except ImportError: pass
 try : import pyais
 except ImportError: pass
-try : from cryptography.fernet import Fernet
+try : import cryptography.fernet
 except ImportError: pass
 try : import cv2
 except ImportError: pass
@@ -58,6 +58,11 @@ class UdpHttp(it.UdpReceive) :
                 http = li.DirectUpload(channels = common_channels, start_delay = self.start_delay, max_connect_attempts = self.max_connect_attempts, http_scheme = self.http_scheme, config_filepath = self.config_filepath, config_filename = self.config_filename)
                 for current_ip in self.ip_list :
                     res = http.send_request(start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
+                    timestamps = ut.safe_list(timestamps)
+                    if 0 in timestamps :  #if not 0 in timestamps :
+                        rt.logging.debug("timestamps", timestamps)
+                        tr.list_replace(timestamps, 0, int(time.time()))
+                        rt.logging.debug("timestamps", timestamps)
                     data_string = tr.delimited_string_from_lists(common_channels, timestamps, values, byte_strings)
                     #data_string = str(channel) + ';' + str(sample_secs) + ',' + str(data_value) + ',,' + byte_string.decode() + ',;'
                     rt.logging.debug("data_string", data_string, "current_ip", current_ip)
@@ -105,7 +110,7 @@ class UdpValueHttp(UdpHttp) :
 
             for index in range(no_of_data_records) :
                 single_data_record = data[index * 10 : (index+1) * 10]
-                unpacked_record = struct.unpack('>HIf', single_data_record)
+                unpacked_record = struct.unpack('<HIf', single_data_record)
                 rt.logging.debug("unpacked_record", unpacked_record)
                 channels.append(int(unpacked_record[0]))
                 timestamps.append(int(unpacked_record[1]))
@@ -119,12 +124,13 @@ class UdpValueHttp(UdpHttp) :
 class UdpBytesHttp(UdpHttp) :
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, http_scheme = None, port = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, crypto_key = None, http_scheme = None, port = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.ip_list = ip_list
+        self.crypto_key = crypto_key
         self.http_scheme = http_scheme
         self.port = port
         self.max_connect_attempts = max_connect_attempts
@@ -144,32 +150,115 @@ class UdpBytesHttp(UdpHttp) :
             #time.sleep(1/self.transmit_rate)
             data, address = self.socket.recvfrom(4096)
             rt.logging.debug("data", data, "len(data)", len(data))
-            values = struct.unpack_from('>HI', data, offset = 0)
+            try :
+                values = struct.unpack_from('<HI', data, offset = 0)
+            except struct.error as e :
+                rt.logging.exception(e)
             rt.logging.debug("values", values)
-            byte_string = struct.unpack_from( '{}s'.format(len(data) - 6), data[6:len(data)], offset = 0)
-            rt.logging.debug("channel", int(values[0]), "timestamp", int(values[1]), "encrypted_string", byte_string[0])
-            crypto_key = b'XUFA58vllD2n41e7NZDZkyPiUCECkxFsBjF_HaKlIrI='
-            fernet = Fernet(crypto_key)
-            decrypted_string = fernet.decrypt(byte_string[0])
-            rt.logging.debug("decrypted_string", decrypted_string)
-            rt.logging.debug(" ")
-            replaced_byte_string = tr.armor_separators_csv(decrypted_string)
+            try :
+                byte_string_tuple = struct.unpack_from( '{}s'.format(len(data) - 6), data[6:len(data)], offset = 0)
+            except struct.error as e :
+                rt.logging.exception(e)
+            byte_string = byte_string_tuple[0]
+            rt.logging.debug("channel", int(values[0]), "timestamp", int(values[1]), "byte_string", byte_string)
+            rt.logging.debug("self.crypto_key", self.crypto_key)
+            if self.crypto_key not in [None, ''] :
+                try :
+                    #crypto_key = b'XUFA58vllD2n41e7NZDZkyPiUCECkxFsBjF_HaKlIrI='
+                    fernet = cryptography.fernet.Fernet(self.crypto_key)
+                    decrypted_string = fernet.decrypt(byte_string)
+                    rt.logging.debug("decrypted_string", decrypted_string)
+                    rt.logging.debug(" ")
+                    byte_string = decrypted_string
+                except cryptography.fernet.InvalidToken as e :
+                    rt.logging.exception(e)
+            rt.logging.debug("byte_string (decrypted)", byte_string)
+            replaced_byte_string = tr.armor_separators_csv(byte_string)
             rt.logging.debug("replaced_byte_string", replaced_byte_string)
             self.upload_data(int(values[0]), int(values[1]), -9999.0, replaced_byte_string)
+
+
+
+class UdpValueBytesHttp(UdpHttp) :
+
+
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, crypto_key = None, http_scheme = None, port = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
+        self.ip_list = ip_list
+        self.crypto_key = crypto_key
+        self.http_scheme = http_scheme
+        self.port = port
+        self.max_connect_attempts = max_connect_attempts
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        UdpHttp.__init__(self)
+
+
+    def run(self):
+
+        time.sleep(self.start_delay)
+
+        while True :
+
+            #time.sleep(1/self.transmit_rate)
+            data, address = self.socket.recvfrom(4096)
+            rt.logging.debug("data", data, "len(data)", len(data))
+            values = {}
+
+            try :
+
+                try :
+                    values = struct.unpack_from('<HI', data, offset = 0)
+                except struct.error as e :
+                    rt.logging.exception(e)
+                rt.logging.debug("values", values)
+                try :
+                    byte_string_tuple = struct.unpack_from( '{}s'.format(len(data) - 6), data[6:len(data)], offset = 0)
+                except struct.error as e :
+                    rt.logging.exception(e)
+                byte_string = byte_string_tuple[0]
+                channel = int(values[0])
+                timestamp = int(values[1])
+                rt.logging.debug("channel", channel, "timestamp", timestamp, "byte_string", byte_string)
+                if timestamp == 2**32-1 : timestamp = 0
+                if self.crypto_key not in [None, ''] :
+                    try :
+                        #crypto_key = b'XUFA58vllD2n41e7NZDZkyPiUCECkxFsBjF_HaKlIrI='
+                        fernet = cryptography.fernet.Fernet(self.crypto_key)
+                        decrypted_string = fernet.decrypt(byte_string)
+                        rt.logging.debug("decrypted_string", decrypted_string)
+                        rt.logging.debug(" ")
+                        byte_string = decrypted_string
+                        #replaced_byte_string = tr.armor_separators_csv(byte_string)
+                    except cryptography.fernet.InvalidToken as e :
+                        rt.logging.exception(e)
+                rt.logging.debug("byte_string", byte_string)
+                self.upload_data(channel, timestamp, float(byte_string), b'')
+
+            except struct.error as e :
+
+                rt.logging.exception(e)
 
 
 
 class StaticFileNmeaFile(ps.IngestFile) :
 
 
-    def __init__(self, channels = None, start_delay = None, sample_rate = None, concatenate = None, static_file_path_name = None, file_path = None, archive_file_path = None, nmea_prepend = None, nmea_append = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, concatenate = None, static_file_path = None, static_filename = None, file_path = None, ctrl_file_path = None, archive_file_path = None, nmea_prepend = None, nmea_append = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.sample_rate = sample_rate
         self.concatenate = concatenate
-        self.static_file_path_name = static_file_path_name
+        self.static_file_path = static_file_path
+        self.static_filename = static_filename
         self.file_path = file_path
+        self.ctrl_file_path = ctrl_file_path
         self.archive_file_path = archive_file_path
         self.nmea_prepend = nmea_prepend
         self.nmea_append = nmea_append
@@ -198,7 +287,7 @@ class StaticFileNmeaFile(ps.IngestFile) :
                 #except OSError as e :
                 #    rt.logging.exception(e)
                 #rt.logging.debug("data_lines", data_lines)
-                data_lines = ps.load_text_file_lines(self.static_file_path_name)
+                data_lines = ut.load_text_file_lines(self.static_file_path + self.static_filename)
                 time.sleep(1.0)
 
             char_data_lines = data_lines
@@ -272,7 +361,7 @@ class NativeCmemsNumpyFile(CmemsFile) :
                 netcdf_data = NetCDFFile(complete_file_name)
                 time.sleep(1.0)
             if netcdf_data :
-                ps.delete_files([complete_file_name])
+                ut.delete_files([complete_file_name])
             rt.logging.debug("netcdf_data", netcdf_data)
 
             time_object = netcdf_data.variables["time"] #numpy.array(
@@ -640,7 +729,7 @@ class UdpFile(it.UdpReceive, ps.IngestFile):
 class NmeaUdpFile(UdpFile):
 
 
-    def __init__(self, channels = None, ip_list = None, port = None, start_delay = None, sample_rate = None, transmit_rate = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, ip_list = None, port = None, start_delay = None, sample_rate = None, transmit_rate = None, file_path = None, ctrl_file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.ip_list = ip_list
@@ -649,6 +738,7 @@ class NmeaUdpFile(UdpFile):
         self.sample_rate = sample_rate
         self.transmit_rate = transmit_rate
         self.file_path = file_path
+        self.ctrl_file_path = file_path
         self.archive_file_path = archive_file_path
 
         self.config_filepath = config_filepath
@@ -693,7 +783,7 @@ class NmeaUdpFile(UdpFile):
 class RawUdpFile(UdpFile):
 
 
-    def __init__(self, channels = None, ip_list = None, port = None, start_delay = None, sample_rate = None, transmit_rate = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, ip_list = None, port = None, start_delay = None, sample_rate = None, transmit_rate = None, file_path = None, ctrl_file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.ip_list = ip_list
@@ -702,6 +792,7 @@ class RawUdpFile(UdpFile):
         self.sample_rate = sample_rate
         self.transmit_rate = transmit_rate
         self.file_path = file_path
+        self.ctrl_file_path = file_path
         self.archive_file_path = archive_file_path
 
         self.config_filepath = config_filepath
@@ -727,7 +818,7 @@ class RawUdpFile(UdpFile):
 
             data, address = self.socket.recvfrom(4096)
             rt.logging.debug("address", address, "data", data)
-            values = struct.unpack('>HIf', data)
+            values = struct.unpack('<HIf', data)
             rt.logging.debug("values", values)
             data_array =  [ { values[0]:[values[2]] } ]
             rt.logging.debug("data_array", data_array)
@@ -749,7 +840,7 @@ class HttpFile(it.HttpClient, ps.IngestFile) :
 class HttpAishubAivdmFile(HttpFile) :
 
 
-    def __init__(self, channels = None, ip_list = None, http_scheme = None, start_delay = None, sample_rate = None, transmit_rate = None, client_api_url = None, max_connect_attempts = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, ip_list = None, http_scheme = None, start_delay = None, sample_rate = None, transmit_rate = None, client_api_url = None, max_connect_attempts = None, file_path = None, archive_file_path = None, ctrl_file_path = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.ip_list = ip_list
@@ -761,6 +852,7 @@ class HttpAishubAivdmFile(HttpFile) :
         self.max_connect_attempts = max_connect_attempts
         self.file_path = file_path
         self.archive_file_path = archive_file_path
+        self.ctrl_file_path = ctrl_file_path
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
@@ -831,7 +923,7 @@ class HttpAishubAivdmFile(HttpFile) :
 
 
 
-class Image(ps.IngestFile) :
+class FileImage(ps.IngestFile) :
 
 
     def __init__(self) :
@@ -842,6 +934,7 @@ class Image(ps.IngestFile) :
         (self.channel,) = self.channels
         self.capture_filename = 'image_' + str(self.channel) + '.' + self.file_extension
         rt.logging.debug("self.capture_filename", self.capture_filename)
+
         ps.IngestFile.__init__(self)
 
 
@@ -878,10 +971,10 @@ class Image(ps.IngestFile) :
 
 
 
-class USBCam(Image):
+class USBCam(FileImage):
 
 
-    def __init__(self, channels = None, start_delay = 0, sample_rate = None, file_path = None, archive_file_path = None, file_extension = 'jpg', video_unit = None, video_res = None, video_rate = None, video_quality = None, video_capture_method = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = 0, sample_rate = None, file_path = None, archive_file_path = None, ctrl_file_path = None, file_extension = 'jpg', video_unit = None, video_res = None, video_crop_origin = None, video_crop = None, video_rate = None, video_quality = None, video_capture_method = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
@@ -889,9 +982,12 @@ class USBCam(Image):
 
         self.file_path = file_path
         self.archive_file_path = archive_file_path
+        self.ctrl_file_path = ctrl_file_path
         self.file_extension = file_extension
         self.video_unit = video_unit
         self.video_res = video_res
+        self.video_crop_origin = video_crop_origin
+        self.video_crop = video_crop
         self.video_rate = video_rate
         self.video_quality = video_quality
         self.video_capture_method = video_capture_method
@@ -904,7 +1000,7 @@ class USBCam(Image):
         if self.video_rate is None: self.video_rate = self.env['VIDEO_RATE']
         if self.video_capture_method is None: self.video_capture_method = self.env['VIDEO_CAPTURE_METHOD']
 
-        Image.__init__(self)
+        FileImage.__init__(self)
 
         if str.lower(self.video_capture_method) == 'opencv' :
 
@@ -956,6 +1052,9 @@ class USBCam(Image):
                 if not ret : rt.logging.debug("...read failure!")
                 if ret :
                     frame = cv2.resize(frame, tuple(self.video_res), interpolation = cv2.INTER_AREA)
+                    rt.logging.debug("self.video_crop_origin", self.video_crop_origin, "self.video_crop", self.video_crop)
+                    if not None in [self.video_crop_origin, self.video_crop] :
+                        frame = frame[ self.video_crop_origin[1] : self.video_crop[1], self.video_crop_origin[0] : self.video_crop[0] ]
                     cv2.imwrite( self.capture_filename, frame, [cv2.IMWRITE_JPEG_QUALITY, self.video_quality] )
 
             elif str.lower(self.video_capture_method) == 'uvccapture' :
@@ -983,8 +1082,8 @@ class USBCam(Image):
 
 
 
-class ScreenshotUpload(Image):
-
+class ScreenshotUpload(FileImage):
+# TODO: examine duplication of link.SqlHttp functionality, re-use possible
 
     def __init__(self, channels = None, ip_list = None, http_scheme = None, sample_rate = None, host_api_url = None, client_api_url = None, crop = None, video_quality = None, config_filepath = None, config_filename = None):
 
@@ -1001,6 +1100,7 @@ class ScreenshotUpload(Image):
         self.file_extension = 'jpg'
 
         self.file_path = None
+        self.ctrl_file_path = None
         self.archive_file_path = None
         self.video_res = None
 
@@ -1014,14 +1114,14 @@ class ScreenshotUpload(Image):
         if self.ip_list is None: self.ip_list = self.env['IP_LIST']
         if self.http_scheme is None: self.http_scheme = self.env['HTTP_SCHEME']
 
-        Image.__init__(self)
+        FileImage.__init__(self)
 
 
     def read_samples(self, sample_secs = -9999):
 
         try :
 
-            img = ImageGrab.grab( bbox = (self.crop[0], self.crop[1], self.crop[2], self.crop[3]) )
+            img = ImageGrab.grab( bbox = (self.crop[0], self.crop[2], self.crop[1], self.crop[3]) )
             jpeg_image_buffer = io.BytesIO()
             img.save(jpeg_image_buffer, format="JPEG")
             img_str = base64.b64encode(jpeg_image_buffer.getvalue())
@@ -1058,8 +1158,8 @@ class ScreenshotUpload(Image):
 
 
 
-class TempFileUpload(Image):
-
+class TempFileUpload(FileImage):
+# TODO: examine duplication of link.SqlHttp functionality, re-use possible
 
     def __init__(self, channels = None, ip_list = None, http_scheme = None, sample_rate = None, host_api_url = None, client_api_url = None, file_extension = 'jpg', config_filepath = None, config_filename = None):
 
@@ -1074,6 +1174,7 @@ class TempFileUpload(Image):
         self.file_extension = file_extension
 
         self.file_path = None
+        self.ctrl_file_path = None
         self.archive_file_path = None
 
         self.video_res = None
@@ -1089,7 +1190,81 @@ class TempFileUpload(Image):
         if self.ip_list is None: self.ip_list = self.env['IP_LIST']
         if self.http_scheme is None: self.http_scheme = self.env['HTTP_SCHEME']
 
-        Image.__init__(self)
+        FileImage.__init__(self)
+
+
+    def upload_file(self, sample_secs = -9999):
+
+        try :
+            rt.logging.debug("self.capture_filename", self.capture_filename)
+            with open(self.capture_filename, "rb") as image_file:
+                img_str = base64.b64encode(image_file.read())
+            http = li.DirectUpload(channels = self.channels, start_delay = self.start_delay, host_api_url = self.host_api_url, client_api_url = self.client_api_url, max_connect_attempts = self.max_connect_attempts, http_scheme = self.http_scheme)
+            (channel,) = self.channels
+
+            for current_ip in self.ip_list :
+                #res = http.send_request(start_time = sample_secs, end_time = sample_secs, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
+                data_string = str(channel) + ';' + str(sample_secs) + ',-9999.0,,' + str(img_str.decode('utf-8')) + ',;'
+                rt.logging.debug('data_string', data_string[:100])
+                res = http.set_requested(data_string, ip = current_ip)
+
+        except PermissionError as e :
+            rt.logging.exception(e)
+
+
+    def run(self):
+
+        time.sleep(self.start_delay)
+
+        divisor = numpy.int64(1/numpy.float64(self.sample_rate))
+        current_time = numpy.float64(time.time())
+        current_secs = numpy.int64(current_time)
+
+        while True :
+
+            next_sample_secs = current_secs + numpy.int64( divisor - current_secs % divisor )
+            current_time = numpy.float64(time.time())
+            current_secs = numpy.int64(current_time)
+            if next_sample_secs > current_secs :
+                time.sleep(0.1)
+            else :
+                self.upload_file(next_sample_secs)
+
+
+
+class TempFileDirectUpload(FileImage):
+# TODO: (consciously) exact duplicate of TempFileUpload apart from a single line. Fix!
+
+    def __init__(self, channels = None, ip_list = None, http_scheme = None, sample_rate = None, host_api_url = None, client_api_url = None, file_extension = 'jpg', config_filepath = None, config_filename = None):
+
+        self.channels = channels
+
+        self.sample_rate = sample_rate
+        self.host_api_url = host_api_url
+        self.client_api_url = client_api_url
+
+        self.start_delay = 0
+        self.max_connect_attempts = 50
+        self.file_extension = file_extension
+
+        self.file_path = None
+        self.ctrl_file_path = None
+        self.archive_file_path = None
+
+        self.video_res = None
+        self.video_quality = None
+
+        self.ip_list = ip_list
+        self.http_scheme = http_scheme
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        self.env = self.get_env()
+        if self.ip_list is None: self.ip_list = self.env['IP_LIST']
+        if self.http_scheme is None: self.http_scheme = self.env['HTTP_SCHEME']
+
+        FileImage.__init__(self)
 
 
     def upload_file(self, sample_secs = -9999):
