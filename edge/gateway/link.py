@@ -81,6 +81,7 @@ class SqlHttp(it.HttpHost, it.HttpClient):
         self.config_filepath = config_filepath
         self.config_filename = config_filename
 
+        # TODO: check inherit from DirectUpload, possible rename of both?
         it.HttpClient.__init__(self)
         it.HttpHost.__init__(self)
 
@@ -273,7 +274,7 @@ class SqlUdp(it.UdpSend):
 
             #try:
             self.sql.connect_db()
-            channels, timestamps, values, byte_strings = self.sql.get_stored(from_channels = self.channels, max_age = self.max_age)
+            channels, timestamps, values, byte_strings = self.sql.get_stored(from_channels = self.channels, max_age = self.max_age, max_number = self.max_number, max_status = 1)
             rt.logging.debug("channels", channels, "timestamps", timestamps, "values", values)
             for ip in self.ip_list :
                 rt.logging.debug(channels, timestamps, values, ip)
@@ -290,16 +291,18 @@ class SqlUdp(it.UdpSend):
 class SqlUdpRawValue(SqlUdp) :
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, crypto_key = None, http_scheme = None, port = None, max_age = None, max_number = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
+        self.crypto_key = crypto_key
         self.http_scheme = http_scheme
         self.port = port
         self.max_age = max_age
+        self.max_number = max_number
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
@@ -315,7 +318,7 @@ class SqlUdpRawValue(SqlUdp) :
             try :
                 if not (None in [channel, timestamp, value]) :
                     rt.logging.debug("int(channel)", int(channel), "int(timestamp)", int(timestamp), "float(value)", float(value))
-                    data_bytes = struct.pack('>HIf', int(channel), int(timestamp), float(value))   # short unsigned int, big endian
+                    data_bytes = struct.pack('<HIf', int(channel), int(timestamp), float(value))   # short unsigned int, big endian
                     rt.logging.debug("data_bytes", data_bytes)
                     all_data_bytes += data_bytes
                     ##try :
@@ -341,16 +344,18 @@ class SqlUdpRawValue(SqlUdp) :
 class SqlUdpRawBytes(SqlUdp) :
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, crypto_key = None, http_scheme = None, port = None, max_age = None, max_number = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
+        self.crypto_key = crypto_key
         self.http_scheme = http_scheme
         self.port = port
         self.max_age = max_age
+        self.max_number = max_number
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
@@ -365,12 +370,14 @@ class SqlUdpRawBytes(SqlUdp) :
             try :
                 if not (None in [channel, timestamp, string]) :
                     rt.logging.debug("int(channel)", int(channel), "int(timestamp)", int(timestamp), "string", string)
-                    crypto_key = b'XUFA58vllD2n41e7NZDZkyPiUCECkxFsBjF_HaKlIrI='
-                    fernet = Fernet(crypto_key)
-                    encrypted_string = fernet.encrypt(string)
-                    rt.logging.debug("encrypted_string", encrypted_string)
-                    rt.logging.debug(" ")
-                    data_bytes = struct.pack('>HI{}s'.format(len(encrypted_string)), int(channel), int(timestamp), encrypted_string)
+                    if self.crypto_key is not None :
+                        #crypto_key = b'XUFA58vllD2n41e7NZDZkyPiUCECkxFsBjF_HaKlIrI='
+                        fernet = Fernet(self.crypto_key)
+                        encrypted_string = fernet.encrypt(string)
+                        rt.logging.debug("encrypted_string", encrypted_string)
+                        rt.logging.debug(" ")
+                        string = encrypted_string
+                    data_bytes = struct.pack('<HI{}s'.format(len(string)), int(channel), int(timestamp), string)
                     rt.logging.debug("len(data_bytes)", len(data_bytes))
                     self.dispatch_packet(data_bytes, ip)
 
@@ -447,16 +454,18 @@ class SqlUdpBytes(SqlUdp) :
 class SqlUdpNmeaLines(SqlUdp) :
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, port = None, max_age = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, crypto_key = None, http_scheme = None, port = None, max_age = None, max_number = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.gateway_database_connection = gateway_database_connection
         self.ip_list = ip_list
+        self.crypto_key = crypto_key
         self.http_scheme = http_scheme
         self.port = port
         self.max_age = max_age
+        self.max_number = max_number
 
         self.config_filepath = config_filepath
         self.config_filename = config_filename
@@ -684,7 +693,7 @@ class SqlFileRawBytes(ps.IngestFile):
         self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
 
 
-    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, nmea_prepend = None, nmea_append = None, max_age = None, max_number = None, target_channels = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, nmea_prepend = None, nmea_append = None, max_age = None, max_number = None, target_channels = None, file_path = None, ctrl_file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -698,6 +707,7 @@ class SqlFileRawBytes(ps.IngestFile):
         self.target_channels = target_channels
 
         self.file_path = file_path
+        self.ctrl_file_path = ctrl_file_path
         self.archive_file_path = archive_file_path
 
         self.config_filepath = config_filepath
@@ -738,7 +748,7 @@ class SqlFileRawBytes(ps.IngestFile):
 class SqlFileAtonReport(SqlFile):
 
 
-    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, length_offset = None, width_offset = None, mmsi = None, aid_type = None, name = None, virtual_aid = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, length_offset = None, width_offset = None, mmsi = None, aid_type = None, name = None, virtual_aid = None, file_path = None, ctrl_file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -757,6 +767,7 @@ class SqlFileAtonReport(SqlFile):
         self.virtual_aid = virtual_aid
 
         self.file_path = file_path
+        self.ctrl_file_path = ctrl_file_path
         self.archive_file_path = archive_file_path
 
         self.config_filepath = config_filepath
@@ -800,7 +811,7 @@ class SqlFileAtonReport(SqlFile):
 class SqlFileAisData(SqlFile):
 
 
-    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, message_formats = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, message_formats = None, file_path = None, ctrl_file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -812,6 +823,7 @@ class SqlFileAisData(SqlFile):
         self.message_formats = message_formats
 
         self.file_path = file_path
+        self.ctrl_file_path = ctrl_file_path
         self.archive_file_path = archive_file_path
 
         self.config_filepath = config_filepath
@@ -831,6 +843,7 @@ class SqlFileAisData(SqlFile):
 
             #try :
             self.sql.connect_db()
+            rt.logging.debug("self.channels", self.channels, "self.max_age", self.max_age)
             channels, times, values, byte_strings = self.sql.get_stored(from_channels = self.channels, max_age = self.max_age)
             rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings)
             timestamp = None
@@ -843,7 +856,7 @@ class SqlFileAisData(SqlFile):
                 rt.logging.debug("nmea_data_array", nmea_data_array)
                 rt.logging.debug(" ")
             except (ValueError, IndexError, TypeError) as e :
-                rt.logging.debug(e)
+                rt.logging.exception(e)
 
             for nmea_data in nmea_data_array :
                 rt.logging.debug('nmea_data', nmea_data)
@@ -861,7 +874,7 @@ class SqlFileAisData(SqlFile):
 class SqlFilePosAisData(SqlFile):
 
 
-    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, length_offset = None, width_offset = None, mmsi = None, vessel_name = None, call_sign = None, ship_type = None, speed = None, course = None, nav_status = None, destination = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, length_offset = None, width_offset = None, mmsi = None, vessel_name = None, call_sign = None, ship_type = None, speed = None, course = None, nav_status = None, destination = None, file_path = None, ctrl_file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -884,6 +897,7 @@ class SqlFilePosAisData(SqlFile):
         self.destination = destination
 
         self.file_path = file_path
+        self.ctrl_file_path = ctrl_file_path
         self.archive_file_path = archive_file_path
 
         self.config_filepath = config_filepath
@@ -937,7 +951,7 @@ class SqlFilePosAisData(SqlFile):
 class SqlFileModbusData(SqlFile):
 
 
-    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, message_formats = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, transmit_rate = None, gateway_database_connection = None, max_age = None, target_channels = None, message_formats = None, file_path = None, ctrl_file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -949,6 +963,7 @@ class SqlFileModbusData(SqlFile):
         self.message_formats = message_formats
 
         self.file_path = file_path
+        self.ctrl_file_path = ctrl_file_path
         self.archive_file_path = archive_file_path
 
         self.config_filepath = config_filepath
@@ -971,6 +986,7 @@ class SqlFileModbusData(SqlFile):
             channels, times, values, byte_strings = self.sql.get_stored(from_channels = self.channels, max_age = self.max_age)
             rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings)
             timestamp = None
+            modbus_data_array = []
             try :
                 if times not in [None, []] and type(times) is list :
                     timestamp = times[0]
@@ -1054,7 +1070,7 @@ class SqlHttpUpdateStatic(it.HttpHost):
                 #    rt.logging.exception(e)
                 rt.logging.debug("aivdm_array", aivdm_array)
             except (ValueError, IndexError, TypeError) as e :
-                rt.logging.debug(e)
+                rt.logging.exception(e)
 
             for aivdm_dataset in aivdm_array :
 
