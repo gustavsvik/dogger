@@ -28,6 +28,9 @@ class Udp(ta.IpTask):
 
     def __init__(self) :
 
+        self.env = self.get_env()
+        if self.crypto_key is None: self.crypto_key = self.env['CRYPTO_KEY']
+
         ta.IpTask.__init__(self)
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
