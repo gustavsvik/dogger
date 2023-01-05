@@ -108,11 +108,6 @@ modbus = gateway.daqc.RegistersModbusSerialFile(
     modbus_mode = gateway.daqc.ModbusSerial.MODE_RTU,
     modbus_register_address_offset = 1,
     modbus_max_read_chunk_size = 12,
-    modbus_max_read_address = 58,
-    file_path = '/home/scc01/Z/data/files/',
-    ctrl_file_path = '/home/scc01/Z/data/files/others/',
-    archive_file_path = '/home/scc01/Z/data/files/',
-    config_filepath = '/home/scc01/Z/dogger/',
-    config_filename = 'conf.ini')
+    modbus_max_read_address = 58)
 
 modbus.run()
