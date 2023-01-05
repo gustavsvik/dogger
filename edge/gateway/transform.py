@@ -82,13 +82,24 @@ def dict_from_lists(keys_list, values_list) :
     return data_dict
 
 
+def list_replace(lst, old, new):
+    """replace list elements (inplace), https://stackoverflow.com/a/59478892"""
+    i = -1
+    try:
+        while True:
+            i = lst.index(old, i + 1)
+            lst[i] = new
+    except ValueError:
+        pass
+
+
 #def string_from_lines(data_lines, values_list) :
 #
 #    first_line_break_index = data_lines.find('\n')
 #    data_lines_list_no_header = []
 #            if first_line_break_index > 0 :
 #                data_lines_list_no_header.append( data_lines[first_line_break_index + 1 : ] )
-#            print("data_lines_list_no_header", data_lines_list_no_header)
+#            rt.logging.debug("data_lines_list_no_header", data_lines_list_no_header)
 
 
 def get_channel_range_string(channels) :
@@ -229,6 +240,21 @@ def get_open_location_code(lat = None, lon = None, length = None) :
 class Callbacks :
 
 
+    def get_name_plus_extension(name = None, name_extension = None) :
+
+        name_plus_extension = None
+        if name is not None :
+            name_plus_extension = name
+        if name_extension is not None :
+            name_plus_extension += name_extension
+
+        return name_plus_extension
+
+
+
+class AisCallbacks(Callbacks) :
+
+
     def get_open_location_code(lat = None, lon = None) :
 
         return get_open_location_code(lat = lat, lon = lon, length = 7)
@@ -294,15 +320,31 @@ class Callbacks :
         return png_name
 
 
-    def get_name_plus_extension(name = None, name_extension = None) :
 
-        name_plus_extension = None
-        if name is not None :
-            name_plus_extension = name
-        if name_extension is not None :
-            name_plus_extension += name_extension
+class ModbusCallbacks(Callbacks) :
 
-        return name_plus_extension
+
+    def average_line_current(IL1 = None, IL2 = None, IL3 = None) :
+
+        IL = ( ut.safe_float(IL1) + ut.safe_float(IL2) + ut.safe_float(IL3) ) / 3
+
+        return IL
+
+
+    def line_current_sign_from_active_power(IL = None, P = None) :
+
+        abs_to_give_sign = abs( ut.safe_float(IL) )
+        signed_operand = abs_to_give_sign * ut.safe_sign(P)
+
+        return signed_operand
+
+
+    def apparent_power_sign_from_active_power(S = None, P = None) :
+
+        abs_to_give_sign = abs( ut.safe_float(S) )
+        signed_operand = abs_to_give_sign * ut.safe_sign(P)
+
+        return signed_operand
 
 
 
@@ -316,6 +358,29 @@ class TextNumeric :
         #self.append = append
         #if self.prepend is None : self.prepend = ''
         #if self.append is None : self.append = ''
+
+
+    def append_struct_function_results(self, dataset, message_format, callback_class) :
+
+        rt.logging.debug("dataset", dataset)
+        result_dataset = {}
+        function_items = { structure_tag : ut.safe_get(structure_item, 'function') for structure_tag, structure_item in message_format.items() if ut.safe_get(structure_item, 'function') is not None }
+        for function_member, function_struct in function_items.items() :
+            rt.logging.debug("function_member", function_member, "function_struct", function_struct)
+            struct_name = ut.safe_get(function_struct, 'name')
+            struct_args = ut.safe_get(function_struct, 'args')
+            rt.logging.debug("struct_name", struct_name, "struct_args", struct_args)
+            if struct_name is not None and struct_args is not None :
+                args = { arg : ut.safe_get(dataset, arg) for arg in struct_args }
+                rt.logging.debug("args", args)
+                func = getattr(callback_class, struct_name)
+                rt.logging.debug("func", func)
+                return_val = ut.instance_from_dict(func, args)
+                rt.logging.debug("return_val", return_val)
+                function_eval_data = {function_member:return_val}
+                rt.logging.debug("function_eval_data", function_eval_data)
+                dataset |= function_eval_data
+        rt.logging.debug("dataset", dataset)
 
 
     def data_dict_from_struct(self, message_string, message_structure) :
@@ -444,13 +509,33 @@ class TextNumeric :
             bits_arg_start += overflow_var_flag_pos[1] - overflow_var_flag_pos[0] + 1
         rt.logging.debug("message_string", message_string, "bit_offset", bit_offset, "bits_arg_start", bits_arg_start, "bits_arg_end", bits_arg_end)
         return_val = data_field_binary_string(message_string, bit_offset, bits_arg_start, bits_arg_end)
-
+        rt.logging.debug("return_val", return_val)
         if return_val is not None and type_arg is not None and type_arg not in ['int', 'float', 'bool', 'str'] :
 
-            if type_arg[0] in ['u','U','e'] and number_convertible(return_val) :
-                return_val = int(return_val, 2)
-            if type_arg[0] in ['i','I'] and number_convertible(return_val) :
-                return_val = twos_comp( int(return_val, 2), len(return_val) )
+            if type_arg[0] in ['u','U','e'] :
+                unpacked_int = 9999
+                if number_convertible(return_val) :
+                    unpacked_int = int(return_val, 2)
+                else :
+                    no_of_value_registers = len(return_val)
+                    return_val.reverse()
+                    format_string = "<" + "H" * no_of_value_registers
+                    packed_string = struct.pack(format_string, *return_val)
+                    unpacked_int = struct.unpack("I", packed_string)[0]
+                    rt.logging.debug("unpacked_int", unpacked_int)
+                return_val = unpacked_int
+            if type_arg[0] in ['i','I'] :
+                unpacked_int = -9999
+                if number_convertible(return_val) :
+                    unpacked_int = twos_comp( int(return_val, 2), len(return_val) )
+                else :
+                    no_of_value_registers = len(return_val)
+                    return_val.reverse()
+                    format_string = "<" + "H" * no_of_value_registers
+                    packed_string = struct.pack(format_string, *return_val)
+                    unpacked_int = struct.unpack("i", packed_string)[0]
+                    rt.logging.debug("unpacked_int", unpacked_int)
+                return_val = unpacked_int
             if type_arg[0] in ['t'] :
                 return_val = pyais.util.encode_bin_as_ascii6(bitarray.bitarray(return_val))
                 rt.logging.debug("return_val (result of encode_bin_as_ascii6)", return_val)
@@ -462,6 +547,7 @@ class TextNumeric :
                     format_string = "<" + "H" * no_of_value_registers
                     packed_string = struct.pack(format_string, *return_val)
                     unpacked_float = struct.unpack("f", packed_string)[0]
+                    rt.logging.debug("unpacked_float", unpacked_float)
                 return_val = unpacked_float
 
         if overflow_var_flag_arg is not None and overflow_var_flag_arg :
@@ -663,7 +749,7 @@ class ModbusData(Modbus) :
                 if 'SLAVE' in selected_tag :
                     modbus_register_array = from_json( '{' + dict_string + '}' )
                     rt.logging.debug("modbus_register_array", modbus_register_array)
-                    modbus_datasets = self.decode_message([modbus_register_array[selected_tag]], line_end)
+                    modbus_datasets = self.decode_message([ ut.safe_get(modbus_register_array, selected_tag) ], line_end)
                     rt.logging.debug("modbus_datasets", modbus_datasets)
                     modbus_datasets_list = []
                     for modbus_dataset in modbus_datasets :
@@ -693,6 +779,7 @@ class ModbusData(Modbus) :
             message_format = ut.safe_get(self.message_formats, current_format_index)
             rt.logging.debug("message_format", message_format)
             modbus_dataset = self.data_dict_from_struct(modbus_message_string, message_format)
+            self.append_struct_function_results(modbus_dataset, message_format, ModbusCallbacks)
             rt.logging.debug("modbus_dataset", modbus_dataset)
             modbus_datasets.append(modbus_dataset)
 
@@ -939,6 +1026,7 @@ class Ais(Nmea) :
 
     def decode_to_channels(self, char_data = None, channel_data = None, time_tuple = None, line_end = None) :
 
+        rt.logging.debug("char_data", char_data)
         if time_tuple is None :
             time_tuple = time.gmtime(time.time())
             rt.logging.debug("time_tuple", time_tuple)
@@ -995,11 +1083,13 @@ class Ais(Nmea) :
             if line_end is not None :
                 if dict_string.endswith(line_end) :
                     dict_string = dict_string[:-len(line_end)]
+            rt.logging.debug("dict_string", dict_string)
 
             if len(dict_string) > 0 :
 
                 data_list = [ dict_string ]
 
+                rt.logging.debug("selected_tag", selected_tag)
                 if selected_tag == 'VDM' :
                     ais_datasets = self.decode_message([dict_string], line_end)
                     rt.logging.debug("ais_datasets", ais_datasets)
@@ -1015,7 +1105,6 @@ class Ais(Nmea) :
                     data_list = [ dict_string, [latitude], [longitude] ]
 
                 if selected_tag == 'AISHUB' :
-                    rt.logging.debug("dict_string", dict_string)
                     key_list = ['mmsi', 'timestamp', 'lat', 'lon', 'course', 'speed', 'heading', 'status', 'imo', 'shipname', 'callsign', 'shiptype', 'to_bow', 'to_stern', 'to_port', 'to_starboard', 'draught', 'destination', 'eta']
                     csv_dict, ais_datasets = self.aivdm_from_aishub(key_list, dict_string)
                     rt.logging.debug("ais_datasets", ais_datasets)
@@ -1364,7 +1453,7 @@ class Ais(Nmea) :
             if struct_name is not None and struct_args is not None :
                 args = { arg : ut.safe_get(ais_dataset, arg) for arg in struct_args }
                 rt.logging.debug("args", args)
-                func = getattr(Callbacks, struct_name)
+                func = getattr(AisCallbacks, struct_name)
                 return_val = ut.instance_from_dict(func, args)
                 function_eval_data = {function_member:return_val}
                 rt.logging.debug("function_eval_data", function_eval_data)
@@ -1416,10 +1505,12 @@ class Ais(Nmea) :
 
             ais_messages_temp_file = tempfile.NamedTemporaryFile(mode = 'w+', delete = False)
 
-            for ais_message in ais_messages :
+            valid_ais_messages = [ msg for msg in ais_messages if msg not in [None, ""] ]
+            for valid_ais_message in valid_ais_messages :
 
-                ais_message = self.repair_aivdm_sentence(ais_message)
-                ais_messages_temp_file.write(ais_message + '\n')
+                valid_ais_message = self.repair_aivdm_sentence(valid_ais_message)
+                rt.logging.debug("    valid_ais_message", valid_ais_message)
+                ais_messages_temp_file.write(valid_ais_message + '\n')
 
             ais_messages_temp_file.close()
 
@@ -1516,14 +1607,14 @@ class Ais(Nmea) :
                             ais_dataset |= message_data
                             rt.logging.debug("ais_dataset", ais_dataset, "message_format", message_format)
 
-                            self.append_ais_struct_function_results(ais_dataset, message_format)
+                            self.append_struct_function_results(ais_dataset, message_format, AisCallbacks)
                             rt.logging.debug("ais_dataset", ais_dataset)
 
                             if current_mmsi is not None : # ut.safe_get(message_id_data, 'mmsi') is not None :
                                 ais_datasets.append(ais_dataset)
 
 
-            except (ValueError, pyais.exceptions.InvalidNMEAMessageException, pyais.exceptions.InvalidChecksumException) as e :     #IndexError,
+            except (TypeError, ValueError, pyais.exceptions.InvalidNMEAMessageException, pyais.exceptions.InvalidChecksumException) as e :     #IndexError,
 
                 rt.logging.exception(e)
 
