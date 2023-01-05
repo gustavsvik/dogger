@@ -1,7 +1,6 @@
 #
 
 import os
-import glob
 import json
 import datetime
 import time
@@ -11,30 +10,21 @@ import numpy
 
 import gateway.runtime as rt
 import gateway.metadata as md
+import gateway.utils as ut
 import gateway.task as ta
 import gateway.transform as tr
 
 
 
-def get_all_files(path, extensions, channel) :
+def get_all_channel_files(path, extensions, channel) :
 
     files = []
 
     for extension in extensions :
         file_pattern = str(channel) + '_*.' + extension
-        pattern = path + file_pattern
-        files += sorted(glob.glob(pattern))
+        files += ut.get_all_files(path, file_pattern)
 
     return files
-
-
-def delete_files(files) :
-
-    for current_file in files:
-        try :
-            os.remove(current_file)
-        except (PermissionError, FileNotFoundError) as e:
-            rt.logging.exception(e)
 
 
 def get_timestamped_range(files, lower_timestamp, higher_timestamp) :
@@ -94,19 +84,6 @@ def get_file_channel(current_file = None) :
     return channel
 
 
-def load_file(file = None) :
-
-    try :
-        text_file = open(file, "r")
-        file_data = text_file.read()
-    except OSError as e :
-        rt.logging.exception(e)
-
-    rt.logging.debug("file_data", file_data)
-
-    return file_data
-
-
 def load_text_json_file(current_file = None):
 
     acquired_microsecs = 9999
@@ -130,16 +107,6 @@ def load_text_json_file(current_file = None):
             rt.logging.exception(e)
 
     return acquired_microsecs, acquired_value, acquired_text, acquired_bytes
-
-
-def load_text_file_lines(file = None) :
-
-    file_data = load_file(file)
-    data_lines = file_data.splitlines()
-
-    rt.logging.debug("data_lines", data_lines)
-
-    return data_lines
 
 
 def load_text_string_file(current_file = None) :
@@ -201,7 +168,7 @@ def get_filenames(channel_data = None, file_path = None) :
     rt.logging.debug("channels", channels, "file_types", file_types)
     files = []
     for channel in channels :
-        new_files = get_all_files(path = file_path, extensions = file_types, channel = channel)
+        new_files = get_all_channel_files(path = file_path, extensions = file_types, channel = channel)
         rt.logging.debug("new_files", new_files)
         files.extend(new_files)
 
@@ -216,6 +183,7 @@ class AcquireControlFile(ta.AcquireControlTask) :
 
         self.env = self.get_env()
         if self.file_path is None: self.file_path = self.env['FILE_PATH']
+        if self.ctrl_file_path is None: self.ctrl_file_path = self.env['CTRL_FILE_PATH']
 
         ta.AcquireControlTask.__init__(self)
 
@@ -243,7 +211,7 @@ class LoadFile(ProcessFile):
 
     def get_filenames(self, channel = None):
 
-        files = get_all_files(path = self.file_path, extensions = self.file_extensions, channel = channel)
+        files = get_all_channel_files(path = self.file_path, extensions = self.file_extensions, channel = channel)
 
         return files
 
@@ -383,6 +351,7 @@ class SQL:
 
         try:
             conn_data = self.gateway_database_connection
+            rt.logging.debug("conn_data", conn_data)
             self.conn = pymysql.connect(host = conn_data['host'], user = conn_data['user'], passwd = conn_data['passwd'], db = conn_data['db'], autocommit = True)
         except pymysql.err.Error as e : #(pymysql.err.Error, pymysql.err.OperationalError)
             rt.logging.exception(e)
@@ -398,7 +367,7 @@ class SQL:
             rt.logging.exception(e)
 
 
-    def get_stored(self, from_channels, max_age = None, max_number = None) :
+    def get_stored(self, from_channels, max_age = None, max_number = None, min_status = None, max_status = None) :
 
         channels = []
         timestamps = []
@@ -409,7 +378,12 @@ class SQL:
 
             sql_get_values = "SELECT AD.ACQUIRED_TIME,AD.ACQUIRED_VALUE,AD.ACQUIRED_TEXT,AD.ACQUIRED_BYTES FROM t_acquired_data AD WHERE AD.CHANNEL_INDEX=" + str(channel)
 
-            sql_status_order_clause = "AND AD.STATUS>=0 ORDER BY AD.ACQUIRED_TIME DESC"
+            if min_status is None :
+                min_status = 0
+            if max_status is None :
+                max_status = 0
+
+            sql_status_order_clause = "AND AD.STATUS BETWEEN " + str(min_status) + " AND " + str(max_status) + " ORDER BY AD.ACQUIRED_TIME DESC"
 
             if max_age is not None :
                 current_timestamp = int(time.time())
@@ -431,7 +405,7 @@ class SQL:
                     results = cursor.fetchall()
                 except pymysql.err.Error as e : #(pymysql.err.IntegrityError, pymysql.err.InternalError, pymysql.err.OperationalError, pymysql.err.ProgrammingError, pymysql.err.InterfaceError)
                     rt.logging.exception(e)
-                rt.logging.debug(results)
+                rt.logging.debug("results", results)
                 if len(results) > 0 :
                     row = results[0]
                     acquired_time = row[0]
