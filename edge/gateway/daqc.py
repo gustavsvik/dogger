@@ -1044,7 +1044,11 @@ class USBCam(FileImage):
 
             import picamera2
 
-            self.picam = picamera2.PiCamera()
+            self.picam = picamera2.Picamera2()
+            capture_config = self.picam.create_still_configuration()
+            self.picam.configure(capture_config)
+            self.picam.start()
+            time.sleep(1)
 
 
     def size_crop_write(self, frame):
