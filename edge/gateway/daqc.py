@@ -1040,6 +1040,22 @@ class USBCam(FileImage):
             self.picam.iso = 100
             self.picam.contrast = -15
 
+        if str.lower(self.video_capture_method) == 'picamera2' :
+
+            import picamera2
+
+            self.picam = picamera2.PiCamera()
+
+
+    def size_crop_write(self, frame):
+
+        frame = cv2.resize(frame, tuple(self.video_res), interpolation = cv2.INTER_AREA)
+        rt.logging.debug("self.video_crop_origin", self.video_crop_origin, "self.video_crop", self.video_crop)
+        if not None in [self.video_crop_origin, self.video_crop] :
+            frame = frame[ self.video_crop_origin[1] : self.video_crop[1], self.video_crop_origin[0] : self.video_crop[0] ]
+        cv2.imwrite( self.capture_filename, frame, [cv2.IMWRITE_JPEG_QUALITY, self.video_quality] )
+
+
     def read_samples(self, sample_secs = -9999):
 
         try :
@@ -1051,11 +1067,7 @@ class USBCam(FileImage):
                 ret, frame = self.cam.read()
                 if not ret : rt.logging.debug("...read failure!")
                 if ret :
-                    frame = cv2.resize(frame, tuple(self.video_res), interpolation = cv2.INTER_AREA)
-                    rt.logging.debug("self.video_crop_origin", self.video_crop_origin, "self.video_crop", self.video_crop)
-                    if not None in [self.video_crop_origin, self.video_crop] :
-                        frame = frame[ self.video_crop_origin[1] : self.video_crop[1], self.video_crop_origin[0] : self.video_crop[0] ]
-                    cv2.imwrite( self.capture_filename, frame, [cv2.IMWRITE_JPEG_QUALITY, self.video_quality] )
+                    frame = self.size_crop_write(frame)
 
             elif str.lower(self.video_capture_method) == 'uvccapture' :
                 os.system('uvccapture -m -x' + str(self.video_res[0]) + ' -y' + str(self.video_res[1]) + ' -q' + str(self.video_quality) + ' -d' + self.video_unit + ' -o' + self.capture_filename)
@@ -1067,6 +1079,10 @@ class USBCam(FileImage):
 
             elif str.lower(self.video_capture_method) == 'raspicam' :
                 self.picam.capture(self.capture_filename, format='jpeg', quality=10)
+
+            elif str.lower(self.video_capture_method) == 'picamera2' :
+                image = self.picam.capture_array()
+                self.size_crop_write(image)
 
             else : # fswebcam
                 fswebcam_string = 'fswebcam -q -d ' + self.video_unit + ' -r ' + str(self.video_res[0]) + 'x' + str(self.video_res[1]) + ' --fps ' + str(self.video_rate) + ' -S 2 --jpeg ' + str(self.video_quality) + ' --no-banner --save ' + self.capture_filename
