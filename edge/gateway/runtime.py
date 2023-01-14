@@ -18,7 +18,7 @@ class LogRecord(logging.LogRecord) :
 
 
 class Logger(logging.Logger) :
-    def makeRecord(self, name, level, fn, lno, msg, args, exc_info, func=None, extra=None) :
+    def makeRecord(self, name, level, fn, lno, msg, args, exc_info, *func, **extra) :
         rv = LogRecord(name, level, fn, lno, msg, args, exc_info, func)
         if extra is not None :
             for key in extra :
