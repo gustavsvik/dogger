@@ -1217,16 +1217,23 @@ class TempFileUpload(FileImage):
 
         try :
             rt.logging.debug("self.capture_filename", self.capture_filename)
+            file_timestamp = None
+            file_timestamp = int(os.path.getmtime(self.capture_filename))
             with open(self.capture_filename, "rb") as image_file:
                 img_str = base64.b64encode(image_file.read())
             http = li.DirectUpload(channels = self.channels, start_delay = self.start_delay, host_api_url = self.host_api_url, client_api_url = self.client_api_url, max_connect_attempts = self.max_connect_attempts, http_scheme = self.http_scheme)
             (channel,) = self.channels
-
+            rt.logging.debug('sample_secs', sample_secs)
             for current_ip in self.ip_list :
-                #res = http.send_request(start_time = sample_secs, end_time = sample_secs, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
-                data_string = str(channel) + ';' + str(sample_secs) + ',-9999.0,,' + str(img_str.decode('utf-8')) + ',;'
-                rt.logging.debug('data_string', data_string[:100])
-                res = http.set_requested(data_string, ip = current_ip)
+                rt.logging.debug('current_ip', current_ip)
+                requested_result = http.get_requested(ip = current_ip)
+                result_payload = requested_result.json()
+                rt.logging.debug('result_payload', result_payload)
+                if file_timestamp is None : file_timestamp = sample_secs
+                if result_payload['returnstring'] is not None :
+                    data_string = str(channel) + ';' + str(file_timestamp) + ',-9999.0,,' + str(img_str.decode('utf-8')) + ',;'
+                    rt.logging.debug('data_string', data_string[:100])
+                    res = http.set_requested(data_string, ip = current_ip)
 
         except PermissionError as e :
             rt.logging.exception(e)
