@@ -1053,7 +1053,9 @@ class USBCam(FileImage):
 
     def size_crop_write(self, frame):
 
-        frame = cv2.resize(frame, tuple(self.video_res), interpolation = cv2.INTER_AREA)
+        rt.logging.debug("self.video_res", self.video_res)
+        if self.video_res not in [None, [], ""] :
+            frame = cv2.resize(frame, tuple(self.video_res), interpolation = cv2.INTER_AREA)
         rt.logging.debug("self.video_crop_origin", self.video_crop_origin, "self.video_crop", self.video_crop)
         if not None in [self.video_crop_origin, self.video_crop] :
             frame = frame[ self.video_crop_origin[1] : self.video_crop[1], self.video_crop_origin[0] : self.video_crop[0] ]
