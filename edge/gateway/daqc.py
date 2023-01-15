@@ -1086,6 +1086,7 @@ class USBCam(FileImage):
 
             elif str.lower(self.video_capture_method) == 'picamera2' :
                 image = self.picam.capture_array()
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                 self.size_crop_write(image)
 
             else : # fswebcam
