@@ -38,7 +38,8 @@ void loop()
 {
   if (SET_ANGLE_SPAN > 0.05) SET_ANGLE += delta;
   int potVoltage = analogRead(1) - analogRead(0);
-  Serial.println(SET_ANGLE);
+  Serial.print(SET_ANGLE);
+  Serial.print(",");
   float potAngle = (512.0-(float)potVoltage)/512.0 * MAX_ANGLE;
   Serial.println(potAngle);
   if (potAngle<SET_ANGLE+HYSTERESIS)
