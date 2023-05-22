@@ -109,7 +109,7 @@ void loop()
   float servoMotorSpeed = (float)60/360 * (potAngle-lastPotAngle) / (((float)(potTimestamp-lastPotTimestamp))/1000.0f) / SERVO_GEAR_RATIO;
   printSerial(servoMotorSpeed/100.0f, true, noOfCycles, 10);
 
-  float stepperMotorSpeed = (float)60/360 * (noOfCycles-lastNoOfCycles) * 360 / (float)STEPPER_STEPS / (((float)(potTimestamp-lastPotTimestamp))/1000.0f) / STEPPER_GEAR_RATIO;
+  float stepperMotorSpeed = (float)60/360 * (noOfCycles-lastNoOfCycles)*SET_ANGLE/abs(SET_ANGLE) * 360 / (float)STEPPER_STEPS / (((float)(potTimestamp-lastPotTimestamp))/1000.0f) ;
   printSerial(stepperMotorSpeed/100.0f, false, noOfCycles, 10);
   lastNoOfCycles = noOfCycles;
 
