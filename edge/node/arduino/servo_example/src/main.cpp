@@ -1,14 +1,13 @@
-#include "Arduino.h"
-
 int SERVO_SWITCH_PIN = 6;
 int SERVO_DIRECTION_PIN = 7;
 
 int STEPPER_PIN[4] = {13, 12, 11, 10};
 
-float SERVO_GEAR_RATIO = (float)(1/100);
+float SERVO_GEAR_RATIO = 1.0f/100.0f;
 float MAX_ANGLE = 100.0;
 
-float STEPPER_GEAR_RATIO = (float)(1/64);
+int STEPPER_STEPS = 32;
+float STEPPER_GEAR_RATIO = 1.0f/64.0f;
 
 /* Börvärdet växlar mellan två lägen ( +-SET_ANGLE_SPAN ) med tidsintervall SET_OPERATE_PERIOD */
 
@@ -40,9 +39,26 @@ int potTimestamp = 0;
 int lastPotTimestamp = 0;
 float potAngle = SET_ANGLE;
 float lastPotAngle = SET_ANGLE;
+int lastNoOfCycles = 0;
 
 long int noOfStepperSteps = 0;
 
+
+void printSerial(float value, bool separate, int noOfCycles, int cyclesInterval)
+{
+  if (noOfCycles % cyclesInterval == 0)
+  {
+    if (separate)
+    {
+      Serial.print(value);
+      Serial.print(",");
+    }
+    else
+    {
+      Serial.println(value);
+    }
+  }
+}
 
 int stepperSequenceValue(int pole, long int step, bool reverse)
 {
@@ -79,8 +95,7 @@ void loop()
   noOfCycles++;
 
   if (SET_ANGLE_SPAN > 0.05) SET_ANGLE += delta;
-  Serial.print(SET_ANGLE);
-  Serial.print(",");
+  printSerial(SET_ANGLE, true, noOfCycles, 10);
 
   lastPotAngle = potAngle;
   lastPotTimestamp = potTimestamp;
@@ -89,11 +104,14 @@ void loop()
   potAngle = (512.0-(float)potVoltage)/512.0 * MAX_ANGLE;
 
   potTimestamp = millis();
-  Serial.print(potAngle);
-  Serial.print(",");
+  printSerial(potAngle, true, noOfCycles, 10);
 
-  float servoMotorSpeed = (float)60/360 * (potAngle-lastPotAngle) / (((float)(potTimestamp-lastPotTimestamp))/1000.0f);
-  Serial.println(servoMotorSpeed);
+  float servoMotorSpeed = (float)60/360 * (potAngle-lastPotAngle) / (((float)(potTimestamp-lastPotTimestamp))/1000.0f) / SERVO_GEAR_RATIO;
+  printSerial(servoMotorSpeed/100.0f, true, noOfCycles, 10);
+
+  float stepperMotorSpeed = (float)60/360 * (noOfCycles-lastNoOfCycles) * 360 / (float)STEPPER_STEPS / (((float)(potTimestamp-lastPotTimestamp))/1000.0f) / STEPPER_GEAR_RATIO;
+  printSerial(stepperMotorSpeed/100.0f, false, noOfCycles, 10);
+  lastNoOfCycles = noOfCycles;
 
   if (potAngle < SET_ANGLE+HYSTERESIS)
   {
