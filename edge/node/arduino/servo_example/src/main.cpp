@@ -18,7 +18,7 @@ float SET_ANGLE_SPAN = 90.0;
 float SET_ANGULAR_SPEED = 0.0;
 float SET_OPERATE_PERIOD = 5.0;
 
-float SET_P_VALUE = 2.0;
+float SET_P_VALUE = 10.0;
 float HYSTERESIS = 0.0;
 
 int STEPPER_STEPS_PER_CYCLE = 4;
@@ -33,15 +33,16 @@ float SET_OPERATE_PERIOD = 0.0;
 
 float delta = 0.0;
 float timeCounter = 0.0;
-long int noOfCycles = 0;
+unsigned long int noOfCycles = 0;
 
-int potTimestamp = 0;
-int lastPotTimestamp = 0;
+unsigned long int potTimestamp = 0;
+unsigned long int lastPotTimestamp = 0;
 float potAngle = SET_ANGLE;
 float lastPotAngle = SET_ANGLE;
-int lastNoOfCycles = 0;
+unsigned long int lastNoOfCycles = 0;
 
-long int noOfStepperSteps = 0;
+unsigned long int noOfStepperSteps = 0;
+float stepperAngle = 0;
 
 
 void printSerial(float value, bool separate, int noOfCycles, int cyclesInterval)
@@ -109,7 +110,10 @@ void loop()
   float servoMotorSpeed = (float)60/360 * (potAngle-lastPotAngle) / (((float)(potTimestamp-lastPotTimestamp))/1000.0f) / SERVO_GEAR_RATIO;
   printSerial(servoMotorSpeed/100.0f, true, noOfCycles, 10);
 
-  float stepperMotorSpeed = (float)60/360 * (noOfCycles-lastNoOfCycles)*SET_ANGLE/abs(SET_ANGLE) * 360 / (float)STEPPER_STEPS / (((float)(potTimestamp-lastPotTimestamp))/1000.0f) ;
+  stepperAngle += (float)360 / (float)STEPPER_STEPS * SERVO_GEAR_RATIO * SET_ANGLE/abs(SET_ANGLE);
+  printSerial(stepperAngle, true, noOfCycles, 10);
+
+  float stepperMotorSpeed = (float)60 * (float)(noOfCycles-lastNoOfCycles) * SET_ANGLE/abs(SET_ANGLE) / (float)STEPPER_STEPS / (((float)(potTimestamp-lastPotTimestamp))/1000.0f) ;
   printSerial(stepperMotorSpeed/100.0f, false, noOfCycles, 10);
   lastNoOfCycles = noOfCycles;
 
