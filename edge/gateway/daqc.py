@@ -783,11 +783,12 @@ class NmeaUdpFile(UdpFile):
 class RawUdpFile(UdpFile):
 
 
-    def __init__(self, channels = None, ip_list = None, port = None, start_delay = None, sample_rate = None, transmit_rate = None, file_path = None, ctrl_file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, ip_list = None, port = None, crypto_key = None, start_delay = None, sample_rate = None, transmit_rate = None, file_path = None, ctrl_file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.ip_list = ip_list
         self.port = port
+        self.crypto_key = crypto_key
         self.start_delay = start_delay
         self.sample_rate = sample_rate
         self.transmit_rate = transmit_rate
@@ -817,13 +818,16 @@ class RawUdpFile(UdpFile):
             address = None
 
             data, address = self.socket.recvfrom(4096)
-            rt.logging.debug("address", address, "data", data)
-            values = struct.unpack('<HIf', data)
-            rt.logging.debug("values", values)
-            data_array =  [ { values[0]:[values[2]] } ]
-            rt.logging.debug("data_array", data_array)
-            rt.logging.debug("self.channels", self.channels)
-            self.persist(data_array = data_array, selected_tag = selected_tag, timestamp_secs = values[1])
+            rt.logging.debug("address", address, "data", data, "len(data)", len(data))
+            no_of_chunks = len(data) // 10
+            for chunk_index in range(0, no_of_chunks) :
+                chunk = data[chunk_index*10 : (chunk_index+1)*10]
+                values = struct.unpack('<HIf', chunk)
+                rt.logging.debug("values", values)
+                data_array =  [ { values[0]:[values[2]] } ]
+                rt.logging.debug("data_array", data_array)
+                rt.logging.debug("self.channels", self.channels)
+                self.persist(data_array = data_array, selected_tag = selected_tag, timestamp_secs = values[1])
 
 
 
