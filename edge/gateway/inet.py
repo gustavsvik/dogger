@@ -1,5 +1,6 @@
 import socket
 import requests
+import urllib.error
 import http
 import time
 import datetime
@@ -459,6 +460,7 @@ class NativeCmems(Native):
         self.env = self.get_env()
         if self.service_user is None: self.service_user = self.env['SERVICE_USER']
         if self.service_pwd is None: self.service_pwd = self.env['SERVICE_PWD']
+        if self.file_path is None: self.file_path = self.env['FILE_PATH']
 
         Native.__init__(self)
 
@@ -478,8 +480,8 @@ class NativeCmems(Native):
                      'service_id': self.service_id,
                      'product_id': self.product_id,
                      'date_min': date_min, 'date_max': date_max,
-                     'latitude_min': 62.6, 'latitude_max': 62.9,
-                     'longitude_min': 17.7, 'longitude_max': 18.4,
+                     'latitude_min': 58.5, 'latitude_max': 58.8,
+                     'longitude_min': 10.65, 'longitude_max': 11.35,
                      'depth_min': None, 'depth_max': None,
                      'variable': ['VHM0'],
                      'sync': None, 'describe': None, 'size': None,
@@ -498,5 +500,7 @@ class NativeCmems(Native):
 
 
     def send_request(self) :
-
-        motu_api.execute_request(self.options)
+        try :
+            motu_api.execute_request(self.options)
+        except (urllib.error.URLError, AttributeError) as e :
+            rt.logging.exception(e)
