@@ -328,7 +328,7 @@ class CmemsFile(it.NativeCmems, ps.IngestFile) :
 class NativeCmemsNumpyFile(CmemsFile) :
 
 
-    def __init__(self, channels = None, start_delay = None, sample_rate = None, product_id = None, service_id = None, service_user = None, service_pwd = None, out_file_name = None, file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
+    def __init__(self, channels = None, start_delay = None, sample_rate = None, product_id = None, service_id = None, service_user = None, service_pwd = None, out_file_name = None, file_path = None, ctrl_file_path = None, archive_file_path = None, config_filepath = None, config_filename = None) :
 
         self.channels = channels
         self.start_delay = start_delay
@@ -339,6 +339,7 @@ class NativeCmemsNumpyFile(CmemsFile) :
         self.service_pwd = service_pwd
         self.out_file_name = out_file_name
         self.file_path = file_path
+        self.ctrl_file_path = ctrl_file_path
         self.archive_file_path = archive_file_path
 
         self.config_filepath = config_filepath
@@ -394,12 +395,16 @@ class NativeCmemsNumpyFile(CmemsFile) :
             #unpacked = msgpack_numpy.unpackb(packed, object_hook = msgpack_numpy.decode) #strict_map_key=False)
             #values = unpacked[3]
             #print("unpacked[3]", unpacked[3], "len(unpacked[3])", len(unpacked[3]) )
+            #print("timestamps", timestamps)
+            nearest_timestamp_index = next(i for i,v in enumerate(timestamps) if v > time.time())
+            #print("nearest_timestamp_index", nearest_timestamp_index)
             json_string = '['
-            for timestamp, time_values in zip(timestamps[0:1], all_values_time_lat_lon[0:1]) :
+            for timestamp, time_values in zip(timestamps[nearest_timestamp_index:nearest_timestamp_index+1], all_values_time_lat_lon[nearest_timestamp_index:nearest_timestamp_index+1]) :
+                #print("timestamp", timestamp)
                 for lat, lon_values in zip(latitudes, time_values) :
                     for lon, value in zip(longitudes, lon_values) :
                         #print("lat", lat, "lon", lon, "value", value)
-                        json_string += '[null, null, "0", {"type": 1, "mmsi": "' + str('{0:.3g}'.format(value)) + '", "lat":' + str('{0:.7g}'.format(lat)) + ', "lon":' + str('{0:.7g}'.format(lon)) + '}], '
+                        json_string += '[' + '154' + ',' + str(timestamp) + ',' + '"0"' + ',' + '{"type": 1, "mmsi": "' + str('{0:.3g}'.format(value)) + '", "lat":' + str('{0:.7g}'.format(lat)) + ', "lon":' + str('{0:.7g}'.format(lon)) + '}], '
             json_string = json_string[:-2] + ']'
             #print("json_string", json_string)
             data_array = [ { channel_indices[0] : json_string } ]
