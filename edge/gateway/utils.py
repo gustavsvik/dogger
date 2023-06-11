@@ -58,13 +58,13 @@ def safe_get(dict_like_obj = None, keys = None, default_value = None) :
                 value = None
                 try :
                     value = dict_like_obj[key]
-                except (KeyError, TypeError) as e :
+                except (KeyError, TypeError, IndexError) as e :
                     pass
                 values.append(value)
         else :
             try :
                 values = dict_like_obj[keys]
-            except (KeyError, TypeError) as e :
+            except (KeyError, TypeError, IndexError) as e :
                 pass
 
     return values
