@@ -396,7 +396,14 @@ class NativeCmemsNumpyFile(CmemsFile) :
             #values = unpacked[3]
             #print("unpacked[3]", unpacked[3], "len(unpacked[3])", len(unpacked[3]) )
             #print("timestamps", timestamps)
-            nearest_timestamp_index = next(i for i,v in enumerate(timestamps) if v > time.time())
+            nearest_timestamp_index = 0
+            nearest_timestamp = 0
+            while nearest_timestamp < time.time() and nearest_timestamp_index < len(timestamps) :
+                nearest_timestamp = ut.safe_get(timestamps, nearest_timestamp_index, nearest_timestamp) 
+                #print("nearest_timestamp", nearest_timestamp)
+                nearest_timestamp_index += 1            
+            #nearest_timestamp_index = next(i for i,v in enumerate(timestamps) if v > time.time())
+            #nearest_timestamp = timestamps[nearest_timestamp_index]
             #print("nearest_timestamp_index", nearest_timestamp_index)
             json_string = '['
             for timestamp, time_values in zip(timestamps[nearest_timestamp_index:nearest_timestamp_index+1], all_values_time_lat_lon[nearest_timestamp_index:nearest_timestamp_index+1]) :
@@ -409,7 +416,7 @@ class NativeCmemsNumpyFile(CmemsFile) :
             #print("json_string", json_string)
             data_array = [ { channel_indices[0] : json_string } ]
 
-            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+            timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(timestamp = nearest_timestamp, sample_rate = self.sample_rate)
             self.persist(data_array = data_array, selected_tag = 'NETCDF', timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
 
             time.sleep(1/self.sample_rate)
