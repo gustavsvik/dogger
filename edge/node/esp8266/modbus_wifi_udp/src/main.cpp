@@ -14,7 +14,6 @@
 #include "utils.h"
 #include "constants.h"
 #include "secrets.h"
-#include "channels.h"
 #include "devices.h"
 
 #include "LogSerial.h"
@@ -35,10 +34,11 @@ char timestampBuffer[4] = {0xFF, 0xFF, 0xFF, 0xFF};
 char channelTimestampBuffer[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 char valueBuffer[10];
 char dataValueBuffer[2 * Constants::Dimension::MARIEX_BUFFERSIZE]; //= {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+uint16_t modbusReadResultIndex = 0;
 char jsonPreamble[13];
-char byteBuffer[Bus::SoftSerial::Modbus::REG_COUNT_MAX * 6 + 14 + 1];
+char byteBuffer[Bus::SoftSerial::Modbus::REG_COUNT * 6 + 14 + 1];
 uint16_t byteBufferPos = 0;
-char dataByteBuffer[Bus::SoftSerial::Modbus::REG_COUNT_MAX * 6 + 14 + 2 + 4 + 1];
+char dataByteBuffer[Bus::SoftSerial::Modbus::REG_COUNT * 6 + 14 + 2 + 4 + 1];
 
 uint32_t current_timestamp = Constants::Time::INVALID_TIMESTAMP;
 
@@ -46,17 +46,17 @@ uint16_t channel = Constants::Dimension::MIN_CHANNEL_INDEX;
 uint32_t timestamp = Constants::Time::INVALID_TIMESTAMP;
 float value = Constants::Value::INVALID_FLOAT_VALUE;
 // TODO: Consider solutions for armoring channels array elements. Presently must be >255, to avoid null bytes leading to datagrams being truncated in WiFiUDP.write()
-uint16_t channelOffsets[Channels::Config::COUNT] = {0, 0, 0}; 
+uint16_t channelOffsets[3] = {0, 0, 0}; 
 // Set undefined timestamps to 2**32-1 rather than 0, for the same reason as above
-uint32_t timestamps[Channels::Config::COUNT] = {Constants::Time::INVALID_TIMESTAMP, Constants::Time::INVALID_TIMESTAMP, Constants::Time::INVALID_TIMESTAMP}; 
-float values[Channels::Config::COUNT] = {Constants::Value::INVALID_FLOAT_VALUE, Constants::Value::INVALID_FLOAT_VALUE, Constants::Value::INVALID_FLOAT_VALUE};
+uint32_t timestamps[3] = {Constants::Time::INVALID_TIMESTAMP, Constants::Time::INVALID_TIMESTAMP, Constants::Time::INVALID_TIMESTAMP}; 
+float values[3] = {Constants::Value::INVALID_FLOAT_VALUE, Constants::Value::INVALID_FLOAT_VALUE, Constants::Value::INVALID_FLOAT_VALUE};
 
 Bus::HardSerial::Log logger(115200);
 
 SoftwareSerial serial(D2, D1);
 
 ModbusRTU modbus;
-uint16_t modbusReadResult[Bus::SoftSerial::Modbus::REG_COUNT_MAX];
+uint16_t modbusReadResult[2][Bus::SoftSerial::Modbus::MAX_REG_COUNT];
 
 ESP8266WiFiMulti wifiMulti;
 
@@ -111,14 +111,8 @@ void setupWiFi()
   // Set WiFi to station mode
   WiFi.mode(WIFI_STA);
   // Register multi WiFi networks
-  wifiMulti.addAP("GUAB Head Office 2.4 GHz", "Vastby5:81");
-  wifiMulti.addAP("dlink-29CC", "SCCGustavsvik");
-  wifiMulti.addAP("MicroNat-D2DA2F", "D3QV5MFSC");
-  wifiMulti.addAP("E-Lins H750", "SCCGustavsvik");
-  wifiMulti.addAP("TP-LINK_02C0", "SCCGustavsvik");
-  wifiMulti.addAP("titan_pocket", "SCCGustavsvik");
-  //wifiMulti.addAP("Energilabbet", "Energilabbet001");
-  //wifiMulti.addAP("MIUN2.4", "hsdhsdhsd");
+  logger.write("secrets::wifiNetworksCount: "); logger.writeln(secrets::wifiNetworksCount);
+  for (int i = 0; i < secrets::wifiNetworksCount; i++) wifiMulti.addAP(secrets::wifiNetworks[i].getSSID() , secrets::wifiNetworks[i].getPassword());
 
   monitorWiFi();
 }
@@ -129,7 +123,7 @@ void prepareData()
   channelOffsets[1] = 56;
   channelOffsets[2] = 57;
 
-  for (int i = 0; i < Channels::Config::COUNT; i++) timestamps[i] = current_timestamp;
+  for (int i = 0; i < 3; i++) timestamps[i] = current_timestamp;
 
   values[0] = dht.readTemperature();
   values[1] = dht.readHumidity();
@@ -137,13 +131,11 @@ void prepareData()
 }
 
 bool modbusReadCallback(Modbus::ResultCode event, uint16_t transactionId, void* data) 
-{
-  logger.write("event: "); logger.writeln_hex(event);
-
-  // Callback to monitor errors
+{ // Callback to monitor errors
   if (event != Modbus::EX_SUCCESS) 
   {
-    logger.write("Request result: 0x"); logger.writeln_hex(event);
+    logger.write("Request result: 0x");
+    logger.writeln_hex(event);
   }
   return true;
 }
@@ -181,10 +173,10 @@ void prepareModbusJsonBuffer()
 {
   byteBufferPos = 13;
   char separator = ',';
-  for (int i = 0; i < Channels::Config::REG_BLOCKS[0].COUNT; i++)
+  for (int i = 0; i < Bus::SoftSerial::Modbus::REG_COUNT; i++)
   {
-    int noOfPositions = Transform::Check::numDigits(modbusReadResult[i]);
-    dtostrf(modbusReadResult[i], noOfPositions, 0, valueBuffer);
+    int noOfPositions = Transform::Check::numDigits(modbusReadResult[modbusReadResultIndex][i]);
+    dtostrf(modbusReadResult[modbusReadResultIndex][i], noOfPositions, 0, valueBuffer);
     valueBuffer[noOfPositions] = separator;
     memcpy(byteBuffer + byteBufferPos, &valueBuffer, noOfPositions + 1);
     byteBufferPos += noOfPositions + 1;
@@ -196,8 +188,6 @@ void prepareModbusJsonBuffer()
 
 void setup()
 {
-  for (int i = 0; i < Channels::Config::COUNT; i++) if (Channels::Config::REG_BLOCKS[i].FIRST == 65535) Bus::SoftSerial::Modbus::TOTAL_REG_COUNT += Channels::Config::REG_BLOCKS[i].COUNT;
-
   // PID regulator Red Lion PXU defaults
   //serial.begin(Bus::SoftSerial::BAUD_RATE, SWSERIAL_8E1);
   // ABB A44 energy meter
@@ -224,57 +214,56 @@ void loop()
   int slave_id = modbus_soft_serial.slaveId();
   logger.write("slave_id: "); logger.writeln(slave_id);
   */
-  logger.write("TOTAL_REG_COUNT: "); logger.writeln(Bus::SoftSerial::Modbus::TOTAL_REG_COUNT);
+  //Serial.print("cyclesSinceNTP: "); Serial.println(cyclesSinceNTP);
 
   monitorWiFi();
+
+  for (int i = 0; i < Bus::SoftSerial::Modbus::REG_COUNT; i++) modbusReadResult[modbusReadResultIndex][i] = 0;
+
+  if (!modbus.slave()) 
+  {    // Check if no transaction in progress
+    logger.writeln("Before readHreg");
+    modbusReadResultIndex = cyclesSinceNTP % 2 ;
+    if (modbusReadResultIndex) modbus.readHreg(Bus::SoftSerial::Modbus::SLAVE_ID, 20480, modbusReadResult[modbusReadResultIndex], 12, modbusReadCallback); // Send Read Hreg from Modbus Server
+    else modbus.readHreg(Bus::SoftSerial::Modbus::SLAVE_ID, (uint16_t)Bus::SoftSerial::Modbus::FIRST_REG, modbusReadResult[modbusReadResultIndex], Bus::SoftSerial::Modbus::REG_COUNT, modbusReadCallback); // Send Read Hreg from Modbus Server
+    while(modbus.slave()) 
+    { // Check if transaction is active
+      modbus.task();
+      delay(10);
+    }
+  }
+/*
+  uint16_t noOfWriteRegisters = (uint16_t)Bus::SoftSerial::Modbus::WRITE_REG_COUNT;
+  uint16_t writeRegisters[noOfWriteRegisters];
+  uint16_t writeValues[noOfWriteRegisters];
+  if (!modbus.slave()) 
+  {
+    writeRegisters[0] = (uint16_t)10;
+    writeRegisters[1] = (uint16_t)5;
+    writeValues[0] = (uint16_t)200;
+    writeValues[1] = (uint16_t)1001;
+    noOfWriteRegisters = (uint16_t)1;
+    logger.writeln("Before writeHreg");
+    int writeResult = modbus.writeHreg(Bus::SoftSerial::Modbus::SLAVE_ID, writeRegisters[0], writeValues, noOfWriteRegisters, modbusWriteCallback);
+    logger.write("writeResult: ");
+    logger.writeln(writeResult);
+    while(modbus.slave()) 
+    {
+      modbus.task();
+      delay(10);
+    }
+  }
+*/
 
   updateTime();
 
   prepareData();
 
-
-      for (int i = 0; i < Channels::Config::REG_BLOCKS[2].COUNT; i++) modbusReadResult[i] = 65535;
-
-      if (!modbus.slave()) 
-      {
-        logger.write("FIRST: "); logger.writeln(Channels::Config::REG_BLOCKS[2].FIRST);
-        logger.write("COUNT: "); logger.writeln(Channels::Config::REG_BLOCKS[2].COUNT);
-        // Check if no transaction in progress
-        modbus.readHreg(Bus::SoftSerial::Modbus::SLAVE_ID, (uint16_t)Channels::Config::REG_BLOCKS[2].FIRST, modbusReadResult, Channels::Config::REG_BLOCKS[2].COUNT, modbusReadCallback); // Send Read Hreg from Modbus Server
-        while(modbus.slave()) 
-        { // Check if transaction is active
-          modbus.task();
-          delay(10);
-        }
-      }
-    /*
-      uint16_t noOfWriteRegisters = (uint16_t)Bus::SoftSerial::Modbus::WRITE_REG_COUNT;
-      uint16_t writeRegisters[noOfWriteRegisters];
-      uint16_t writeValues[noOfWriteRegisters];
-      if (!modbus.slave()) 
-      {
-        writeRegisters[0] = (uint16_t)10;
-        writeRegisters[1] = (uint16_t)5;
-        writeValues[0] = (uint16_t)200;
-        writeValues[1] = (uint16_t)1001;
-        noOfWriteRegisters = (uint16_t)1;
-        logger.writeln("Before writeHreg");
-        int writeResult = modbus.writeHreg(Bus::SoftSerial::Modbus::SLAVE_ID, writeRegisters[0], writeValues, noOfWriteRegisters, modbusWriteCallback);
-        logger.write("writeResult: ");
-        logger.writeln(writeResult);
-        while(modbus.slave()) 
-        {
-          modbus.task();
-          delay(10);
-        }
-      }
-    */
-
-  for (int channelCount = 0; channelCount < Channels::Config::COUNT; channelCount++)
+  for (int i = 0; i < 3; i++)
   {
-    channel = Constants::Dimension::MIN_CHANNEL_INDEX + channelOffsets[channelCount];
-    timestamp = timestamps[channelCount];
-    value = values[channelCount];
+    channel = Constants::Dimension::MIN_CHANNEL_INDEX + channelOffsets[i];
+    timestamp = timestamps[i];
+    value = values[i];
 
     memcpy(channelBuffer, &channel, 2);
     memcpy(channelTimestampBuffer, &channelBuffer, 2);
@@ -300,8 +289,8 @@ void loop()
     {
       memcpy(dataByteBuffer, &channelTimestampBuffer, 2 + 4);
 
-      logger.write("modbusReadResult: "); 
-      for (int i = 0; i < Channels::Config::REG_BLOCKS[i].COUNT; i++) { logger.write(modbusReadResult[i]); logger.write(' '); }
+      logger.write("modbusReadResult["); logger.write(modbusReadResultIndex); logger.write("]: ");
+      for (int i = 0; i < Bus::SoftSerial::Modbus::REG_COUNT; i++) { logger.write(modbusReadResult[modbusReadResultIndex][i]); logger.write(' '); }
       logger.linefeed();
 
       prepareModbusJsonPreamble();
@@ -319,10 +308,10 @@ void loop()
 
     digitalWrite(LED_BUILTIN, LOW);
 
-    Udp.beginPacket(secrets::ip_1, secrets::channelPorts[channelCount]);
+    Udp.beginPacket(secrets::ip_1, secrets::channelPorts[i]);
     Udp.write(dataByteBuffer); //dataValueBuffer);
     Udp.endPacket();
-    Udp.beginPacket(secrets::ip_2, secrets::channelPorts[channelCount]);
+    Udp.beginPacket(secrets::ip_2, secrets::channelPorts[i]);
     Udp.write(dataByteBuffer); //dataValueBuffer);
     Udp.endPacket();
     digitalWrite(LED_BUILTIN, HIGH);
@@ -332,5 +321,5 @@ void loop()
   int delayMs = Constants::Time::CYCLE_TIME * 1000;
   delay(delayMs);
   current_timestamp += Constants::Time::CYCLE_TIME;
-  for (int i = 0; i < Channels::Config::COUNT; i++) timestamps[i] = current_timestamp;
+  for (int i = 0; i < 3; i++) timestamps[i] = current_timestamp;
 }
