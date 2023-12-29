@@ -20,7 +20,7 @@
 #include "ModbusSoftSerial.h"
 
 /*
-ModbusSoftSerial modbus_soft_serial = ModbusSoftSerial(Bus::SoftSerial::Modbus::SLAVE_ID);
+ModbusSerialBus modbus_soft_serial = ModbusSerialBus(Bus::SerialBus::Modbus::SLAVE_ID);
 */
 
 
@@ -36,9 +36,9 @@ char valueBuffer[10];
 char dataValueBuffer[2 * Constants::Dimension::MARIEX_BUFFERSIZE]; //= {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 uint16_t modbusReadResultIndex = 0;
 char jsonPreamble[13];
-char byteBuffer[Bus::SoftSerial::Modbus::REG_COUNT * 6 + 14 + 1];
+char byteBuffer[Bus::SerialBus::Modbus::REG_COUNT * 6 + 14 + 1];
 uint16_t byteBufferPos = 0;
-char dataByteBuffer[Bus::SoftSerial::Modbus::REG_COUNT * 6 + 14 + 2 + 4 + 1];
+char dataByteBuffer[Bus::SerialBus::Modbus::REG_COUNT * 6 + 14 + 2 + 4 + 1];
 
 uint32_t current_timestamp = Constants::Time::INVALID_TIMESTAMP;
 
@@ -51,12 +51,12 @@ uint16_t channelOffsets[3] = {0, 0, 0};
 uint32_t timestamps[3] = {Constants::Time::INVALID_TIMESTAMP, Constants::Time::INVALID_TIMESTAMP, Constants::Time::INVALID_TIMESTAMP}; 
 float values[3] = {Constants::Value::INVALID_FLOAT_VALUE, Constants::Value::INVALID_FLOAT_VALUE, Constants::Value::INVALID_FLOAT_VALUE};
 
-Bus::HardSerial::Log logger(115200);
+Bus::SerialBus::Hard::Log logger(115200, 2);
 
 SoftwareSerial serial(D2, D1);
 
 ModbusRTU modbus;
-uint16_t modbusReadResult[2][Bus::SoftSerial::Modbus::MAX_REG_COUNT];
+uint16_t modbusReadResult[2][Bus::SerialBus::Modbus::MAX_REG_COUNT];
 
 ESP8266WiFiMulti wifiMulti;
 
@@ -112,7 +112,7 @@ void setupWiFi()
   WiFi.mode(WIFI_STA);
   // Register multi WiFi networks
   logger.write("secrets::wifiNetworksCount: "); logger.writeln(secrets::wifiNetworksCount);
-  for (int i = 0; i < secrets::wifiNetworksCount; i++) wifiMulti.addAP(secrets::wifiNetworks[i].getSSID() , secrets::wifiNetworks[i].getPassword());
+  for (int i = 0; i < secrets::wifiNetworksCount; i++) wifiMulti.addAP(secrets::wifiNetworks[i].ssid() , secrets::wifiNetworks[i].password());
 
   monitorWiFi();
 }
@@ -163,7 +163,7 @@ void prepareModbusJsonPreamble()
   char preambleSlaveID[3];
   char preambleEnd[3] = {'"',':','['};
   memcpy(jsonPreamble, &preambleStart, 7);
-  dtostrf(Bus::SoftSerial::Modbus::SLAVE_ID, 3, 0, preambleSlaveID);
+  dtostrf(Bus::SerialBus::Modbus::SLAVE_ID, 3, 0, preambleSlaveID);
   for (int i = 0; i < 3; i++) if (preambleSlaveID[i] == ' ') preambleSlaveID[i] = '0';
   memcpy(jsonPreamble + 7, &preambleSlaveID, 3);
   memcpy(jsonPreamble + 7 + 3, &preambleEnd, 3);
@@ -173,7 +173,7 @@ void prepareModbusJsonBuffer()
 {
   byteBufferPos = 13;
   char separator = ',';
-  for (int i = 0; i < Bus::SoftSerial::Modbus::REG_COUNT; i++)
+  for (int i = 0; i < Bus::SerialBus::Modbus::REG_COUNT; i++)
   {
     int noOfPositions = Transform::Check::numDigits(modbusReadResult[modbusReadResultIndex][i]);
     dtostrf(modbusReadResult[modbusReadResultIndex][i], noOfPositions, 0, valueBuffer);
@@ -189,9 +189,9 @@ void prepareModbusJsonBuffer()
 void setup()
 {
   // PID regulator Red Lion PXU defaults
-  //serial.begin(Bus::SoftSerial::BAUD_RATE, SWSERIAL_8E1);
+  //serial.begin(Bus::SerialBus::BAUD_RATE, SWSERIAL_8E1);
   // ABB A44 energy meter
-  serial.begin(Bus::SoftSerial::BAUD_RATE, SWSERIAL_8N1);
+  serial.begin(Bus::SerialBus::Modbus::BAUD_RATE, SWSERIAL_8N1);
 
   modbus.begin(&serial);
   modbus.master();
@@ -218,14 +218,14 @@ void loop()
 
   monitorWiFi();
 
-  for (int i = 0; i < Bus::SoftSerial::Modbus::REG_COUNT; i++) modbusReadResult[modbusReadResultIndex][i] = 0;
+  for (int i = 0; i < Bus::SerialBus::Modbus::REG_COUNT; i++) modbusReadResult[modbusReadResultIndex][i] = 0;
 
   if (!modbus.slave()) 
   {    // Check if no transaction in progress
     logger.writeln("Before readHreg");
-    modbusReadResultIndex = cyclesSinceNTP % 2 ;
-    if (modbusReadResultIndex) modbus.readHreg(Bus::SoftSerial::Modbus::SLAVE_ID, 20480, modbusReadResult[modbusReadResultIndex], 12, modbusReadCallback); // Send Read Hreg from Modbus Server
-    else modbus.readHreg(Bus::SoftSerial::Modbus::SLAVE_ID, (uint16_t)Bus::SoftSerial::Modbus::FIRST_REG, modbusReadResult[modbusReadResultIndex], Bus::SoftSerial::Modbus::REG_COUNT, modbusReadCallback); // Send Read Hreg from Modbus Server
+    modbusReadResultIndex = 0; //cyclesSinceNTP % 2 ;
+    if (modbusReadResultIndex) modbus.readHreg(Bus::SerialBus::Modbus::SLAVE_ID, 20480, modbusReadResult[modbusReadResultIndex], 12, modbusReadCallback); // Send Read Hreg from Modbus Server
+    else modbus.readHreg(Bus::SerialBus::Modbus::SLAVE_ID, (uint16_t)Bus::SerialBus::Modbus::FIRST_REG, modbusReadResult[modbusReadResultIndex], Bus::SerialBus::Modbus::REG_COUNT, modbusReadCallback); // Send Read Hreg from Modbus Server
     while(modbus.slave()) 
     { // Check if transaction is active
       modbus.task();
@@ -233,7 +233,7 @@ void loop()
     }
   }
 /*
-  uint16_t noOfWriteRegisters = (uint16_t)Bus::SoftSerial::Modbus::WRITE_REG_COUNT;
+  uint16_t noOfWriteRegisters = (uint16_t)Bus::SerialBus::Modbus::WRITE_REG_COUNT;
   uint16_t writeRegisters[noOfWriteRegisters];
   uint16_t writeValues[noOfWriteRegisters];
   if (!modbus.slave()) 
@@ -244,7 +244,7 @@ void loop()
     writeValues[1] = (uint16_t)1001;
     noOfWriteRegisters = (uint16_t)1;
     logger.writeln("Before writeHreg");
-    int writeResult = modbus.writeHreg(Bus::SoftSerial::Modbus::SLAVE_ID, writeRegisters[0], writeValues, noOfWriteRegisters, modbusWriteCallback);
+    int writeResult = modbus.writeHreg(Bus::SerialBus::Modbus::SLAVE_ID, writeRegisters[0], writeValues, noOfWriteRegisters, modbusWriteCallback);
     logger.write("writeResult: ");
     logger.writeln(writeResult);
     while(modbus.slave()) 
@@ -290,7 +290,7 @@ void loop()
       memcpy(dataByteBuffer, &channelTimestampBuffer, 2 + 4);
 
       logger.write("modbusReadResult["); logger.write(modbusReadResultIndex); logger.write("]: ");
-      for (int i = 0; i < Bus::SoftSerial::Modbus::REG_COUNT; i++) { logger.write(modbusReadResult[modbusReadResultIndex][i]); logger.write(' '); }
+      for (int i = 0; i < Bus::SerialBus::Modbus::REG_COUNT; i++) { logger.write(modbusReadResult[modbusReadResultIndex][i]); logger.write(' '); }
       logger.linefeed();
 
       prepareModbusJsonPreamble();
