@@ -1170,9 +1170,9 @@ class SqlHttpUpdateStatic(it.HttpHost):
                         common_description += json.dumps(existing_aivdm_dataset)
                         #device_description = common_description
 
-                    rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id, "host_address", host_address, "common_description", common_description)
+                    rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id, "host_address", host_address, "device_hardware_id", device_hardware_id, "device_text_id", device_text_id, "device_address", device_address, "module_hardware_id", module_hardware_id, "module_text_id", module_text_id, "module_address", module_address, "common_description", common_description)
                     if host_hardware_id is not None and host_hardware_id != "" :
-                        rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id, "host_address", host_address, "common_description", common_description)
+                        rt.logging.debug("host_hardware_id", host_hardware_id, "host_text_id", host_text_id, "host_address", host_address, "device_hardware_id", device_hardware_id, "device_text_id", device_text_id, "device_address", device_address, "module_hardware_id", module_hardware_id, "module_text_id", module_text_id, "module_address", module_address, "common_description", common_description)
                         rt.logging.debug(" ")
                         r_post = self.update_static_data(ip, host_hardware_id = host_hardware_id, host_text_id = host_text_id, device_hardware_id = device_hardware_id, device_text_id = device_text_id, device_address = device_address, module_hardware_id = module_hardware_id, module_text_id = module_text_id, module_address = module_address, host_address = host_address, common_description = common_description)
 
