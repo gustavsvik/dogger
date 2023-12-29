@@ -188,6 +188,11 @@ class Replicate(it.HttpHost):
                 rt.logging.debug("channel_list", channel_list, "timestamp_list", timestamp_list)
                 return_string = None
                 return_string = self.sql.get_requests(channel_list, timestamp_list)
+                for channel_index in range(len(channel_list)):
+                    requested_timestamps = [int(ts_string) for ts_string in timestamp_list[channel_index][:-1]]
+                    if len(requested_timestamps) > 0:
+                        if min(requested_timestamps) < int(time.time()) - 3600:
+                            r_clear = self.clear_data_requests(ip)
                 rt.logging.debug("return_string", return_string)
                 if return_string is not None :
                     r_post = self.set_requested(return_string, ip)
