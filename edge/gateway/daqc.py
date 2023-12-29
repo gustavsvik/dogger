@@ -218,28 +218,33 @@ class UdpValueBytesHttp(UdpHttp) :
                 except struct.error as e :
                     rt.logging.exception(e)
                 rt.logging.debug("values", values)
+                byte_string_tuple = ['']
                 try :
                     byte_string_tuple = struct.unpack_from( '{}s'.format(len(data) - 6), data[6:len(data)], offset = 0)
                 except struct.error as e :
                     rt.logging.exception(e)
                 byte_string = byte_string_tuple[0]
-                channel = int(values[0])
-                timestamp = int(values[1])
-                rt.logging.debug("channel", channel, "timestamp", timestamp, "byte_string", byte_string)
-                if timestamp == 2**32-1 : timestamp = 0
-                if self.crypto_key not in [None, ''] :
-                    try :
-                        #crypto_key = b'XUFA58vllD2n41e7NZDZkyPiUCECkxFsBjF_HaKlIrI='
-                        fernet = cryptography.fernet.Fernet(self.crypto_key)
-                        decrypted_string = fernet.decrypt(byte_string)
-                        rt.logging.debug("decrypted_string", decrypted_string)
-                        rt.logging.debug(" ")
-                        byte_string = decrypted_string
-                        #replaced_byte_string = tr.armor_separators_csv(byte_string)
-                    except cryptography.fernet.InvalidToken as e :
-                        rt.logging.exception(e)
-                rt.logging.debug("byte_string", byte_string)
-                self.upload_data(channel, timestamp, float(byte_string), b'')
+                if values :
+                    channel = int(values[0])
+                    timestamp = int(values[1])
+                    rt.logging.debug("channel", channel, "timestamp", timestamp, "byte_string", byte_string)
+                    if timestamp == 2**32-1 : timestamp = 0
+                    if self.crypto_key not in [None, ''] :
+                        try :
+                            #crypto_key = b'XUFA58vllD2n41e7NZDZkyPiUCECkxFsBjF_HaKlIrI='
+                            fernet = cryptography.fernet.Fernet(self.crypto_key)
+                            decrypted_string = fernet.decrypt(byte_string)
+                            rt.logging.debug("decrypted_string", decrypted_string)
+                            rt.logging.debug(" ")
+                            byte_string = decrypted_string
+                            #replaced_byte_string = tr.armor_separators_csv(byte_string)
+                        except cryptography.fernet.InvalidToken as e :
+                            rt.logging.exception(e)
+                    decoded_string = byte_string.strip(b' ').decode('UTF-8')
+                    if tr.number_convertible(decoded_string) :
+                        float_value = float(decoded_string)
+                        rt.logging.debug("float_value", float_value)
+                        self.upload_data(channel, timestamp, float_value, b'')
 
             except struct.error as e :
 
