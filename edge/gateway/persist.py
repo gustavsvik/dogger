@@ -367,7 +367,7 @@ class SQL:
             rt.logging.exception(e)
 
 
-    def get_stored(self, from_channels, max_age = None, max_number = None, min_status = None, max_status = None) :
+    def get_stored(self, from_channels, max_age = None, max_number = None, min_status = None, max_status = None, max_horizon = None) :
 
         channels = []
         timestamps = []
@@ -388,7 +388,10 @@ class SQL:
             if max_age is not None :
                 current_timestamp = int(time.time())
                 back_timestamp = current_timestamp - int(max_age)
-                sql_get_values += " AND AD.ACQUIRED_TIME BETWEEN " + str(back_timestamp) + " AND " + str(current_timestamp) + " " + sql_status_order_clause
+                future_timestamp = current_timestamp
+                if max_horizon is not None :
+                    future_timestamp += int(max_horizon)
+                sql_get_values += " AND AD.ACQUIRED_TIME BETWEEN " + str(back_timestamp) + " AND " + str(future_timestamp) + " " + sql_status_order_clause
 
             if max_age is None and max_number is None :
                 max_number = 0
