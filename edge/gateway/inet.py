@@ -1,3 +1,4 @@
+import logging
 import socket
 import requests
 import urllib.error
@@ -7,6 +8,8 @@ import datetime
 from optparse import OptionParser
 
 try : from motu_utils import motu_api
+except ImportError: pass
+try : import copernicus_marine_client as copernicus_marine
 except ImportError: pass
 
 import gateway.runtime as rt
@@ -451,12 +454,6 @@ class NativeCmems(Native):
 
     def __init__(self) : #, out_dir = None, out_name = None) :
 
-        #self.out_dir = out_dir
-        #self.out_name = out_name
-
-        #self.config_filepath = config_filepath
-        #self.config_filename = config_filename
-
         self.env = self.get_env()
         if self.service_user is None: self.service_user = self.env['SERVICE_USER']
         if self.service_pwd is None: self.service_pwd = self.env['SERVICE_PWD']
@@ -464,15 +461,13 @@ class NativeCmems(Native):
 
         Native.__init__(self)
 
+
+    def send_request(self) :
+        
         date_min = ( datetime.date.today() - datetime.timedelta( days = 0 ) ).isoformat()
         date_max = ( datetime.date.today() + datetime.timedelta( days = 0 ) ).isoformat()
 
-        #service_id = 'BALTICSEA_ANALYSISFORECAST_WAV_003_010-TDS'
-        #product_id = 'dataset-bal-analysis-forecast-wav-hourly'
-        #out_dir = '/srv/dogger/sandbox/'
-        #out_name = f'{service_id}.nc' #_{date_min}_{date_max}
-
-        rt.logging.debug("getting update from %s to %s" % (date_min, date_max))
+        #print("getting update from %s to %s" % (date_min, date_max))
         motu_opts = {'log_level': None, 'user': self.service_user, 'pwd': self.service_pwd,
                      'auth_mode': 'cas', 'proxy':False, 'proxy_server': None,
                      'proxy_user': None, 'proxy_pwd': None,
@@ -489,8 +484,6 @@ class NativeCmems(Native):
                      'block_size': 65536, 'socket_timeout': None, 'user_agent': None, 'outputWritten': None,
                      'console_mode': None, 'config_file': None}
 
-        # we create a fake option parser because this is what the motu api expects:
-        # a parsed result from optionparser rather than a normal dict
         self.options = None
         op = OptionParser()
         for o in motu_opts :
@@ -498,9 +491,43 @@ class NativeCmems(Native):
         (options, args) = op.parse_args()
         self.options = options
 
-
-    def send_request(self) :
         try :
             motu_api.execute_request(self.options)
         except (urllib.error.URLError, AttributeError) as e :
             rt.logging.exception(e)
+
+
+class NativeCopernicusMarineToolbox(Native):
+
+
+    def __init__(self) : #, out_dir = None, out_name = None) :
+
+        self.env = self.get_env()
+        if self.service_user is None: self.service_user = self.env['SERVICE_USER']
+        if self.service_pwd is None: self.service_pwd = self.env['SERVICE_PWD']
+        if self.file_path is None: self.file_path = self.env['FILE_PATH']
+
+        Native.__init__(self)
+
+        # https://stackoverflow.com/a/61333099 , https://stackoverflow.com/a/63379720
+        copernicus_logger = logging.getLogger("copernicus_marine_root_logger")
+        copernicus_logger.addHandler(logging.NullHandler())
+        copernicus_logger.setLevel(logging.CRITICAL + 1)
+
+
+    def send_request(self) :
+
+        datetime_min = ( datetime.datetime.now() - datetime.timedelta( days = 0 ) ).isoformat(timespec="seconds")
+        rt.logging.debug("datetime_min", datetime_min)
+        datetime_max = ( datetime.datetime.now() + datetime.timedelta( days = 1 ) ).isoformat(timespec="seconds")
+        rt.logging.debug("datetime_max", datetime_max)
+
+        copernicus_marine.subset(
+            dataset_id = self.product_id,
+            minimum_latitude = 62.5, maximum_latitude = 62.85,
+            minimum_longitude = 17.8, maximum_longitude = 18.3,
+            start_datetime = datetime_min, end_datetime = datetime_max,
+            variables = ['VHM0'], 
+            output_directory = self.file_path, output_filename = self.out_file_name,
+            force_download = True, overwrite_output_data = True, disable_progress_bar = True)
+ 
