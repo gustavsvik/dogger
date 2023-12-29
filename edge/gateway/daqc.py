@@ -794,6 +794,71 @@ class NmeaUdpFile(UdpFile):
 
 
 
+class TcpFile(it.TcpReceive, ps.IngestFile):
+
+
+    def __init__(self):
+
+        it.TcpReceive.__init__(self)
+        ps.IngestFile.__init__(self)
+
+
+
+class AisTcpAivdmFile(TcpFile):
+
+
+    def __init__(self, channels = None, ip_list = None, port = None, crypto_key = None, start_delay = None, sample_rate = None, transmit_rate = None, file_path = None, ctrl_file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
+
+        self.channels = channels
+        self.ip_list = ip_list
+        self.port = port
+        self.crypto_key = crypto_key
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+        self.transmit_rate = transmit_rate
+        self.file_path = file_path
+        self.ctrl_file_path = file_path
+        self.archive_file_path = archive_file_path
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        TcpFile.__init__(self)
+
+        self.ais = tr.Ais()
+
+
+    def run(self):
+
+        time.sleep(self.start_delay)
+
+        while True :
+
+            #time.sleep(1/self.transmit_rate)
+
+            data = None
+            address = None
+
+            data, address = self.socket.recvfrom(4096)
+            rt.logging.debug("address", address, "data", data)
+
+            data_lines = []
+            if data is not None :
+                data_lines = data.decode("utf-8").splitlines()
+                print("data_lines", data_lines)
+
+            #timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
+            #ais_data_array = self.ais.decode_to_channels(char_data = data_lines, channel_data = self.channels, time_tuple = current_timetuple, line_end = None)
+            #rt.logging.debug("ais_data_array", ais_data_array)
+            #for ais_data in ais_data_array :
+            #    if ais_data is not None :
+            #        (selected_tag, data_array), = ais_data.items()
+            #        rt.logging.debug("data_array", data_array)
+            #        if not ( None in data_array ) :
+            #            self.persist(data_array = data_array, selected_tag = selected_tag, timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
+
+
+
 class RawUdpFile(UdpFile):
 
 
@@ -938,6 +1003,42 @@ class HttpAishubAivdmFile(HttpFile) :
 
             time.sleep(1/self.sample_rate)
 
+
+
+class HttpNetmoreJsonFile(HttpFile) :
+
+
+    def __init__(self, channels = None, ip_list = None, http_scheme = None, start_delay = None, sample_rate = None, transmit_rate = None, client_api_url = None, max_connect_attempts = None, file_path = None, archive_file_path = None, ctrl_file_path = None, config_filepath = None, config_filename = None):
+
+        self.channels = channels
+        self.ip_list = ip_list
+        self.http_scheme = http_scheme
+        self.start_delay = start_delay
+        self.sample_rate = sample_rate
+        self.transmit_rate = transmit_rate
+        self.client_api_url = client_api_url
+        self.max_connect_attempts = max_connect_attempts
+        self.file_path = file_path
+        self.archive_file_path = archive_file_path
+        self.ctrl_file_path = ctrl_file_path
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        HttpFile.__init__(self)
+
+
+    def run(self) :
+
+        time.sleep(self.start_delay)
+
+        while True :
+
+            result = self.get_external()
+            data_lines = result.text
+            #print("data_lines", data_lines)
+
+            time.sleep(1/self.sample_rate)
 
 
 
