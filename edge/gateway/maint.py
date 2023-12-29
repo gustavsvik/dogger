@@ -179,6 +179,64 @@ class PartitionCloudDatabase(PartitionDatabase) :
 
 
 
+class FindKillSlowMysqlProcesses(it.HttpMaint):
+
+
+    def __init__(self, start_delay = None, ip_list = None, http_scheme = None, maint_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+
+        self.start_delay = start_delay
+        self.ip_list = ip_list
+        self.http_scheme = http_scheme
+        self.maint_api_url = maint_api_url
+        self.max_connect_attempts = max_connect_attempts
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        it.HttpMaint.__init__(self)
+
+
+
+class ManageSlowMysqlProcesses(ta.MaintenanceTask) :
+
+
+    def __init__(self, start_delay = None, ip_list = None, http_scheme = None, maint_api_url = None, config_filepath = None, config_filename = None) :
+
+        self.start_delay = start_delay
+        self.ip_list = ip_list
+        self.http_scheme = http_scheme
+        self.maint_api_url = maint_api_url
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        self.max_connect_attempts = 50
+
+        ta.MaintenanceTask.__init__(self)
+
+
+    def find_and_kill(self) :
+
+        http = FindKillSlowMysqlProcesses(start_delay = self.start_delay, ip_list = self.ip_list, http_scheme = self.http_scheme, maint_api_url = self.maint_api_url, max_connect_attempts = self.max_connect_attempts)
+
+        if self.ip_list is not None :
+            for current_ip in self.ip_list :
+                rt.logging.debug("current_ip", current_ip)
+                res = http.manage_slow_mysql_processes(current_ip)
+
+
+    def run(self) :
+
+        time.sleep(self.start_delay)
+
+        while (True) :
+
+            self.find_and_kill()
+
+            time.sleep(5)
+
+
+
 class NetworkTime(ta.MaintenanceTask) :
 
 
