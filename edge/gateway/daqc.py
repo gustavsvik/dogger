@@ -316,12 +316,12 @@ class StaticFileNmeaFile(ps.IngestFile) :
 
 
 
-class CmemsFile(it.NativeCmems, ps.IngestFile) :
+class CmemsFile(it.NativeCopernicusMarineToolbox, ps.IngestFile) :
 
 
     def __init__(self):
 
-        it.NativeCmems.__init__(self)
+        it.NativeCopernicusMarineToolbox.__init__(self)
         ps.IngestFile.__init__(self)
 
 
@@ -369,10 +369,10 @@ class NativeCmemsNumpyFile(CmemsFile) :
             time_object = netcdf_data.variables["time"] #numpy.array(
             timestamps = time_object[:].data
             rt.logging.debug("timestamps", timestamps)
-            latitude_object = netcdf_data.variables["lat"]
+            latitude_object = netcdf_data.variables["latitude"]
             latitudes = latitude_object[:].data
             rt.logging.debug("latitudes", latitudes)
-            longitude_object = netcdf_data.variables["lon"]
+            longitude_object = netcdf_data.variables["longitude"]
             longitudes = longitude_object[:].data
             rt.logging.debug("longitudes", longitudes)
             all_values_time_lat_lon_object = netcdf_data.variables["VHM0"] #numpy.array(
@@ -408,14 +408,21 @@ class NativeCmemsNumpyFile(CmemsFile) :
             #print("nearest_timestamp_index", nearest_timestamp_index)
             json_string = '['
             for timestamp, time_values in zip(timestamps[nearest_timestamp_index:nearest_timestamp_index+1], all_values_time_lat_lon[nearest_timestamp_index:nearest_timestamp_index+1]) :
-                #print("timestamp", timestamp)
+                _ , timestamp_tuple, _ , _ = tr.timestamp_to_date_times(timestamp)
+                timestamp_day = timestamp_tuple.tm_mday
+                timestamp_hour = timestamp_tuple.tm_hour
+                timestamp_minute = timestamp_tuple.tm_min
+                rt.logging.debug("timestamp_tuple", timestamp_tuple)
                 for lat, lon_values in zip(latitudes, time_values) :
                     for lon, value in zip(longitudes, lon_values) :
                         #print("lat", lat, "lon", lon, "value", value)
-                        json_string += '[' + '154' + ',' + str(timestamp) + ',' + '"0"' + ',' + '{"type": 1, "mmsi": "' + str('{0:.3g}'.format(value)) + '", "lat":' + str('{0:.7g}'.format(lat)) + ', "lon":' + str('{0:.7g}'.format(lon)) + '}], '
-            json_string = json_string[:-2] + ']'
-            #print("json_string", json_string)
+                        if not value < 0.0 :
+                            #json_string += '[' + '154' + ',' + str(timestamp) + ',' + '"0"' + ',' + '{"type": 1, "mmsi": "' + str('{0:.3g}'.format(value)) + '", "lat":' + str('{0:.7g}'.format(lat)) + ', "lon":' + str('{0:.7g}'.format(lon)) + '}], '
+                            json_string += '[null, null, ' + '"11"' + ', ' + '{"type":0, "value":' + str('{0:.3g}'.format(value)) + ', "lat":' + str('{0:.7g}'.format(lat)) + ', "lon":' + str('{0:.7g}'.format(lon)) + ', "id":"11"' + '}], '  #  ', "day":' + str(timestamp_day) + ', "hour":' + str(timestamp_hour) + ', "minute":' + str(timestamp_minute) +  -' + tr.get_open_location_code(lat, lon, 8) + '
+            if len(json_string) > 2 : json_string = json_string[:-2]
+            json_string += ']'
             data_array = [ { channel_indices[0] : json_string } ]
+            rt.logging.debug("data_array", data_array)
 
             timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(timestamp = nearest_timestamp, sample_rate = self.sample_rate)
             self.persist(data_array = data_array, selected_tag = 'NETCDF', timestamp_secs = timestamp_secs, timestamp_microsecs = timestamp_microsecs)
