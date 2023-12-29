@@ -41,6 +41,17 @@ class Udp(ta.IpTask):
 
 
 
+class Tcp(ta.IpTask):
+
+
+    def __init__(self) :
+
+        ta.IpTask.__init__(self)
+
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+
+
+
 class UdpReceive(Udp):
 
 
@@ -50,6 +61,15 @@ class UdpReceive(Udp):
 
         server_address = ('', self.port)
         self.socket.bind(server_address)
+
+
+
+class TcpReceive(Tcp):
+
+
+    def __init__(self):
+
+        Tcp.__init__(self)
 
 
 
