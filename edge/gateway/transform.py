@@ -1522,15 +1522,15 @@ class Ais(Nmea) :
                     ais_data = {}
 
                     try :
-                        ais_data = ais_message.decode().asdict()  #.content
-                    except (ValueError, IndexError, pyais.exceptions.InvalidNMEAMessageException) as e :  #, pyais.exceptions.InvalidChecksumException
+                        ais_data = ais_message.decode().content
+                    except (ValueError, IndexError, pyais.exceptions.InvalidNMEAMessageException, pyais.exceptions.InvalidChecksumException) as e :
                         rt.logging.exception(e)
-                    #ais_data['type'] = ais_data.pop('msg_type')
                     rt.logging.debug('    ais_data', ais_data)
-                    message_id_data = self.data_dict_from_struct(ais_data, { "mmsi":{"type":"str"}, "msg_type":{"type":"int"}, "fid":{"type":"int"} } )
+
+                    message_id_data = self.data_dict_from_struct(ais_data, { "mmsi":{"type":"str"}, "type":{"type":"int"}, "fid":{"type":"int"} } )
                     rt.logging.debug('message_id_data', message_id_data)
                     current_mmsi = ut.safe_get(message_id_data, 'mmsi')
-                    current_message_type = ut.safe_get(message_id_data, 'msg_type')
+                    current_message_type = ut.safe_get(message_id_data, 'type')
                     rt.logging.debug("current_message_type", current_message_type)
                     current_binary_message_format = ut.safe_get(message_id_data, 'fid')
 
@@ -1614,7 +1614,7 @@ class Ais(Nmea) :
                                 ais_datasets.append(ais_dataset)
 
 
-            except (TypeError, ValueError, pyais.exceptions.InvalidNMEAMessageException) as e :     #IndexError, pyais.exceptions.InvalidChecksumException
+            except (TypeError, ValueError, IndexError, pyais.exceptions.InvalidNMEAMessageException, pyais.exceptions.InvalidChecksumException) as e :     
 
                 rt.logging.exception(e)
 
