@@ -75,12 +75,13 @@ class UdpHttp(it.UdpReceive) :
 class UdpValueHttp(UdpHttp) :
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, http_scheme = None, port = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, ip_list = None, crypto_key = None, http_scheme = None, port = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
         self.transmit_rate = transmit_rate
         self.ip_list = ip_list
+        self.crypto_key = crypto_key
         self.http_scheme = http_scheme
         self.port = port
         self.max_connect_attempts = max_connect_attempts
@@ -741,11 +742,12 @@ class UdpFile(it.UdpReceive, ps.IngestFile):
 class NmeaUdpFile(UdpFile):
 
 
-    def __init__(self, channels = None, ip_list = None, port = None, start_delay = None, sample_rate = None, transmit_rate = None, file_path = None, ctrl_file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, ip_list = None, port = None, crypto_key = None, start_delay = None, sample_rate = None, transmit_rate = None, file_path = None, ctrl_file_path = None, archive_file_path = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.ip_list = ip_list
         self.port = port
+        self.crypto_key = crypto_key
         self.start_delay = start_delay
         self.sample_rate = sample_rate
         self.transmit_rate = transmit_rate
