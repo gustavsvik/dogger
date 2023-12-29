@@ -74,6 +74,7 @@ class SqlHttp(it.HttpHost, it.HttpClient):
         self.ip_list = ip_list
         self.http_scheme = http_scheme
         self.max_age = max_age
+        self.max_horizon = max_horizon
         self.host_api_url = host_api_url
         self.client_api_url = client_api_url
         self.max_connect_attempts = max_connect_attempts
@@ -113,7 +114,7 @@ class SqlHttp(it.HttpHost, it.HttpClient):
             #try:
             self.sql.connect_db()
             rt.logging.debug("self.channels", self.channels, "self.max_age", self.max_age)
-            channels, times, values, byte_strings = self.sql.get_stored(from_channels = self.channels, max_age = self.max_age)
+            channels, times, values, byte_strings = self.sql.get_stored(from_channels = self.channels, max_age = self.max_age, max_horizon = self.max_horizon)
             rt.logging.debug("channels", channels, "times", times, "values", values, "byte_strings", byte_strings)
             self.upload_data(channels, times, values, byte_strings, self.ip_list) #[ip])
             #except (pymysql.err.OperationalError, pymysql.err.Error) as e :
