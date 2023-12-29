@@ -153,6 +153,25 @@ class HttpMaint(ta.MaintenanceTask):
                 exit(-1)
 
 
+    def manage_slow_mysql_processes(self, ip = '127.0.0.1'):
+
+        self.connect_attempts += 1
+        if self.connect_attempts > 1:
+            rt.logging.debug("Retrying connection, attempt " + str(self.connect_attempts))
+        try:
+            complete_url = self.http_scheme + "://" + ip + self.maint_api_url + "manage_slow_mysql_processes.php"
+            raw_data = requests.post(complete_url)
+            self.connect_attempts = 0
+            return raw_data
+        except (requests.exceptions.Timeout, requests.exceptions.TooManyRedirects, requests.exceptions.RequestException, requests.exceptions.ConnectionError, socket.gaierror, http.client.IncompleteRead, ConnectionResetError, requests.packages.urllib3.exceptions.ProtocolError) as e:
+            rt.logging.exception(e)
+            time.sleep(10)
+            if self.connect_attempts < self.max_connect_attempts:
+                self.manage_slow_mysql_processes(ip)
+            else:
+                exit(-1)
+
+
 
 class HttpExternal(Http):
 
