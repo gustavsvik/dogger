@@ -10,6 +10,7 @@ import os
 import enum
 import json
 import re
+import binascii
 
 try : import openlocationcode.openlocationcode
 except ImportError : pass
@@ -18,6 +19,8 @@ except ImportError : pass
 try : import bitarray
 except ImportError : pass
 try : import pyais
+except ImportError : pass
+try : import geohash2
 except ImportError : pass
 
 import gateway.runtime as rt
@@ -236,6 +239,12 @@ def get_open_location_code(lat = None, lon = None, length = None) :
     return olc_trimmed
 
 
+def get_geohash(lat = None, lon = None, length = None) :
+
+    geohash = geohash2.encode(latitude = float(lat), longitude = float(lon), precision = length)
+    rt.logging.debug("geohash.upper()", geohash.upper())
+    return geohash.upper()
+
 
 class Callbacks :
 
@@ -257,7 +266,13 @@ class AisCallbacks(Callbacks) :
 
     def get_open_location_code(lat = None, lon = None) :
 
-        return get_open_location_code(lat = lat, lon = lon, length = 7)
+        #return get_open_location_code(lat = lat, lon = lon, length = 7)
+        return get_geohash(lat = lat, lon = lon, length = 6)
+
+
+    def get_geohash(lat = None, lon = None) :
+
+        return get_geohash(lat = lat, lon = lon, length = 6)
 
 
     def create_key(mmsi = None, part_2 = None, part_3 = None) :
@@ -274,7 +289,7 @@ class AisCallbacks(Callbacks) :
         composite_key = ut.safe_str(mmsi)
         composite_key = ut.safe_append(composite_key, ut.safe_append("-", ut.safe_str(olc)))
         #composite_key = ut.safe_append(composite_key, ut.safe_append("-", ut.safe_str(part_3))
-
+        rt.logging.debug("composite_key (create_location_key)", composite_key)
         return composite_key
 
 
@@ -283,7 +298,7 @@ class AisCallbacks(Callbacks) :
         composite_key = ut.safe_str(mmsi)
         composite_key = ut.safe_append(composite_key, ut.safe_append("-", ut.safe_str(fid)))
         composite_key = ut.safe_append(composite_key, ut.safe_append("-", ut.safe_str(olc)))
-
+        rt.logging.debug("composite_key (create_location_message_key)", composite_key)
         return composite_key
 
 
@@ -425,7 +440,7 @@ class TextNumeric :
                 return_val = None
 
                 if bits_arg is not None and not None in bits_arg :
-                    rt.logging.debug("message_string", message_string, "structure_item", structure_item, "bit_offset", bit_offset, "bits_arg", bits_arg, "type_arg", type_arg)
+                    if isinstance(message_string, bytes) : message_string = ''.join([format(the_byte, '08b') for the_byte in message_string])
                     return_val = self.data_dict_from_packed_sequence(message_string, structure_item, bit_offset, bits_arg, type_arg)
                     rt.logging.debug("return_val", return_val)
 
@@ -492,6 +507,8 @@ class TextNumeric :
                     rt.logging.debug(" ")
                     return_dict[structure_tag] = return_val
 
+                rt.logging.debug("return_val", return_val)
+
         rt.logging.debug("return_dict", return_dict)
         return return_dict
 
@@ -526,6 +543,7 @@ class TextNumeric :
                 return_val = unpacked_int
             if type_arg[0] in ['i','I'] :
                 unpacked_int = -9999
+                rt.logging.debug("return_val", return_val)
                 if number_convertible(return_val) :
                     unpacked_int = twos_comp( int(return_val, 2), len(return_val) )
                 else :
@@ -1096,7 +1114,7 @@ class Ais(Nmea) :
 
                     ais_datasets_list = []
                     for ais_dataset in ais_datasets :
-                        ais_datasets_list.append( [ None, None, ut.safe_get(ais_dataset, "mmsi") , ais_dataset ] )
+                        ais_datasets_list.append( [ None, None, ut.safe_str(ut.safe_get(ais_dataset, "mmsi")) , ais_dataset ] )
                     rt.logging.debug("dict_string", dict_string, "ais_datasets_list", ais_datasets_list, "len(ais_datasets_list)", len(ais_datasets_list))
                     data_list = [ dict_string, ais_datasets_list ]
 
@@ -1522,14 +1540,19 @@ class Ais(Nmea) :
                     ais_data = {}
 
                     try :
-                        ais_data = ais_message.decode().content
-                    except (ValueError, IndexError, pyais.exceptions.InvalidNMEAMessageException, pyais.exceptions.InvalidChecksumException) as e :
+                        ais_data_object = ais_message.decode()
+                        rt.logging.debug('    ais_data_object', ais_data_object)
+                        ais_data = ais_data_object.asdict()
+                        rt.logging.debug('    ais_data', ais_data)
+                        ais_data['type'] = ais_data.pop('msg_type')
+                    except (ValueError, IndexError, pyais.exceptions.InvalidNMEAMessageException, pyais.exceptions.InvalidNMEAChecksum) as e :
                         rt.logging.exception(e)
                     rt.logging.debug('    ais_data', ais_data)
 
                     message_id_data = self.data_dict_from_struct(ais_data, { "mmsi":{"type":"str"}, "type":{"type":"int"}, "fid":{"type":"int"} } )
                     rt.logging.debug('message_id_data', message_id_data)
-                    current_mmsi = ut.safe_get(message_id_data, 'mmsi')
+                    current_mmsi = ut.safe_str(ut.safe_get(message_id_data, 'mmsi'))
+                    rt.logging.debug("type(current_mmsi)", type(current_mmsi))
                     current_message_type = ut.safe_get(message_id_data, 'type')
                     rt.logging.debug("current_message_type", current_message_type)
                     current_binary_message_format = ut.safe_get(message_id_data, 'fid')
@@ -1578,8 +1601,10 @@ class Ais(Nmea) :
                         #if message_format not in [None, {}] :
 
                         message_header_format = ut.safe_get(message_format, 'message')
+                        rt.logging.debug("message_header_format", message_header_format)
 
                         mmsi_include_only = ut.safe_get(message_header_format, "mmsi_include_only")
+                        rt.logging.debug("mmsi_include_only", mmsi_include_only)
                         mmsi_exclude_only = ut.safe_get(message_header_format, "mmsi_exclude_only")
                         include_current_mmsi = False
                         if mmsi_exclude_only in [None, []] :
@@ -1593,10 +1618,13 @@ class Ais(Nmea) :
                             include_current_mmsi = False
                             if current_mmsi in mmsi_include_only :
                                 include_current_mmsi = True
+                        rt.logging.debug("include_current_mmsi", include_current_mmsi)
 
                         if include_current_mmsi :
 
+                            rt.logging.debug("type(current_message_type)", type(current_message_type))
                             rt.logging.debug("message_header_format", message_header_format, "mmsi_include_only", mmsi_include_only, "mmsi_exclude_only", mmsi_exclude_only, "current_mmsi", current_mmsi)
+
                             message_data = None
                             if current_message_type in [6,8] :
                                 rt.logging.debug("ais_data", ais_data)
@@ -1614,7 +1642,7 @@ class Ais(Nmea) :
                                 ais_datasets.append(ais_dataset)
 
 
-            except (TypeError, ValueError, IndexError, pyais.exceptions.InvalidNMEAMessageException, pyais.exceptions.InvalidChecksumException) as e :     
+            except (TypeError, ValueError, IndexError, pyais.exceptions.InvalidNMEAMessageException, pyais.exceptions.InvalidNMEAChecksum) as e :
 
                 rt.logging.exception(e)
 
