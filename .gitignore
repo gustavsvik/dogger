@@ -1,0 +1,5 @@
+# Ignore all .ini files...
+*.ini
+
+# ...except samples
+!conf_example.ini
