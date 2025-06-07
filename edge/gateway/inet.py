@@ -1,5 +1,6 @@
 import logging
 import socket
+import subprocess
 import requests
 import urllib.error
 import http
@@ -15,6 +16,7 @@ except ImportError: pass
 import gateway.runtime as rt
 import gateway.task as ta
 import gateway.transform as tr
+import gateway.utils as ut
 
 
 
@@ -48,7 +50,16 @@ class Tcp(ta.IpTask):
 
         ta.IpTask.__init__(self)
 
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #, 0)
+
+
+    def list_connections(self) :
+
+        all_connections = subprocess.run(['netstat', '-an'], check=True, capture_output=True)
+        established_connections = subprocess.run(['grep', 'ESTABLISHED'], input=all_connections.stdout, capture_output=True)
+        established_port_connections = subprocess.run(['grep', '-w', str(self.port)], input=established_connections.stdout, capture_output=True)
+        established_server_port_connections = subprocess.run(['grep', '-w', str(ut.safe_list(self.ip_list)[0])], input=established_port_connections.stdout, capture_output=True)
+        return "Established client connections:\n" + established_server_port_connections.stdout.decode('utf-8').strip()
 
 
 
@@ -87,6 +98,33 @@ class UdpSend(Udp):
             self.socket.sendto(data_bytes, (ip, self.port))
         except OSError as e :
             rt.logging.exception(e)
+
+
+
+class TcpServer(Tcp):
+
+
+    def __init__(self):
+
+        Tcp.__init__(self)
+
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.setsockopt(socket.SOL_TCP, socket.TCP_USER_TIMEOUT, 5000)
+        tcp_server_ip = ut.safe_list(self.ip_list)[0]
+        self.server_address = (tcp_server_ip, self.port)
+        self.socket.bind(self.server_address)
+        rt.logging.debug(f"Socket bind on {self.server_address[0]}:{self.server_address[1]} successful")
+
+
+    def dispatch_packet(self, data_bytes = '', client_socket = None):
+
+        if client_socket : 
+            try :
+                client_socket.send(data_bytes)
+                rt.logging.debug("data_bytes (dispatch_packet())", data_bytes)
+            except Exception as e :  #OSError
+                rt.logging.exception(f"Error in dispatch_packet: {e}")
+                raise Exception(f"Error in dispatch_packet: {e}")
 
 
 
