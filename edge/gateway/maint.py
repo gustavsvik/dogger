@@ -273,13 +273,13 @@ class NetworkTime(ta.MaintenanceTask) :
                 offset = ((t1 - t0) + (t2 - t3)) / 2    # https://en.wikipedia.org/wiki/Network_Time_Protocol#Clock_synchronization_algorithm
                 roundtrip = (t3 -  t0) - (t2 - t1)
 
-                print("Local computer time (t0)                               %.3f" % t0)
-                print("NTP server time (t1, receive timestamp)                %.3f" % t1)
-                print("NTP server time (t2, transmit timestamp)               %.3f" % t2)
-                print("Local computer time (t3)                               %.3f" % t3)
-                print("Offset                                                 %.1f ms" % (offset * 1000) )
-                print("Local -> NTP server -> local roundtrip time            %.1f ms" % (roundtrip * 1000) )
-                print("New local computer time                                %.3f" % (t3 + offset) )
+                rt.logging.debug("Local computer time (t0)                               %.3f" % t0)
+                rt.logging.debug("NTP server time (t1, receive timestamp)                %.3f" % t1)
+                rt.logging.debug("NTP server time (t2, transmit timestamp)               %.3f" % t2)
+                rt.logging.debug("Local computer time (t3)                               %.3f" % t3)
+                rt.logging.debug("Offset                                                 %.1f ms" % (offset * 1000) )
+                rt.logging.debug("Local -> NTP server -> local roundtrip time            %.1f ms" % (roundtrip * 1000) )
+                rt.logging.debug("New local computer time                                %.3f" % (t3 + offset) )
 
                 self.current_system_time = t3
                 self.current_system_time_offset = offset
@@ -298,9 +298,11 @@ class NetworkTime(ta.MaintenanceTask) :
 
     def adjust_win_system_time(self, dt) :
 
-        import win32api  # pip install pywin32
-
-        win32api.SetSystemTime(dt.year, dt.month, dt.isocalendar()[2], dt.day, dt.hour, dt.minute, dt.second, int(dt.microsecond / 1000) )
+        try : 
+            import win32api  # pip install pywin32
+            win32api.SetSystemTime(dt.year, dt.month, dt.isocalendar()[2], dt.day, dt.hour, dt.minute, dt.second, int(dt.microsecond / 1000) )
+        except ImportError : 
+            pass
 
 
     def run(self) :
