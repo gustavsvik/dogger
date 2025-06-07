@@ -63,7 +63,7 @@ class FileToSQL(ps.LoadFile):
         try:
             if insert_result > -1:
                 os.remove(self.current_file)
-        except (PermissionError, FileNotFoundError) as e:
+        except (PermissionError, FileNotFoundError, OSError) as e:
             rt.logging.exception(e)
 
         return insert_result
