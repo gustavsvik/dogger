@@ -129,7 +129,12 @@ def delimited_string_from_lists(channels, timestamps, values, byte_strings) :
     rt.logging.debug("channels", channels, "timestamps", timestamps, "values", values, "byte_strings", byte_strings)
     data_string = ""
     for channel, timestamp, value, byte_string in zip(ut.safe_list(channels), ut.safe_list(timestamps), ut.safe_list(values), ut.safe_list(byte_strings) ) :
-        data_string += str(channel) + ';' + str(timestamp) + ',' + str(value) + ',,' + byte_string.decode() + ',;'
+        decoded_byte_string = ''
+        try :
+            decoded_byte_string = byte_string.decode()
+        except UnicodeDecodeError as e :
+            rt.logging.exception(e)
+        data_string += str(channel) + ';' + str(timestamp) + ',' + str(value) + ',,' + decoded_byte_string + ',;'
 
     return data_string
 
@@ -527,7 +532,7 @@ class TextNumeric :
         rt.logging.debug("message_string", message_string, "bit_offset", bit_offset, "bits_arg_start", bits_arg_start, "bits_arg_end", bits_arg_end)
         return_val = data_field_binary_string(message_string, bit_offset, bits_arg_start, bits_arg_end)
         rt.logging.debug("return_val", return_val)
-        if return_val is not None and type_arg is not None and type_arg not in ['int', 'float', 'bool', 'str'] :
+        if return_val not in [None, []] and type_arg not in [None, 'int', 'float', 'bool', 'str'] :
 
             if type_arg[0] in ['u','U','e'] :
                 unpacked_int = 9999
@@ -538,7 +543,12 @@ class TextNumeric :
                     return_val.reverse()
                     format_string = "<" + "H" * no_of_value_registers
                     packed_string = struct.pack(format_string, *return_val)
-                    unpacked_int = struct.unpack("I", packed_string)[0]
+                    if len(return_val) == 1 :
+                        unpacked_int = struct.unpack("H", packed_string)[0]
+                    elif len(return_val) == 2 :
+                        unpacked_int = struct.unpack("I", packed_string)[0]
+                    else :
+                        unpacked_int = struct.unpack("L", packed_string)[0]
                     rt.logging.debug("unpacked_int", unpacked_int)
                 return_val = unpacked_int
             if type_arg[0] in ['i','I'] :
@@ -551,20 +561,30 @@ class TextNumeric :
                     return_val.reverse()
                     format_string = "<" + "H" * no_of_value_registers
                     packed_string = struct.pack(format_string, *return_val)
-                    unpacked_int = struct.unpack("i", packed_string)[0]
+                    if len(return_val) == 1 :
+                        unpacked_int = struct.unpack("h", packed_string)[0]
+                    elif len(return_val) == 2 :
+                        unpacked_int = struct.unpack("i", packed_string)[0]
+                    else :
+                        unpacked_int = struct.unpack("q", packed_string)[0]
                     rt.logging.debug("unpacked_int", unpacked_int)
                 return_val = unpacked_int
             if type_arg[0] in ['t'] :
                 return_val = pyais.util.encode_bin_as_ascii6(bitarray.bitarray(return_val))
                 rt.logging.debug("return_val (result of encode_bin_as_ascii6)", return_val)
-            if type_arg[0] in ['f'] :
+            if type_arg[0] in ['f', 'f-swp'] :
                 no_of_value_registers = len(return_val)
                 unpacked_float = -9999.0
                 if no_of_value_registers > 0 :
-                    return_val.reverse()
+                    if type_arg not in ['f-swp'] : return_val.reverse()
                     format_string = "<" + "H" * no_of_value_registers
                     packed_string = struct.pack(format_string, *return_val)
-                    unpacked_float = struct.unpack("f", packed_string)[0]
+                    if len(return_val) == 1 :
+                        unpacked_float = struct.unpack("e", packed_string)[0]
+                    elif len(return_val) == 2 :
+                        unpacked_float = struct.unpack("f", packed_string)[0]
+                    else :
+                        unpacked_float = struct.unpack("d", packed_string)[0]
                     rt.logging.debug("unpacked_float", unpacked_float)
                 return_val = unpacked_float
 
