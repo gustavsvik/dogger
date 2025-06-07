@@ -4,9 +4,12 @@
 import time
 import datetime
 import json
+import threading
 import socket
 import struct
 
+try : import unidecode
+except ImportError : pass
 try : from cryptography.fernet import Fernet
 except ImportError : pass
 
@@ -65,7 +68,7 @@ class DirectUpload(it.HttpHost, it.HttpClient):
 class SqlHttp(it.HttpHost, it.HttpClient):
 
 
-    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, max_age = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, http_scheme = None, max_age = None, max_horizon = None, host_api_url = None, client_api_url = None, max_connect_attempts = None, config_filepath = None, config_filename = None):
 
         self.channels = channels
         self.start_delay = start_delay
@@ -294,6 +297,146 @@ class SqlUdp(it.UdpSend):
 
 
 
+class SqlTcpServer(it.TcpServer):
+
+
+    def __init__(self) :
+
+        it.TcpServer.__init__(self)
+
+        self.sql = ps.SQL(gateway_database_connection = self.gateway_database_connection, config_filepath = self.config_filepath, config_filename = self.config_filename)
+        self.ais = tr.Ais()
+
+
+    def run_client(self, client_socket, client_addr):
+        try:
+            while True:
+                self.sql.connect_db()
+                channels, timestamps, values, byte_strings = self.sql.get_stored(from_channels = {21459}, max_age = 7*24*3600, max_number = 1, max_status = 1)
+                self.set_requested(channels, timestamps, values, byte_strings, client_socket)
+                channels, timestamps, values, byte_strings = self.sql.get_stored(from_channels = self.channels, max_age = self.max_age, max_number = self.max_number, max_status = 1)
+                rt.logging.debug("channels", channels, "timestamps", timestamps, "values", values)
+                rt.logging.debug("byte_strings", byte_strings)
+                self.set_requested(channels, timestamps, values, byte_strings, client_socket)
+                self.sql.close_db_connection()
+                time.sleep(1/self.transmit_rate)
+        except Exception as e:
+            rt.logging.exception(f"Error when handling client: {e}")
+        finally:
+            try :
+                client_socket.shutdown(socket.SHUT_RDWR)
+                client_socket.close()
+                rt.logging.debug(f"Connection to client ({client_addr[0]}:{client_addr[1]}) closed")
+            except Exception as e:
+                rt.logging.exception(f"Error when terminating client: {e}")
+            rt.logging.debug(self.list_connections())
+
+
+    def run(self) :
+
+        time.sleep(self.start_delay)
+
+        self.socket.listen()  #(10)
+        rt.logging.debug(f"Listening...")
+
+        client_address = None
+        client_socket = None
+
+        try : 
+            while True :
+                client_socket, client_address = self.socket.accept()
+                rt.logging.debug(f"Accepted connection from {client_address[0]}:{client_address[1]}")
+                thread = threading.Thread(target=self.run_client, args=(client_socket, client_address,))
+                thread.start()
+                rt.logging.debug(self.list_connections())
+        except Exception as e:
+            rt.logging.exception(f"Error: {e}")
+        finally:
+            try :
+                client_socket.shutdown(socket.SHUT_RDWR)
+                client_socket.close()
+                rt.logging.debug(f"Connection to client ({client_address[0]}:{client_address[1]}) closed")
+                self.socket.close()
+            except Exception as e:
+                rt.logging.exception(f"Error when terminating client/server: {e}")
+            rt.logging.debug(self.list_connections())
+
+
+
+class SqlTcpServerBytes(SqlTcpServer) :
+
+
+    def __init__(self, channels = None, start_delay = None, transmit_rate = None, gateway_database_connection = None, ip_list = None, port = None, max_age = None, max_number = None, config_filepath = None, config_filename = None) :
+
+        self.channels = channels
+        self.start_delay = start_delay
+        self.transmit_rate = transmit_rate
+        self.gateway_database_connection = gateway_database_connection
+        self.ip_list = ip_list
+        self.port = port
+        self.max_age = max_age
+        self.max_number = max_number
+
+        self.config_filepath = config_filepath
+        self.config_filename = config_filename
+
+        SqlTcpServer.__init__(self)
+
+
+    def set_requested(self, channels, timestamps, values, strings, client_socket = None) :
+
+        if client_socket :
+            for byte_string in strings :
+                rt.logging.debug("byte_string", byte_string)
+                if byte_string :
+                    lat = lon = None
+                    lora_channel_index = byte_string.find('21459'.encode())
+                    if lora_channel_index >= 0 :
+                        lora_json = json.loads(byte_string.decode('utf-8'))[0][3]
+                        lat = float(lora_json["lat"])
+                        lon = float(lora_json["lon"])
+                        mmsi = 234567891
+                        speed = float(lora_json["speed"])
+                        course = float(lora_json["heading"])
+                        length_offset = 0.0
+                        width_offset = 0.0
+                        call_sign = unidecode.unidecode(lora_json["callsign"], 'utf-8').upper()
+                        vessel_name = unidecode.unidecode(lora_json["shipname"], 'utf-8').upper()
+                        destination = unidecode.unidecode(lora_json["destination"], 'utf-8').upper()
+                    arpa_start_index = byte_string.find('$RATLL'.encode())
+                    sentence_finish_index = byte_string.find('*'.encode())
+                    if arpa_start_index >= 0 :
+                        if sentence_finish_index >= 0 :
+                            rt.logging.debug(byte_string[arpa_start_index:sentence_finish_index])
+                            lat_string = byte_string[arpa_start_index+10:arpa_start_index+21]
+                            lat = 0.0
+                            lat += float(lat_string[0:2]) + float(lat_string[2:9])/60.0
+                            if lat_string[9] == 'S' : lat = -lat
+                            lon_string = byte_string[arpa_start_index+22:arpa_start_index+34]
+                            lon = 0.0
+                            lon += float(lon_string[0:3]) + float(lon_string[3:10])/60.0
+                            if lon_string[10] == 'W' : lon = -lon
+                            mmsi = 123456789
+                            speed = 1.0
+                            course = 10.0
+                            length_offset = 20.0
+                            width_offset = 20.0
+                            call_sign = 'GVIK RADAR'
+                            vessel_name = 'GVIK RADAR'
+                            destination = 'GUSTAVSVIK RADAR ID'
+                    if lat and lon :
+                        aivdm_pos_payload = self.ais.aivdm_from_pos(mmsis = [mmsi], speeds = [speed], courses = [course], statuses = [0], length_offsets = [length_offset], width_offsets = [width_offset], timestamp = int(time.time()) , latitude = lat, longitude = lon)
+                        rt.logging.debug("aivdm_pos_payload", aivdm_pos_payload)
+                        self.dispatch_packet(bytes(aivdm_pos_payload[0], 'utf-8') , client_socket)
+                        rt.logging.debug(mmsi, call_sign, vessel_name, destination)
+                        aivdm_static_payload = self.ais.aivdm_from_static(mmsis = [mmsi], call_signs = [call_sign], vessel_names = [vessel_name], ship_types = [0], destinations = [destination])
+                        rt.logging.debug("aivdm_static_payload", aivdm_static_payload)
+                        self.dispatch_packet(bytes(aivdm_static_payload[0], 'utf-8') , client_socket)
+                    rt.logging.debug("len(byte_string)", len(byte_string), "byte_string", byte_string)
+                    self.dispatch_packet(byte_string, client_socket)
+
+
+
 class SqlUdpRawValue(SqlUdp) :
 
 
@@ -376,7 +519,8 @@ class SqlUdpRawBytes(SqlUdp) :
             try :
                 if not (None in [channel, timestamp, string]) :
                     rt.logging.debug("int(channel)", int(channel), "int(timestamp)", int(timestamp), "string", string)
-                    if self.crypto_key is not None :
+                    rt.logging.debug("self.crypto_key", self.crypto_key)
+                    if self.crypto_key not in [None, ''] :
                         #crypto_key = b'XUFA58vllD2n41e7NZDZkyPiUCECkxFsBjF_HaKlIrI='
                         fernet = Fernet(self.crypto_key)
                         encrypted_string = fernet.encrypt(string)
