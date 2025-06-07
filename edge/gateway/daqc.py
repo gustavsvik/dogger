@@ -53,12 +53,14 @@ class UdpHttp(it.UdpReceive) :
                 common_channels = channels
             else :
                 common_channels = channels.intersection(self.channels)
+            rt.logging.debug("common_channels", common_channels)
 
             try :
                 http = li.DirectUpload(channels = common_channels, start_delay = self.start_delay, max_connect_attempts = self.max_connect_attempts, http_scheme = self.http_scheme, config_filepath = self.config_filepath, config_filename = self.config_filename)
                 for current_ip in self.ip_list :
                     res = http.send_request(start_time = -9999, end_time = -9999, duration = 10, unit = 1, delete_horizon = 3600, ip = current_ip)
                     timestamps = ut.safe_list(timestamps)
+                    timestamps = [int(time.time()) if timestamp<1 else timestamp for timestamp in timestamps]
                     if 0 in timestamps :  #if not 0 in timestamps :
                         rt.logging.debug("timestamps", timestamps)
                         tr.list_replace(timestamps, 0, int(time.time()))
@@ -145,23 +147,42 @@ class UdpBytesHttp(UdpHttp) :
     def run(self):
 
         time.sleep(self.start_delay)
-
+        rt.logging.debug("len(self.channels)", len(self.channels))
         while True :
 
             #time.sleep(1/self.transmit_rate)
             data, address = self.socket.recvfrom(4096)
             rt.logging.debug("data", data, "len(data)", len(data))
-            try :
-                values = struct.unpack_from('<HI', data, offset = 0)
-            except struct.error as e :
-                rt.logging.exception(e)
-            rt.logging.debug("values", values)
-            try :
-                byte_string_tuple = struct.unpack_from( '{}s'.format(len(data) - 6), data[6:len(data)], offset = 0)
-            except struct.error as e :
-                rt.logging.exception(e)
-            byte_string = byte_string_tuple[0]
-            rt.logging.debug("channel", int(values[0]), "timestamp", int(values[1]), "byte_string", byte_string)
+
+            channel = None
+            timestamp = None
+            byte_string = None
+
+            if len(self.channels) > 0 :
+                channel = list(self.channels)[0]
+                orig_timestamp = timestamp = int(time.time())
+                byte_string = b''
+                while timestamp == orig_timestamp :
+                    data, address = self.socket.recvfrom(4096)
+                    byte_string += data + b' '
+                    timestamp = int(time.time())
+
+            if not self.channels :
+                try :
+                    values = struct.unpack_from('<HI', data, offset = 0)
+                except struct.error as e :
+                    rt.logging.exception(e)
+                rt.logging.debug("values", values)
+                channel = int(values[0])
+                timestamp = int(values[1])
+                try :
+                    byte_string_tuple = struct.unpack_from( '{}s'.format(len(data) - 6), data[6:len(data)], offset = 0)
+                except struct.error as e :
+                    rt.logging.exception(e)
+                byte_string = byte_string_tuple[0]
+
+            rt.logging.debug("channel", channel, "timestamp", timestamp, "byte_string", byte_string)
+
             rt.logging.debug("self.crypto_key", self.crypto_key)
             if self.crypto_key not in [None, ''] :
                 try :
@@ -174,9 +195,10 @@ class UdpBytesHttp(UdpHttp) :
                 except cryptography.fernet.InvalidToken as e :
                     rt.logging.exception(e)
             rt.logging.debug("byte_string (decrypted)", byte_string)
+            byte_string = byte_string.replace(b'\r', b'').replace(b'\n', b'')
             replaced_byte_string = tr.armor_separators_csv(byte_string)
             rt.logging.debug("replaced_byte_string", replaced_byte_string)
-            self.upload_data(int(values[0]), int(values[1]), -9999.0, replaced_byte_string)
+            self.upload_data({channel}, timestamp, -9999.0, replaced_byte_string)
 
 
 
@@ -857,7 +879,7 @@ class AisTcpAivdmFile(TcpFile):
             data_lines = []
             if data is not None :
                 data_lines = data.decode("utf-8").splitlines()
-                print("data_lines", data_lines)
+                rt.logging.debug("data_lines", data_lines)
 
             #timestamp_secs, current_timetuple, timestamp_microsecs, next_sample_secs = tr.timestamp_to_date_times(sample_rate = self.sample_rate)
             #ais_data_array = self.ais.decode_to_channels(char_data = data_lines, channel_data = self.channels, time_tuple = current_timetuple, line_end = None)
